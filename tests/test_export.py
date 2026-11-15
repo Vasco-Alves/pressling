@@ -385,7 +385,8 @@ class FromThePage(Base):
         self.assertEqual(sorted(x for x in self.lines_of("Late Shift.m3u8") if not x.startswith("#")), ["A - One.mp3", "B - Two.mp3"])
 
     def test_the_playlist_keeps_the_lists_order(self):
-        ids = list(reversed(self.ids()))
+        by_file = {s["file"]: s["id"] for s in self.server.collection.songs.values()}
+        ids = [by_file["B - Two.mp3"], by_file["A - One.mp3"]]  # the list's own order, not alphabetical (and never the order the folders happened to be read in, which differs between systems)
         self.ask("POST", "/api/export/copy", dict(ids=ids, folder=self.out, name="Mine"))
         self.wait()
         self.assertEqual([x for x in self.lines_of("Mine.m3u8") if not x.startswith("#")], ["Techno/B - Two.mp3", "Acid/A - One.mp3"])
