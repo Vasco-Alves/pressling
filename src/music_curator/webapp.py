@@ -1087,7 +1087,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None
         route = self._route()
         if route not in ("/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
-                         "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
+                         "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import", "/api/playlists/describe"):
             return self._reply(404, b"Not found")
         self._when_ready()
         if self.server.lan and route in PC_ONLY and not self._on_this_computer():

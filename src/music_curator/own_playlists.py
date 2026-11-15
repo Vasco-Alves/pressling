@@ -16,6 +16,7 @@ from .export import picked
 from .webapp import name_key, own_lists_path, play_key, text_key
 
 LONGEST_NAME = 100
+LONGEST_ABOUT = 500  # a playlist's description: a few lines of your own
 LENGTH_GAP_S = 10  # copies of a song can differ by a few seconds. Past this it's another version, whatever it's called
 MAX_LISTED = 200  # songs that weren't found, named on the page
 LONGEST_LINE = 2000  # no real path or name comes close
@@ -24,8 +25,8 @@ READINGS = 5  # ways to read an "Artist - Title" with dashes in it. A file made 
 
 def well_formed(saved):
     """What can be used from the saved file. None if there are things in it and not one is a playlist as the app writes them: that's some other file, or one from
-    a later version, and saving over it would lose all of it."""
-    kept = {k: dict(name=p["name"], entries=[dict(key=e["key"], name=e["name"], file=e.get("file", "")) for e in p["entries"] if isinstance(e, dict) and isinstance(e.get("key"), str) and isinstance(e.get("name"), str)])
+    a later version, and saving over it would lose all of it. A playlist's description is kept only when there is one: one you never wrote leaves the file as it always was."""
+    kept = {k: dict(name=p["name"], entries=[dict(key=e["key"], name=e["name"], file=e.get("file", "")) for e in p["entries"] if isinstance(e, dict) and isinstance(e.get("key"), str) and isinstance(e.get("name"), str)], **_described(p))
             for k, p in saved.items() if isinstance(p, dict) and isinstance(p.get("name"), str) and p["name"].strip() and isinstance(p.get("entries"), list)}
     return kept if kept or not saved else None
 
@@ -47,7 +48,7 @@ def listed(collection):
     index, out = _by_name(collection.songs.values()), []
     for list_id, p in collection.own.items():
         found = [(e, _song_of(e, index)) for e in p["entries"]]
-        out.append(dict(id=list_id, name=p["name"], ids=list(dict.fromkeys(s["id"] for _, s in found if s)), away=[e["name"] for e, s in found if not s]))
+        out.append(dict(id=list_id, name=p["name"], ids=list(dict.fromkeys(s["id"] for _, s in found if s)), away=[e["name"] for e, s in found if not s], description=p.get("description", "")))
     return sorted(out, key=lambda p: p["name"].casefold())
 
 
@@ -99,6 +100,23 @@ def _change(collection, change):
 
 def _clean(name):
     return " ".join(name.split())[:LONGEST_NAME].strip() if isinstance(name, str) else ""
+
+
+def _about(text):
+    """A description as it's kept: plain text of up to LONGEST_ABOUT characters, with its line breaks, but no blank lines at either end, never two blank lines in a row,
+    and nothing in it that isn't text (control characters and the like). An empty one is no description. The page always shows it as text, never as part of the page."""
+    if not isinstance(text, str):
+        return ""
+    text = re.sub(r"\r\n?|[\u2028\u2029\x0b\x0c\x85]", "\n", text[:LONGEST_ABOUT * 4]).replace("\t", " ")  # every kind of line break becomes one kind. (Far more than fits is never looked at.)
+    text = "".join(c for c in text if c == "\n" or unicodedata.category(c) not in ("Cc", "Cs"))
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(line.rstrip() for line in text.split("\n"))).strip()
+    return text[:LONGEST_ABOUT].rstrip()
+
+
+def _described(p):
+    """A saved playlist's description, as it goes back in: nothing at all when it has none."""
+    about = _about(p.get("description"))
+    return dict(description=about) if about else {}
 
 
 def _new_id(draft):
@@ -277,6 +295,16 @@ def handle(collection, route, body):
         draft[target]["name"] = name
         return {}
 
+    def describe(draft):  # what you wrote about it. An empty one takes the description away
+        if not isinstance(body.get("text"), str):
+            return dict(error="That isn't a description.")
+        about = _about(body["text"])
+        if about:
+            draft[target]["description"] = about
+        else:
+            draft[target].pop("description", None)
+        return {}
+
     def delete(draft):
         del draft[target]
         return {}
@@ -284,7 +312,7 @@ def handle(collection, route, body):
     def checked(draft):
         if what != "new" and target not in draft:
             return dict(error="That playlist isn't there any more. Read the library again.")
-        return dict(new=new, add=add, remove=remove, move=move, rename=rename, delete=delete)[what](draft)
+        return dict(new=new, add=add, remove=remove, move=move, rename=rename, describe=describe, delete=delete)[what](draft)
 
     with collection.lock:
         songs, index = picked(collection, body.get("ids")), _by_name(collection.songs.values())

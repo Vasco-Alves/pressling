@@ -935,8 +935,8 @@ function labelItems() {
 function playlistItems() { // the ones made here, then your Spotify playlists as far as your files go
   const item = (p, key, line) => {
     const songs = p.ids.map((id) => S.byId.get(id)).filter(Boolean), genre = (tally(songs.map((s) => s.genre))[0] || [""])[0];
-    return { own: key !== p.name, name: p.name, songs, year: Math.max(0, ...yearsOf(songs)), lines: [line(songs.length), genre].filter(Boolean),
-      href: `#/songs?${q2({ playlist: key, area: "all" })}`, hay: fold(`${p.name} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
+    return { own: key !== p.name, name: p.name, songs, year: Math.max(0, ...yearsOf(songs)), lines: [line(songs.length), genre, (p.description || "").replace(/\s+/g, " ")].filter(Boolean), // (your own description, on one line, cut short where the card ends)
+      href: `#/songs?${q2({ playlist: key, area: "all" })}`, hay: fold(`${p.name} ${p.description || ""} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
   };
   return [...[...(S.meta.own_playlists || [])].sort((a, b) => (b.name === FAVOURITES) - (a.name === FAVOURITES)).map((p) => item(p, OWN + p.id, (n) => (p.away.length ? `${fmt(n)} of ${fmt(n + p.away.length)} here` : n ? plural(n, "song") : "No songs yet"))),
     ...(S.meta.my_playlists || []).map((p) => item(p, p.name, (n) => `${fmt(n)} of ${fmt(p.total)} here`)).filter((x) => x.songs.length)];
@@ -987,6 +987,39 @@ function playlistHead(name, songs) {
   return shelfHead({ name, by: plural(new Set(songs.flatMap(artistsOf)).size, "artist"), songs,
     facts: [["You have", `${away ? `${fmt(songs.length)} of ${fmt(total)} songs` : plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}`], ["Only on Spotify", away ? plural(away, "song") : ""], ["Genres", namesIn(songs, "genre", 4)], ["Years", yearSpan(yearsOf(songs))]] });
 }
+function aboutBox(p) { // what you wrote about one of your playlists, under its name at the top of its songs, and the way to write it or change it
+  const box = el("div", { class: "list-about" });
+  const show = (focus) => { // as it is now. focus: the keyboard goes back to its button
+    const button = el("button", { class: "linkish", type: "button", onclick: write, "aria-label": p.description ? "Edit the description" : null }, p.description ? "Edit" : "Add a description");
+    box.replaceChildren(...(p.description ? [el("p", { class: "list-about-text", dir: "auto" }, p.description)] : []), button); // (dir: Arabic or Hebrew reads right to left)
+    if (focus) button.focus();
+  };
+  function write() { // a box to write in, tall enough for what's there (up to eight lines). Enter starts a new line, Ctrl+Enter saves, Esc puts it away unsaved
+    const text = el("textarea", { rows: Math.min(8, Math.max(3, (p.description || "").split("\n").length + 1)), maxlength: 500, dir: "auto", placeholder: "A few words about this playlist", "aria-label": `About ${p.name}` }, p.description || "");
+    const left = el("span", { class: "list-about-left" }), said = el("p", { class: "modal-said", role: "alert" });
+    const counted = () => { const n = Math.max(0, 500 - text.value.length); left.textContent = n <= 100 ? `${plural(n, "letter")} left` : ""; }; // said only near the end
+    const save = el("button", { class: "btn primary small", type: "button", onclick: async () => {
+      save.disabled = true; // a second press before it's saved does nothing
+      const r = await post("/api/playlists/describe", { list: p.id, text: text.value });
+      save.disabled = false;
+      if (r.error) return (said.textContent = r.error);
+      tookLists(r);
+      p = ownList(OWN + p.id) || p;
+      show(true);
+    } }, "Save");
+    text.addEventListener("input", counted);
+    text.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); show(true); } // (not the page's own Esc as well)
+      else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save.click(); }
+    });
+    counted();
+    box.replaceChildren(text, said, el("div", { class: "list-about-go" }, left, el("button", { class: "linkish", type: "button", onclick: () => show(true) }, "Cancel"), save));
+    text.setSelectionRange(text.value.length, text.value.length); // the cursor at the end, to add to what is there
+    text.focus();
+  }
+  show(false);
+  return box;
+}
 function ownHead(p, songs) {
   const changed = (r) => { tookLists(r); route(); return ""; };
   const rename = el("button", { class: "btn small", type: "button", onclick: () => nameBox("Rename this playlist", "Rename", p.name, async (name) => {
@@ -1024,8 +1057,10 @@ function ownHead(p, songs) {
       if (r.error) return toast(r.error);
       changed(r);
     } }, "Take them out of this playlist")) : null;
-  return shelfHead({ name: p.name, by: songs.length ? plural(new Set(songs.flatMap(artistsOf)).size, "artist") : "", songs, links: [send, rename, remove], below: away,
+  const head = shelfHead({ name: p.name, by: songs.length ? plural(new Set(songs.flatMap(artistsOf)).size, "artist") : "", songs, links: [send, rename, remove], below: away,
     facts: [["You have", songs.length ? `${plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}` : ""], ["Not here", p.away.length ? plural(p.away.length, "song") : ""], ["On Spotify", there ? `${fmt(both)} of ${plural(songs.length, "song")}, in the playlist with this name` : ""], ["Genres", namesIn(songs, "genre", 4)], ["Years", yearSpan(yearsOf(songs))]] });
+  (head.querySelector(".shelf-info .by") || head.querySelector(".shelf-info h2")).after(aboutBox(p)); // your description, under its name
+  return head;
 }
 function pageShelf(params, o) {
   const f = { q: params.get("q") || "", sort: params.get("sort") || "most", many: params.get("many") === "1" }, all = o.items();

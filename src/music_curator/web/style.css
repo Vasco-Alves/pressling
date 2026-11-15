@@ -199,6 +199,16 @@ input::placeholder { color: var(--ink-3); }
 .shelf-info h2 { font-size: 20px; font-weight: 700; letter-spacing: -.015em; overflow-wrap: anywhere; }
 .shelf-info .by { color: var(--ink-2); font-size: 15px; margin-top: 1px; overflow-wrap: anywhere; }
 .shelf-info .facts-list { margin-top: 10px; }
+.shelf-head:has(.list-about) { flex-wrap: wrap; } /* one of your own playlists: where the column is too narrow beside its cover (a tall screen with the panel open), its name and words go under the cover */
+.shelf-head:has(.list-about) .shelf-info { min-width: min(260px, 100%); align-self: stretch; } /* (a width, never a height, so a phone's one-column head has no gap under its buttons; and there the box to write in is as wide as the card) */
+.list-about { margin-top: 8px; max-width: 64ch; } /* what you wrote about one of your own playlists, under its name: its line breaks kept */
+.list-about-text { color: var(--ink-2); font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.list-about > .linkish { display: block; padding: 4px 0; } /* (a taller place to tap) */
+.list-about textarea { display: block; width: 100%; min-height: 78px; max-height: 40vh; resize: vertical; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: 14px; line-height: 1.45; }
+.list-about textarea::placeholder { color: var(--ink-3); }
+.list-about .modal-said { margin-top: 6px; }
+.list-about-go { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 14px; margin-top: 8px; }
+.list-about-left { margin-right: auto; color: var(--ink-3); font-size: 12.5px; }
 @media (max-width: 560px) { .shelf-head { flex-direction: column; } }
 .shelf .cover .over { inset: auto 8px 8px auto; width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 12px rgba(0, 0, 0, .4); } /* clicking a cover opens the record: play is its own button */
 @media (hover: none) { .shelf .cover .over { opacity: 1; } }

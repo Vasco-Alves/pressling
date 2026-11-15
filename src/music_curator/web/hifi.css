@@ -149,6 +149,7 @@ input[type="range"]:hover:not(:disabled)::-webkit-slider-thumb { transform: scal
 .btn.primary:hover:not(:disabled), .pill.on:hover, .chip.on:hover { box-shadow: 0 1px 0 rgba(0, 0, 0, .5), 0 2px 14px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -9px 11px -5px rgba(255, 255, 255, .75); }
 .btn:active:not(:disabled), .chip:active, .pill:active, .btn.primary:active:not(:disabled), .pill.on:active, .chip.on:active { transform: translateY(1px); box-shadow: var(--pressed); }
 input[type="search"], input[type="text"], .view-toggle { background-color: var(--well); box-shadow: var(--well-shadow); background-image: none; }
+.list-about textarea { background-color: var(--well); box-shadow: var(--well-shadow); } /* a playlist's description, while it's written: sunk in like the other boxes */
 .view-toggle button.on { background-image: var(--gloss); box-shadow: var(--raised); }
 .nav.active svg { color: var(--accent); filter: drop-shadow(0 0 4px var(--accent-glow)); }
 

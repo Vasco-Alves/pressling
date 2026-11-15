@@ -186,6 +186,39 @@ class Remembering(unittest.TestCase):
         self.assertEqual(own._free_name("Y", draft), "Y")
 
 
+class Describing(unittest.TestCase):
+    def test_line_breaks_are_kept(self):
+        self.assertEqual(own._about("Late nights.\nLoud ones."), "Late nights.\nLoud ones.")
+
+    def test_every_kind_of_line_break_becomes_one_kind(self):
+        self.assertEqual(own._about("a\r\nb\rc\u2028d"), "a\nb\nc\nd")
+
+    def test_no_blank_lines_at_the_ends_and_never_two_in_a_row(self):
+        self.assertEqual(own._about("\n\n  a  \n\n\n\n b\n\n"), "a\n\n b")
+
+    def test_nothing_that_isnt_text(self):
+        self.assertEqual(own._about("a\x00b\x1b[31mc\x07\td\ud800"), "ab[31mc d")
+
+    def test_what_looks_like_a_page_stays_text(self):  # the page shows it as text, so it's kept just as it was written
+        self.assertEqual(own._about('<b onclick="x()">Bold</b>'), '<b onclick="x()">Bold</b>')
+
+    def test_it_isnt_endless(self):
+        self.assertEqual(len(own._about("x" * 100_000)), own.LONGEST_ABOUT)
+        self.assertEqual(own._about("x" * (own.LONGEST_ABOUT - 1) + "\n\ny"), "x" * (own.LONGEST_ABOUT - 1))  # and doesn't end in a line break when it's cut
+
+    def test_only_text_and_nothing_but_spaces_is_no_description(self):
+        for nothing in (None, 5, ["x"], "", " \n \t "):
+            with self.subTest(nothing):
+                self.assertEqual(own._about(nothing), "")
+
+    def test_what_a_saved_file_can_hold(self):
+        kept = own.well_formed({"a": dict(name="A", entries=[], description="Mine\nall mine"), "b": dict(name="B", entries=[], description=""), "c": dict(name="C", entries=[], description=5), "d": dict(name="D", entries=[])})
+        self.assertEqual(kept, {"a": dict(name="A", entries=[], description="Mine\nall mine"), "b": dict(name="B", entries=[]), "c": dict(name="C", entries=[]), "d": dict(name="D", entries=[])})
+
+    def test_one_written_by_hand_in_the_file_is_tidied_like_any_other(self):
+        self.assertEqual(own.well_formed({"a": dict(name="A", entries=[], description="x" * 900 + "\x00")})["a"]["description"], "x" * own.LONGEST_ABOUT)
+
+
 class FromThePage(Base):
     def setUp(self):
         super().setUp()
@@ -532,6 +565,111 @@ class FromThePage(Base):
         with open(self.saved, encoding="utf-8") as f:
             self.assertEqual(f.read(), before)
 
+    # descriptions
+
+    def saved_file(self):
+        with open(self.saved, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_a_playlist_has_no_description_until_you_write_one(self):
+        self.make("X", self.one)
+        self.assertEqual(self.the_list()["description"], "")
+        self.assertEqual(list(next(iter(self.saved_file().values()))), ["name", "entries"])  # the file is just as it always was
+
+    def test_a_description_can_be_written(self):
+        made = self.make("X", self.one)
+        answer = self.fine("describe", list=made, text="  Late nights.\r\nLoud ones.  ")
+        self.assertEqual(self.the_list()["description"], "Late nights.\nLoud ones.")
+        self.assertEqual(answer["lists"], self.lists())
+
+    def test_it_is_kept_with_the_playlist_and_still_there_after_a_restart(self):
+        made = self.make("X", self.one)
+        self.fine("describe", list=made, text="Mine")
+        self.assertEqual(self.saved_file()[made]["description"], "Mine")
+        self.server.collection = webapp.Collection(webapp.app_paths())
+        self.assertEqual(self.the_list()["description"], "Mine")
+
+    def test_it_can_be_changed(self):
+        made = self.make("X")
+        self.fine("describe", list=made, text="One")
+        self.fine("describe", list=made, text="Two")
+        self.assertEqual(self.the_list()["description"], "Two")
+
+    def test_an_empty_one_takes_it_away(self):
+        made = self.make("X")
+        self.fine("describe", list=made, text="One")
+        self.fine("describe", list=made, text=" \n ")
+        self.assertEqual(self.the_list()["description"], "")
+        self.assertNotIn("description", self.saved_file()[made])
+
+    def test_only_text_can_be_a_description(self):
+        made = self.make("X")
+        self.fine("describe", list=made, text="One")
+        for wrong in (None, 5, ["Two"]):
+            with self.subTest(wrong):
+                self.assertIn("isn't a description", self.problem("describe", list=made, text=wrong))
+        self.assertIn("isn't a description", self.problem("describe", list=made))
+        self.assertEqual(self.the_list()["description"], "One")
+
+    def test_it_isnt_endless(self):
+        made = self.make("X")
+        self.fine("describe", list=made, text="x" * 5000)
+        self.assertEqual(len(self.the_list()["description"]), own.LONGEST_ABOUT)
+
+    def test_a_description_belongs_to_one_playlist(self):
+        one, two = self.make("One"), self.make("Two")
+        self.fine("describe", list=two, text="Mine")
+        self.assertEqual({p["name"]: p["description"] for p in self.lists()}, {"One": "", "Two": "Mine"})
+
+    def test_a_playlist_that_isnt_there_has_no_description_to_write(self):
+        self.assertIn("isn't there", self.problem("describe", list="nope", text="x"))
+        self.assertFalse(os.path.exists(self.saved))
+
+    def test_renaming_adding_moving_and_taking_out_keep_it(self):
+        made = self.make("X", self.one, self.two)
+        self.fine("describe", list=made, text="Mine")
+        self.fine("rename", list=made, name="Y")
+        self.fine("add", list=made, ids=self.ids(self.three))
+        self.fine("move", list=made, ids=self.ids(self.three), before=self.ids(self.one)[0])
+        self.fine("remove", list=made, ids=self.ids(self.two))
+        self.assertEqual((self.the_list()["name"], self.the_list()["description"]), ("Y", "Mine"))
+
+    def test_a_file_that_cant_be_read_is_never_saved_over(self):
+        made = self.make("X")
+        with open(self.saved, "w", encoding="utf-8") as f:
+            f.write("{ not json")
+        self.assertIn("can't be read", self.problem("describe", list=made, text="Mine"))
+        with open(self.saved, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "{ not json")
+
+    def test_a_save_that_fails_changes_nothing(self):
+        made = self.make("X")
+        with mock.patch.object(own.os, "replace", side_effect=OSError(28, "No space left")):
+            self.assertIn("Couldn't save", self.problem("describe", list=made, text="Mine"))
+        self.assertEqual(self.the_list()["description"], "")
+
+    def test_one_written_in_the_file_by_another_copy_of_the_app_is_noticed(self):
+        made = self.make("X")
+        saved = self.saved_file()
+        saved[made]["description"] = "From elsewhere"
+        with open(self.saved, "w", encoding="utf-8") as f:
+            json.dump(saved, f)
+        self.assertEqual(self.the_list()["description"], "From elsewhere")
+
+    def test_an_imported_playlist_starts_with_none(self):
+        self.fine("import", name="In", text=f"#EXTM3U\n{self.one}\n")
+        self.assertEqual(self.the_list()["description"], "")
+
+    def test_save_as_files_leaves_it_out(self):  # an M3U8 file has no place for one: other players would only skip it
+        made = self.make("Late Shift", self.one)
+        self.ask("POST", "/api/export/playlists", dict(folder=self.out))
+        with open(os.path.join(self.out, "Late Shift.m3u8"), encoding="utf-8") as f:
+            before = f.read()
+        self.fine("describe", list=made, text="Mine")
+        self.ask("POST", "/api/export/playlists", dict(folder=self.out))
+        with open(os.path.join(self.out, "Late Shift.m3u8"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), before)
+
     # importing
 
     def bring(self, text, name="Imported"):
@@ -671,6 +809,7 @@ class FromThePage(Base):
 
     def test_only_what_the_page_uses(self):
         self.assertEqual(self.post("nope", name="X")[0], 404)
+        self.assertEqual(self.ask("GET", "/api/playlists/describe")[0], 404)
         self.assertEqual(self.ask("GET", "/api/playlists/new")[0], 404)
 
     def test_there_are_limits_on_size(self):  # small limits here: the server stops reading a body that's too big, and with a huge one the sender's side then fails at random
