@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from . import config
+from . import __version__, config
 
 
 def _setup(args):
@@ -72,9 +72,10 @@ def cmd_doctor(args):
     return 0 if ok else 1
 
 
-def main(argv=None):
-    p = argparse.ArgumentParser(prog="curator", description="Pressling: a player for your own music files with a curator built in. It verifies songs against "
+def main(argv=None, prog="curator"):
+    p = argparse.ArgumentParser(prog=prog, description="Pressling: a player for your own music files with a curator built in. It verifies songs against "
                                 "Discogs (and fallbacks), settles versions by length and fingerprints, and writes clean tags + covers.")
+    p.add_argument("--version", action="version", version=f"Pressling {__version__}")
     p.add_argument("--config", help="path to curator.toml (default: $CURATOR_CONFIG or ./curator.toml)")
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
@@ -245,7 +246,7 @@ def _in_turn(run, dry_run=False):
 def pressling(argv=None):
     """The `pressling` command: on its own it opens the app, and with a command it does what `curator` does."""
     argv = sys.argv[1:] if argv is None else argv
-    return main(argv or ["serve"])
+    return main(argv or ["serve"], prog="pressling")
 
 
 if __name__ == "__main__":

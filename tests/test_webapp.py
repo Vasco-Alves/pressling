@@ -2,14 +2,19 @@
 
     python -m unittest discover -s tests
 """
+import contextlib
 import csv
 import http.client
+import io
 import ipaddress
 import json
 import os
+import socket
+import socketserver
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest import mock
 
@@ -382,6 +387,546 @@ class Extras(unittest.TestCase):
         r = c.getresponse()
         self.assertEqual((r.status, json.loads(r.read())), (200, dict(extras=dict(curator=False, spotify=False))))
         c.close()
+
+
+class SecondStart(unittest.TestCase):
+    """Starting the app while it is already running shows the copy that is there, instead of starting a second one on the next port."""
+
+    real_server = webapp.Server
+    NO_PAGE = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(webapp.config.load, None)
+        self.settings = os.path.join(self.tmp.name, "settings", "curator.toml")
+        webapp.config.load(self.settings)
+        self.asked = []  # the addresses serve() asked to take, where a test notes them
+
+    def has_the_port(self, answer, wait=0.0, drip=0.0, heard=None):
+        """A program holding a port on this computer. It answers every call with `answer` after `wait` seconds (`answer` can be a function of the path asked for,
+        `wait` a function of how many calls came so far; None for an answer takes the call and never answers), a byte every `drip` seconds if that is given,
+        and notes what it was asked in `heard`. Returns its port."""
+        over, calls = threading.Event(), []
+
+        class Talk(socketserver.StreamRequestHandler):
+            def handle(self):
+                asked = line = self.rfile.readline()
+                while heard is not None and line not in (b"\r\n", b"\n", b""):
+                    line = self.rfile.readline()
+                    asked += line
+                if heard is not None:
+                    heard.append(asked)
+                calls.append(1)
+                if answer is None:
+                    over.wait(20)
+                    return
+                time.sleep(wait(len(calls)) if callable(wait) else wait)
+                words = asked.split(b" ")
+                reply = answer(words[1].decode("latin-1") if len(words) > 1 else "") if callable(answer) else answer
+                try:
+                    for i in range(len(reply) if drip else 0):
+                        if over.wait(drip):
+                            return
+                        self.wfile.write(reply[i:i + 1])
+                        self.wfile.flush()
+                    if not drip:
+                        self.wfile.write(reply)
+                except OSError:  # the one who asked has hung up
+                    pass
+
+        there = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Talk)
+        there.daemon_threads = True
+        threading.Thread(target=there.serve_forever, args=(0.02,), daemon=True).start()  # (looking often whether to stop: the tests end sooner)
+        self.addCleanup(there.server_close)
+        self.addCleanup(there.shutdown)
+        self.addCleanup(over.set)
+        return there.server_address[1]
+
+    @staticmethod
+    def free_port():
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        return port
+
+    @staticmethod
+    def says(told):
+        body = json.dumps(told).encode()
+        return b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body
+
+    def me(self, **more):
+        """What a copy running with these same settings says about itself."""
+        return dict(dict(app="pressling", config_file=os.path.abspath(self.settings)), **more)
+
+    def older(self, config_file=None):
+        """A copy from before the question existed: it only knows its settings page."""
+        page = self.says(dict(reason="first", config_file=config_file or os.path.abspath(self.settings), picker=True, library="", inbox=[], review="", app_folder=""))
+        return lambda path: page if path == "/api/settings" else self.NO_PAGE
+
+    def on_this_computer_only(self, address, handler):
+        """In place of webapp.Server: the address asked for is noted, and the port is taken on this computer only (the tests never open a port to the network)."""
+        self.asked.append(address)
+        return self.real_server(("127.0.0.1", address[1]), handler)
+
+    def home(self):
+        """As on a home network at 192.168.1.20, with nothing really opened to it and no call really made to it."""
+        return mock.patch.multiple(webapp, lan_address=mock.Mock(return_value="192.168.1.20"), lan_key=mock.Mock(return_value="0123456789"),
+                                   Server=self.on_this_computer_only, _taken=mock.Mock(return_value=False))
+
+    def start(self, port, ask=20, **how):
+        """serve(), with the browser never really opened, the library never really read and the server never really left running: what it returned, what it printed, and the addresses it opened.
+        ask: how long whatever has the port is given to answer (long, so that a busy computer doesn't change what a test sees)."""
+        opened, said = [], io.StringIO()
+        with mock.patch.object(webapp.webbrowser, "open", opened.append), mock.patch.object(webapp.threading, "Timer"), mock.patch.object(webapp, "ASK_S", ask), \
+                mock.patch.object(webapp, "Collection", side_effect=AssertionError("the library was read")), \
+                mock.patch.object(self.real_server, "serve_forever", lambda self: None), contextlib.redirect_stdout(said):
+            code = webapp.serve(port, **how)
+        return code, said.getvalue(), opened
+
+    # ---- who is on a port ----
+
+    def test_the_same_app_with_the_same_settings_is_known(self):
+        who, told = webapp.who_is_on(self.has_the_port(self.says(self.me(up=12.5, opens=True))), 20)
+        self.assertEqual((who, told["up"], told["opens"]), ("same", 12.5, True))
+        who, told = webapp.who_is_on(self.has_the_port(self.older()), 20)
+        self.assertEqual((who, told.get("up"), told.get("opens")), ("same", None, None))
+
+    def test_two_spellings_of_one_settings_file_are_the_same(self):
+        folder = os.path.dirname(os.path.abspath(self.settings))
+        spelled = os.path.join(folder, "..", os.path.basename(folder), "curator.toml")
+        self.assertEqual(webapp._spelled(spelled), webapp._spelled(os.path.abspath(self.settings)))
+        self.assertEqual(webapp.who_is_on(self.has_the_port(self.says(self.me(config_file=spelled))), 20)[0], "same")
+        elsewhere = os.path.join(self.tmp.name, "seen-through-a-link", "curator.toml")  # the running copy also says what the system makes of its path
+        self.assertEqual(webapp.who_is_on(self.has_the_port(self.says(self.me(config_file=elsewhere, config_real=os.path.abspath(self.settings)))), 20)[0], "same")
+
+    @unittest.skipUnless(sys.platform == "win32", "only on Windows does the case of a path's letters count for nothing")
+    def test_other_letter_case_is_the_same_file_on_windows(self):
+        self.assertEqual(webapp.who_is_on(self.has_the_port(self.says(self.me(config_file=os.path.abspath(self.settings).swapcase()))), 20)[0], "same")
+
+    def test_other_settings_or_another_program_is_not_it(self):
+        elsewhere, deep = os.path.join(self.tmp.name, "other", "curator.toml"), b"[" * 60000
+        for answer in (self.says(self.me(config_file=elsewhere)), self.older(elsewhere),
+                       self.says(self.me(config_file="curator.toml")), self.older("curator.toml"),  # a path from its own folder: no telling which file that is
+                       self.says(dict(hello="world")), self.says([1, 2]), self.says(dict(app="pressling", config_file=7)), self.says(dict(config_file=os.path.abspath(self.settings))),
+                       self.NO_PAGE, b"HTTP/1.1 500 Oops\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", b"SSH-2.0-not-a-web-server\r\n", b"",
+                       b"HTTP/1.1 200 OK\r\nContent-Length: 60000\r\nConnection: close\r\n\r\n" + deep,  # nested far deeper than anything can read
+                       b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" + b"x" * 200000):  # and far more than this app would ever say
+            self.assertEqual(webapp.who_is_on(self.has_the_port(answer), 20), ("other", None), answer[:60] if isinstance(answer, bytes) else answer)
+
+    def test_far_more_than_the_app_would_say_is_not_read_to_the_end(self):
+        over = threading.Event()
+
+        class Endless(socketserver.StreamRequestHandler):
+            def handle(self):
+                self.rfile.readline()
+                try:
+                    self.wfile.write(b"HTTP/1.1 200 OK\r\n\r\n")
+                    while not over.is_set():
+                        self.wfile.write(b"x" * 65536)
+                except OSError:
+                    pass
+
+        there = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Endless)
+        there.daemon_threads = True
+        threading.Thread(target=there.serve_forever, args=(0.02,), daemon=True).start()
+        self.addCleanup(there.server_close)
+        self.addCleanup(there.shutdown)
+        self.addCleanup(over.set)
+        began = time.monotonic()
+        self.assertEqual(webapp.who_is_on(there.server_address[1], 30), ("other", None))
+        self.assertLess(time.monotonic() - began, 15)
+
+    def test_a_path_that_is_only_told_is_not_looked_at_in_any_way(self):
+        looked = []
+
+        def watch(owner, name):
+            real = getattr(owner, name)
+
+            def watched(path, *more, **how):
+                looked.append(os.fspath(path) if isinstance(path, (str, os.PathLike)) else path)
+                return real(path, *more, **how)
+            return mock.patch.object(owner, name, watched)
+
+        told = os.path.join(self.tmp.name, "other", "curator.toml")  # (on Windows, looking a path up can mean calling another computer: here only one on this computer is told)
+        port = self.has_the_port(self.says(self.me(config_file=told, config_real=told)))
+        with watch(os, "stat"), watch(os, "lstat"), watch(os.path, "exists"), watch(os.path, "isfile"), watch(os.path, "realpath"), watch(os.path, "samefile"):
+            self.assertEqual(webapp.who_is_on(port, 20), ("other", None))
+        self.assertNotIn(told, looked)
+
+    def test_a_port_nobody_listens_on(self):
+        began = time.monotonic()
+        self.assertEqual(webapp.who_is_on(self.free_port(), 30), ("none", None))
+        self.assertLess(time.monotonic() - began, 5)  # found out at once, however long an answer would be waited for
+
+    def test_one_that_takes_the_call_and_says_nothing_is_silent(self):
+        self.assertEqual(webapp.who_is_on(self.has_the_port(None), 0.3), ("silent", None))
+        slow = self.has_the_port(self.says(self.me()), wait=0.9)
+        self.assertEqual(webapp.who_is_on(slow, 0.3), ("silent", None))  # too slow for a quick question
+        self.assertEqual(webapp.who_is_on(slow, 20)[0], "same")  # and it is the app after all, when waited for
+
+    def test_one_that_answers_a_little_at_a_time_is_not_waited_for_longer(self):
+        began = time.monotonic()
+        self.assertEqual(webapp.who_is_on(self.has_the_port(self.says(self.me()), drip=0.05), 0.5), ("silent", None))
+        self.assertLess(time.monotonic() - began, 4)  # the wait is for the whole answer, not for each piece of it
+
+    def test_one_cut_off_before_a_word_is_a_program_that_has_gone(self):
+        class Line:
+            """A call that is taken and then cut: after `said` has come, if anything."""
+            def __init__(self, said):
+                self.said = [said] if said else []
+
+            def settimeout(self, seconds): pass
+            def connect(self, where): pass
+            def sendall(self, what): pass
+            def close(self): pass
+
+            def recv(self, most):
+                if self.said:
+                    return self.said.pop()
+                raise ConnectionResetError("cut off")
+
+        with mock.patch.object(webapp.socket, "socket", lambda *how: Line(b"")):
+            self.assertEqual(webapp._ask(8765, "/api/running", 5), ("none", b""))  # (its port is looked at again, not left for the next one)
+        with mock.patch.object(webapp.socket, "socket", lambda *how: Line(b"HTTP/1.1 200 OK\r\nContent-Le")):
+            self.assertEqual(webapp._ask(8765, "/api/running", 5), ("other", b""))
+
+    def test_the_question_says_nothing_about_the_person_and_goes_straight_there(self):
+        heard = []
+        port = self.has_the_port(self.says(self.me()), heard=heard)
+        with mock.patch.dict(os.environ, {"HTTP_PROXY": "http://127.0.0.1:9", "http_proxy": "http://127.0.0.1:9", "ALL_PROXY": "http://127.0.0.1:9"}):
+            self.assertEqual(webapp.who_is_on(port, 20)[0], "same")
+        self.assertEqual(heard, [f"GET /api/running HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n".encode()])
+
+    def test_held_knows_a_port_that_is_taken(self):
+        holder = socket.socket()
+        holder.bind(("127.0.0.1", 0))  # taken, and not even listening yet
+        port = holder.getsockname()[1]
+        self.assertTrue(webapp._held(port))
+        holder.close()
+        self.assertFalse(webapp._held(port))
+        everywhere = socket.socket()
+        everywhere.bind(("0.0.0.0", 0))  # taken for every address, as a copy started with --lan has it (never listening here: nothing is opened to the network)
+        self.addCleanup(everywhere.close)
+        self.assertTrue(webapp._held(everywhere.getsockname()[1]))
+
+    # ---- what a running copy says ----
+
+    def test_a_running_copy_says_which_it_is_and_how_long_it_has_been_up(self):
+        server = webapp.Server(("127.0.0.1", 0), webapp.Handler)
+        port = server.server_address[1]
+        server.collection, server.hosts = None, {f"127.0.0.1:{port}"}
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        mine = os.path.abspath(self.settings)
+        who, told = webapp.who_is_on(port, 20)
+        self.assertEqual((who, told), ("same", dict(app="pressling", config_file=mine, config_real=os.path.realpath(mine), starting=False, up=None, opens=False, lan=None)))
+        server.began, server.opens, server.lan_at = time.monotonic() - 7, True, f"192.168.1.20:{port}"
+        who, told = webapp.who_is_on(port, 20)
+        self.assertEqual((who, told["opens"], told["lan"]), ("same", True, f"192.168.1.20:{port}"))
+        self.assertTrue(6.5 < told["up"] < 30, told["up"])
+        with mock.patch.object(webapp.os.path, "realpath", lambda path, **how: os.path.join(os.path.dirname(path), "seen-through-a-link.toml")):
+            told = json.loads(webapp._ask(port, "/api/running", 20)[1])  # it also says what the system makes of its path
+        self.assertEqual((told["config_file"], os.path.basename(told["config_real"])), (mine, "seen-through-a-link.toml"))
+        with mock.patch.object(webapp.Handler, "_client_ip", lambda self: "192.168.1.9"):  # only this computer may ask
+            self.assertEqual(webapp._ask(port, "/api/running", 20)[0], 404)
+
+    def test_the_name_of_this_computer_is_not_looked_up(self):
+        with mock.patch.object(webapp.socket, "getfqdn", side_effect=AssertionError("this computer's name was looked up")):  # (it can take a second or more, with the port held and not yet listening)
+            webapp.Server(("127.0.0.1", 0), webapp.Handler).server_close()
+
+    def test_a_copy_still_reading_its_library_says_who_it_is_while_everything_else_waits(self):
+        port, reading, made, real = self.free_port(), threading.Event(), [], webapp.Server.serve_forever
+
+        def a_long_read():
+            reading.wait(30)
+            return "first"
+
+        def noted(server, *more):
+            made.append(server)
+            return real(server, *more)
+
+        with mock.patch.object(webapp.folders, "reason", a_long_read), mock.patch.object(webapp.Server, "serve_forever", noted), contextlib.redirect_stdout(io.StringIO()):
+            run = threading.Thread(target=webapp.serve, args=(port,), kwargs=dict(open_browser=False), daemon=True)
+            run.start()
+            try:
+                until = time.monotonic() + 20
+                while not made and time.monotonic() < until:
+                    time.sleep(0.02)
+                who, told = webapp.who_is_on(port, 20)
+                self.assertEqual((who, told["starting"], told["up"], told["opens"]), ("same", True, None, False))
+                self.assertEqual(webapp._ask(port, "/", 0.5), ("silent", b""))  # the page itself waits for the library
+                reading.set()
+                self.assertEqual(webapp._ask(port, "/", 20)[0], 200)
+                who, told = webapp.who_is_on(port, 20)
+                self.assertEqual((who, told["starting"]), ("same", False))
+                self.assertIsNotNone(told["up"])
+            finally:
+                reading.set()
+                if made:
+                    made[0].shutdown()
+                run.join(20)
+        self.assertFalse(run.is_alive())
+        self.assertFalse(webapp._held(port))
+
+    def test_while_the_library_is_read_the_network_gets_nothing_without_the_link(self):
+        server = webapp.Server(("127.0.0.1", 0), webapp.Handler)
+        port = server.server_address[1]
+        server.collection, server.hosts, server.ready = None, {f"127.0.0.1:{port}", f"192.168.1.20:{port}"}, threading.Event()
+        server.lan = dict(network=ipaddress.ip_network("192.168.1.0/24"), key="0123456789")
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.ready.set)
+
+        def call(method, path, key=False, host=None, wait=20):
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=wait)
+            try:
+                c.request(method, path, body="{}" if method == "POST" else None,
+                          headers={"Host": host or f"192.168.1.20:{port}", "Content-Type": "application/json", **({"Cookie": f"{webapp.LAN_COOKIE}=0123456789"} if key else {})})
+                return c.getresponse().status
+            except TimeoutError:
+                return "waits"
+            finally:
+                c.close()
+
+        with mock.patch.object(webapp.Handler, "_client_ip", lambda self: "192.168.1.9"):
+            for method, path in (("GET", "/"), ("HEAD", "/"), ("GET", "/api/all"), ("POST", "/api/played"), ("POST", "/api/settings"), ("GET", "/api/running")):
+                self.assertEqual(call(method, path), 403, (method, path))  # refused at once: it never waits for the library
+            self.assertEqual(call("GET", "/api/running", key=True), 404)  # with the link: still only this computer may ask
+            self.assertEqual(call("POST", "/api/played", key=True, wait=0.7), "waits")
+            self.assertEqual(call("GET", "/api/all", key=True, wait=0.7), "waits")
+        self.assertEqual(call("GET", "/api/running", host="evil.example"), 403)  # this computer, under another site's name
+        self.assertEqual(call("POST", "/api/played", host=f"127.0.0.1:{port}", wait=0.7), "waits")  # this computer waits too
+
+    def test_the_port_is_taken_before_the_library_is_read_and_given_back_if_that_fails(self):
+        port, held = self.free_port(), []
+
+        def no_library():
+            held.append(webapp._held(port))  # by now the port is this copy's
+            raise RuntimeError("the library can't be read")
+
+        with mock.patch.object(webapp.folders, "reason", no_library), contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):
+            webapp.serve(port, open_browser=False)
+        self.assertEqual(held, [True])
+        self.assertFalse(webapp._held(port))
+
+    def test_ctrl_c_leaves_quietly_and_gives_the_port_back(self):
+        port, said = self.free_port(), io.StringIO()
+        with mock.patch.object(webapp.folders, "reason", side_effect=KeyboardInterrupt), contextlib.redirect_stdout(said):  # while the library is read
+            self.assertIsNone(webapp.serve(port, open_browser=False))
+        self.assertEqual(said.getvalue(), "")
+        self.assertFalse(webapp._held(port))
+        with mock.patch.object(webapp, "_held", side_effect=KeyboardInterrupt), contextlib.redirect_stdout(said):  # and while it is still looking for a port
+            self.assertIsNone(webapp.serve(port, open_browser=False))
+        self.assertEqual(said.getvalue(), "")
+
+    def test_what_goes_wrong_while_answering_ends_the_run(self):
+        def broken(server):
+            raise RuntimeError("the answering broke")
+
+        port = self.free_port()
+        with mock.patch.object(webapp.Server, "serve_forever", broken), mock.patch.object(webapp.threading, "Timer"), contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):
+            webapp.serve(port, open_browser=False)
+        self.assertFalse(webapp._held(port))
+
+    def test_it_notes_when_it_was_ready_and_whether_it_opens_the_browser(self):
+        for opens in (True, False):
+            made, said = [], io.StringIO()
+            with mock.patch.object(webapp.webbrowser, "open"), mock.patch.object(webapp.threading, "Timer") as later, \
+                    mock.patch.object(webapp.Server, "serve_forever", lambda server: made.append(server)), contextlib.redirect_stdout(said):
+                self.assertIsNone(webapp.serve(self.free_port(), open_browser=opens))
+            server = made[0]
+            self.assertEqual((server.opens, server.ready.is_set(), later.called), (opens, True, opens))
+            self.assertIsNotNone(server.began)
+            self.assertIn("to choose your folders", said.getvalue())
+
+    # ---- a second start ----
+
+    def test_a_second_start_opens_the_copy_that_is_running(self):
+        port = self.has_the_port(self.says(self.me(up=300.0, opens=True, starting=False, lan=None)))
+        code, said, opened = self.start(port)
+        self.assertEqual((code, opened), (0, [f"http://127.0.0.1:{port}/"]))
+        self.assertIn(f"already running at http://127.0.0.1:{port}/", said)
+        self.assertNotIn("Reading your library", said)
+        self.assertNotIn("home network", said)
+
+    def test_a_port_held_for_every_address_is_asked_about_and_never_shared(self):
+        port = self.has_the_port(self.says(self.me(up=300.0, opens=True)))  # as a copy started with --lan is: on Windows this computer's own address on its port can still be taken beside it
+        with mock.patch.object(webapp, "Server") as take:
+            code, said, opened = self.start(port)
+        self.assertEqual((code, opened, take.called), (0, [f"http://127.0.0.1:{port}/"], False))
+
+    def test_not_asked_for_the_home_network_it_takes_this_computers_own_address_only(self):
+        with mock.patch.object(webapp, "Server", self.on_this_computer_only):
+            self.start(self.free_port(), open_browser=False)
+        self.assertEqual([address[0] for address in self.asked], ["127.0.0.1"])
+
+    def test_an_older_copy_is_opened_too(self):
+        port = self.has_the_port(self.older())
+        self.assertEqual(self.start(port)[::2], (0, [f"http://127.0.0.1:{port}/"]))
+
+    def test_no_second_tab_for_a_copy_that_opens_one_itself(self):
+        port = self.has_the_port(self.says(self.me(up=0.2, opens=True)))
+        self.assertEqual(self.start(port)[::2], (0, []))
+        port = self.has_the_port(self.says(self.me(up=0.2, opens=False)))  # it has only just started, but without the browser: this start opens it
+        self.assertEqual(self.start(port)[::2], (0, [f"http://127.0.0.1:{port}/"]))
+        port = self.has_the_port(self.says(self.me(up=True, opens=True)))  # nonsense for a time is not "just now"
+        self.assertEqual(self.start(port)[::2], (0, [f"http://127.0.0.1:{port}/"]))
+
+    def test_a_copy_that_is_still_starting_is_not_started_again(self):
+        port = self.has_the_port(self.says(self.me(starting=True, up=None, opens=True)))
+        code, said, opened = self.start(port)
+        self.assertEqual((code, opened), (0, []))  # (it opens the browser itself when it is ready)
+        self.assertEqual(said.splitlines(), [f"Pressling is already starting at http://127.0.0.1:{port}/", "It opens in your browser by itself once it has read your library."])
+        port = self.has_the_port(self.says(self.me(starting=True, up=None, opens=False)))  # started without the browser: this start opens it, and the page waits there
+        code, said, opened = self.start(port)
+        self.assertEqual((code, opened), (0, [f"http://127.0.0.1:{port}/"]))
+        self.assertEqual(said.splitlines(), [f"Pressling is already starting at http://127.0.0.1:{port}/", "The page appears once it has read your library."])
+        self.assertEqual(self.start(port, open_browser=False)[1].splitlines(), [f"Pressling is already starting at http://127.0.0.1:{port}/"])
+
+    def test_no_browser_when_asked_not_to(self):
+        port = self.has_the_port(self.says(self.me(up=300.0, opens=True)))
+        code, said, opened = self.start(port, open_browser=False)
+        self.assertEqual((code, opened), (0, []))
+        self.assertIn("already running", said)
+
+    def test_a_copy_too_busy_to_answer_at_once_is_asked_again(self):
+        heard = []
+        port = self.has_the_port(self.says(self.me(up=300.0, opens=True)), wait=lambda calls: 1.0 if calls == 1 else 0, heard=heard)
+        code, said, opened = self.start(port, ask=0.3)
+        self.assertEqual((code, opened, len(heard)), (0, [f"http://127.0.0.1:{port}/"], 2))
+
+    def test_another_program_on_the_port_does_not_stop_it(self):
+        port = self.has_the_port(self.says(dict(hello="world")))
+        code, said, opened = self.start(port, open_browser=False)
+        self.assertIsNone(code)
+        self.assertNotIn("already", said)
+        self.assertRegex(said, r"Open http://127\.0\.0\.1:\d+/ to choose your folders")
+        self.assertNotIn(f":{port}/", said)
+
+    def test_a_program_that_never_answers_is_asked_three_times_and_no_more(self):
+        heard = []
+        port = self.has_the_port(None, heard=heard)
+        began = time.monotonic()
+        code, said, opened = self.start(port, ask=0.3, open_browser=False)
+        self.assertLess(time.monotonic() - began, 10)
+        self.assertEqual((code, len(heard)), (None, 3))
+        self.assertNotIn("already", said)
+        self.assertRegex(said, r"Open http://127\.0\.0\.1:\d+/ to choose your folders")
+
+    def test_a_port_let_go_a_moment_later_is_still_taken(self):
+        holder = socket.socket()
+        holder.bind(("127.0.0.1", 0))  # held and not listening, as a copy in its very first moment is
+        port = holder.getsockname()[1]
+        threading.Timer(0.25, holder.close).start()
+        self.assertIn(f"http://127.0.0.1:{port}/", self.start(port, open_browser=False)[1])
+
+    def test_a_port_the_system_keeps_for_itself_is_passed_by_at_once(self):
+        port, tried = self.free_port(), []
+
+        def kept_back(address, handler):
+            tried.append(address[1])
+            if address[1] == port:
+                raise PermissionError("the system keeps this port")
+            return self.real_server(address, handler)
+
+        with mock.patch.object(webapp, "Server", kept_back):
+            said = self.start(port, open_browser=False)[1]
+        self.assertEqual(tried.count(port), 1)  # (not tried again and again: twenty such ports in a row would take a long while)
+        self.assertNotIn(f":{port}/", said)
+        self.assertRegex(said, r"Open http://127\.0\.0\.1:\d+/ to choose your folders")
+
+    def test_the_ports_there_are(self):
+        with mock.patch.object(webapp, "_held", return_value=True), mock.patch.object(webapp, "who_is_on", return_value=("other", None)), \
+                mock.patch.object(webapp, "Server", side_effect=AssertionError("a port was taken")), self.assertRaises(SystemExit) as stopped:
+            webapp.serve(65530, open_browser=False)
+        self.assertEqual(str(stopped.exception), "No free port between 65530 and 65535.")
+        for nonsense in (0, -1, 70000):
+            with mock.patch.object(webapp, "Server", side_effect=AssertionError("a port was taken")), self.assertRaises(SystemExit) as stopped:
+                webapp.serve(nonsense, open_browser=False)
+            self.assertEqual(str(stopped.exception), "A port is a number from 1 to 65535.")
+
+    # ---- asked to open to the home network ----
+
+    def test_asked_for_the_home_network_the_key_is_asked_for_from_the_very_first_answer(self):
+        seen, port = [], self.free_port()
+
+        def noted(server):
+            seen.append((server.lan and str(server.lan["network"]), server.lan and server.lan["key"], sorted(server.hosts), server.lan_at))
+
+        with self.home(), mock.patch.object(self.real_server, "serve_forever", noted), mock.patch.object(webapp.threading, "Timer"), contextlib.redirect_stdout(io.StringIO()):
+            webapp.serve(port, open_browser=False, lan=True)
+        self.assertEqual(seen, [("192.168.1.0/24", "0123456789", sorted([f"127.0.0.1:{port}", f"localhost:{port}", f"192.168.1.20:{port}"]), f"192.168.1.20:{port}")])
+        self.assertEqual(self.asked, [("0.0.0.0", port)])
+
+    def test_asked_for_the_home_network_a_copy_that_is_open_to_it_gives_the_link_again(self):
+        port = self.has_the_port(lambda path: self.says(self.me(up=300.0, opens=True, lan=f"192.168.1.20:{port}")))
+        with self.home():
+            code, said, opened = self.start(port, lan=True)
+        self.assertEqual((code, opened, self.asked), (0, [f"http://127.0.0.1:{port}/"], []))
+        self.assertIn(f"On your home network: http://192.168.1.20:{port}/?key=0123456789", said)
+
+    def test_the_link_is_only_printed_for_this_computers_own_address(self):
+        for elsewhere in ("8.8.8.8:80", "3232235777:80", "192.168.1.20:80", "192.168.1.21:{port}", "evil.example/x?"):
+            port = self.has_the_port(lambda path: self.says(self.me(up=300.0, opens=True, lan=elsewhere.replace("{port}", str(port)))))
+            with self.home():
+                said = self.start(port, lan=True)[1]
+            self.assertNotIn("key=", said, elsewhere)
+            self.assertNotIn(elsewhere.split(":")[0].split("/")[0], said.replace("127.0.0.1", ""), elsewhere)  # what the other program says is never printed
+            self.assertIn("open to another network", said, elsewhere)
+
+    def test_asked_for_the_home_network_a_copy_that_is_not_open_to_it_says_what_to_do(self):
+        port = self.has_the_port(self.says(self.me(up=300.0, opens=True, lan=None)))
+        with self.home():
+            code, said, opened = self.start(port, lan=True)
+        self.assertEqual((code, opened), (0, [f"http://127.0.0.1:{port}/"]))
+        self.assertIn("That copy isn't open to your home network", said)
+        self.assertNotIn("key=", said)
+        port = self.has_the_port(self.older())  # an older copy can't say whether it is
+        with self.home():
+            said = self.start(port, lan=True)[1]
+        self.assertIn("If that copy isn't open to your home network", said)
+
+    def test_asked_for_the_home_network_it_never_shares_a_port_with_another_program(self):
+        port = self.has_the_port(self.says(dict(hello="world")))
+        with self.home():
+            code, said, opened = self.start(port, lan=True, open_browser=False)
+        self.assertIsNone(code)
+        self.assertEqual(self.asked[0][0], "0.0.0.0")
+        self.assertNotEqual(self.asked[0][1], port)  # this computer's own address on that port is in use: the wider one is left alone too
+        self.assertIn(f"On your home network: http://192.168.1.20:{self.asked[0][1]}/?key=0123456789", said)
+
+    def test_asked_for_the_home_network_a_port_taken_on_the_networks_address_only_is_left_alone(self):
+        port = self.free_port()
+        with self.home(), mock.patch.object(webapp, "_held", lambda candidate: candidate == port), mock.patch.object(webapp, "_taken", lambda host, candidate: (host, candidate) == ("192.168.1.20", port)):
+            code, said, opened = self.start(port, lan=True, open_browser=False)
+        self.assertNotIn(port, [address[1] for address in self.asked])
+        self.assertEqual(len(self.asked), 1)
+
+
+class Command(unittest.TestCase):
+    def test_it_says_which_version_it_is(self):
+        from music_curator import __version__, cli
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said), self.assertRaises(SystemExit) as done:
+            cli.pressling(["--version"])
+        self.assertEqual((done.exception.code, said.getvalue().strip()), (0, f"Pressling {__version__}"))
+
+    def test_the_help_says_pressling(self):
+        from music_curator import cli
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said), self.assertRaises(SystemExit):
+            cli.pressling(["--help"])
+        self.assertTrue(said.getvalue().startswith("usage: pressling "), said.getvalue()[:40])
+
+    def test_the_two_places_that_hold_the_version_agree(self):
+        import tomllib
+        from music_curator import __version__
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pyproject.toml"), "rb") as f:
+            self.assertEqual(tomllib.load(f)["project"]["version"], __version__)  # a release needs both
 
 
 if __name__ == "__main__":

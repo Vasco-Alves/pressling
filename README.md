@@ -80,8 +80,9 @@ Or by hand, with no programming needed: three commands, about ten minutes.
    optional, for the Curator). Keep the terminal open while you use it. If it says `pressling` isn't found, run `uv tool update-shell`
    and open a new terminal.
 
-Next time, only step 3. `uv tool upgrade pressling` gets the newest version, and `uv tool uninstall pressling`
-removes it. Your music and settings stay where they are.
+Next time, only step 3. If Pressling is already running, `pressling` just opens it in your browser again instead of starting
+a second copy. `uv tool upgrade pressling` gets the newest version (`pressling --version` says which one you have), and
+`uv tool uninstall pressling` removes it. Your music and settings stay where they are.
 
 It's a music player first. The **Curator**, which looks up new downloads and files them into your library, and **Spotify**
 are extras: they're on once you give them what they need, and **Settings → Extras** turns either off again (that only hides

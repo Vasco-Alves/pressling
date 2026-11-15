@@ -18,6 +18,7 @@ import os
 import re
 import secrets
 import socket
+import socketserver
 import sys
 import threading
 import time
@@ -963,6 +964,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError:
             return None
 
+    def _when_ready(self):
+        """While this copy is still reading the library, everything waits its turn here, except the question "who is running?"."""
+        ready = self.server.ready
+        if ready is not None:
+            ready.wait()
+
+    def _running(self):
+        """What a second start on this computer asks (who_is_on): which settings this copy runs with (the file as given, and as the system resolves it),
+        whether it is still reading its library, how long it has been up, whether it opened the browser itself, and where it is on the home network if it is open to one."""
+        if not self._on_this_computer():
+            return self._reply(404, b"Not found")
+        server, mine = self.server, os.path.abspath(config.target_path())
+        try:
+            real = os.path.realpath(mine)
+        except (OSError, ValueError):
+            real = mine
+        starting = server.ready is not None and not server.ready.is_set()
+        up = None if starting or server.began is None else round(time.monotonic() - server.began, 1)
+        return self._json(dict(app="pressling", config_file=mine, config_real=real, starting=starting, up=up, opens=bool(server.opens), lan=server.lan_at))
+
     def do_GET(self):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
@@ -971,6 +992,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         route = self._route()
         if route is None:
             return self._reply(400, b"Bad request")
+        if route == "/api/running":
+            return self._running()
+        self._when_ready()
         if route in STATIC:
             name, ctype = STATIC[route]
             with open(os.path.join(WEB, name), "rb") as f:
@@ -1065,6 +1089,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route not in ("/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
                          "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
             return self._reply(404, b"Not found")
+        self._when_ready()
         if self.server.lan and route in PC_ONLY and not self._on_this_computer():
             return self._json(dict(error="That can only be done on the computer the app runs on."), 403)
         origin = self.headers.get("Origin")
@@ -1157,6 +1182,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = sys.platform != "win32"  # on Windows it would silently share a port that's already taken
+    request_queue_size = 32  # so that several starts at once, each asking who is here, all get through
+    ready = None  # set once the library has been read: until then everything but "who is running?" waits (None in a server made without serve())
+    began = None  # when this copy was ready (time.monotonic()), for a second start that finds it
+    opens = False  # whether this copy opens the browser itself when it starts
+    lan_at = None  # where it is on the home network ("192.168.1.20:8765"), once `--lan` has opened it to one
+
+    def server_bind(self):  # (the standard server also looks this computer's name up here, which can take a second or more and is used for nothing)
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
     settings_lock = threading.Lock()
     spotify_lock = threading.Lock()  # one check at a time
     spotify_client = None  # keeps the sign-in for as long as the app runs
@@ -1285,42 +1319,217 @@ def lan_key():
     return made
 
 
+CONNECT_S = 0.5  # how long a second start waits to reach whatever has the port (a program on this computer takes the call at once, however busy it is)
+ASK_S = 1.5  # how long, in all, it then waits for that program to say what it is (one that is slow is asked again)
+OLD_ASK_S = 4  # a copy from before the question existed answers through its settings page, which can be slow the first time
+ASK_MOST = (1 << 16) + 8192  # more than this is more than the app would ever say
+JUST_OPENED_S = 5  # a copy that opened the browser itself this short a time ago doesn't need a second tab
+
+
+def _held(port):
+    """Whether some program has this port on any of this computer's addresses. Taking the port wouldn't tell: this computer's own address
+    (127.0.0.1) can often be taken while another program holds the port for every address (a copy started with --lan), and the other way round."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if sys.platform == "win32":
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)  # refused when any address has it
+        probe.bind(("0.0.0.0", port))
+    except OSError:
+        return True
+    finally:
+        probe.close()
+    return False
+
+
+def _taken(host, port):
+    """Whether a program takes calls on this address and port."""
+    try:
+        socket.create_connection((host, port), timeout=CONNECT_S).close()
+    except OSError:
+        return False
+    return True
+
+
+def _ask(port, path, wait):
+    """Asks the program on this computer's port for a page: straight to it (never through a proxy), with nothing about the person in the request,
+    and never longer than `wait` seconds in all once the call is taken. Gives (status, body) when it answered; ("none", b"") when nothing took the call,
+    or it was cut off before a word was said (a program that has just gone); ("silent", b"") when it took the call and hadn't answered in time;
+    ("other", b"") when what came back isn't a web page's answer."""
+    talk, got = socket.socket(socket.AF_INET, socket.SOCK_STREAM), b""
+    try:
+        talk.settimeout(CONNECT_S)
+        try:
+            talk.connect(("127.0.0.1", port))
+        except OSError:
+            return "none", b""
+        deadline = time.monotonic() + wait
+        talk.sendall(f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n".encode("ascii"))
+        while True:
+            if len(got) > ASK_MOST:
+                return "other", b""
+            head, split, body = got.partition(b"\r\n\r\n")
+            length = re.search(rb"(?im)^content-length:[ \t]*(\d{1,7})[ \t]*\r?$", head) if split else None
+            if length and len(body) >= int(length[1]):
+                break  # all of it is here
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return "silent", b""
+            talk.settimeout(left)
+            chunk = talk.recv(65536)
+            if not chunk:
+                break
+            got += chunk
+    except TimeoutError:
+        return "silent", b""
+    except OSError:
+        return ("other" if got else "none"), b""
+    finally:
+        talk.close()
+    head, split, body = got.partition(b"\r\n\r\n")
+    status = re.match(rb"HTTP/1\.[01] (\d{3})\b", head)
+    return (int(status[1]), body) if status and split else ("other", b"")
+
+
+def _spelled(path):
+    """A path as text in one spelling (its slashes, its dots and, on Windows, the case of its letters), without looking at the disk."""
+    return os.path.normcase(os.path.normpath(path))
+
+
+def who_is_on(port, wait=None):
+    """What already has this computer's port:
+    ("same", told)    Pressling running with these very settings (told: what it said about itself);
+    ("silent", None)  a program that took the call and didn't answer in time;
+    ("other", None)   another program, or Pressling with other settings;
+    ("none", None)    nothing took the call."""
+    wait = ASK_S if wait is None else max(wait, 0.1)
+    status, body = _ask(port, "/api/running", wait)
+    if status == 404:  # a copy from before this question existed: what it says about its settings is enough
+        status, body = _ask(port, "/api/settings", max(wait, OLD_ASK_S))
+    if status in ("none", "silent"):
+        return status, None
+    if status != 200:
+        return "other", None
+    try:
+        told = json.loads(body.decode("utf-8"))
+    except (ValueError, RecursionError):
+        return "other", None
+    if not isinstance(told, dict) or not (told.get("app") == "pressling" or "library" in told):
+        return "other", None
+    theirs = {_spelled(path) for path in (told.get("config_file"), told.get("config_real")) if isinstance(path, str) and os.path.isabs(path)}  # compared as text only: a path that another program names is never looked up on the disk, it could point anywhere
+    mine = os.path.abspath(config.target_path())
+    try:
+        ours = {_spelled(mine), _spelled(os.path.realpath(mine))}
+    except (OSError, ValueError):
+        ours = {_spelled(mine)}
+    return ("same", told) if theirs & ours else ("other", None)
+
+
+def already_running(port, told, open_browser, here):
+    """A second start found this same app, with these same settings, on the port: that copy is shown instead of a second one being started.
+    here: this computer's address on the home network when this start was asked to open to it (--lan), else ""."""
+    url = f"http://127.0.0.1:{port}/"
+    starting, up = told.get("starting") is True, told.get("up")
+    just_opened = told.get("opens") is True and (starting or (isinstance(up, (int, float)) and not isinstance(up, bool) and up < JUST_OPENED_S))
+    if starting:
+        print(f"Pressling is already starting at {url}", flush=True)
+        if just_opened:
+            print("It opens in your browser by itself once it has read your library.", flush=True)
+        elif open_browser:
+            print("The page appears once it has read your library.", flush=True)
+    else:
+        print(f"Pressling is already running at {url}", flush=True)
+    if here:
+        at, mine = told.get("lan"), f"{here}:{port}"
+        if at == mine:  # (only ever this computer's own address: what the other program says is never printed)
+            print(f"On your home network: http://{mine}/?key={lan_key()}", flush=True)
+        elif isinstance(at, str):
+            print("That copy is open to another network than the one this computer is on now. To open it to this one, close it first (Ctrl+C in its window), then run this again.", flush=True)
+        elif "lan" in told:
+            print("That copy isn't open to your home network. To open it there, close it first (Ctrl+C in its window), then run this again.", flush=True)
+        else:  # (a copy from before it could say)
+            print("If that copy isn't open to your home network, close it first (Ctrl+C in its window), then run this again.", flush=True)
+    if open_browser and not just_opened:  # (a copy that has only just started opens the browser itself)
+        webbrowser.open(url)
+    return 0
+
+
 def serve(port=8765, open_browser=True, lan=False):
+    if not 1 <= port <= 65535:
+        sys.exit("A port is a number from 1 to 65535.")
     here = ""
     if lan:
         here = lan_address()
         if not here:
             sys.exit("This computer doesn't seem to be on a home network, so the app wasn't opened to one. Is it on Wi-Fi or plugged in?")
-    collection = None
-    if not folders.reason():  # otherwise the page opens on the first-run screen
-        print("Reading your library...", flush=True)
-        collection = Collection(app_paths())
-        collection.refresh()
-        saving.sweep(os.path.dirname(collection.paths["decisions"]))  # what a save left behind if the app was killed in the middle of one
-    for candidate in range(port, port + 20):
+    last, server, answering, failed = min(port + 19, 65535), None, None, []
+
+    def answer():  # the answering runs in a thread of its own; what goes wrong there is kept for the end
         try:
-            server = Server(("0.0.0.0" if here else "127.0.0.1", candidate), Handler)
-            break
-        except OSError:
-            continue
-    else:
-        sys.exit(f"No free port between {port} and {port + 19}.")
-    server.collection, server.hosts = collection, {f"127.0.0.1:{candidate}", f"localhost:{candidate}"}
-    url = f"http://127.0.0.1:{candidate}/"
-    opening = f"Your library is open at {url} ({len(collection.songs)} files)." if collection else f"Open {url} to choose your folders."
-    print(f"{opening} Press Ctrl+C to stop.", flush=True)
-    if here:  # one network, and only with the link
-        server.lan = dict(network=ipaddress.ip_network(f"{here}/24", strict=False), key=lan_key())
-        server.hosts.add(f"{here}:{candidate}")
-        print(f"On your home network: http://{here}:{candidate}/?key={server.lan['key']}", flush=True)
-    if open_browser:
-        threading.Timer(0.3, webbrowser.open, [url]).start()
+            server.serve_forever()
+        except BaseException as ex:
+            failed.append(ex)
+
     try:
-        server.serve_forever()
+        for candidate in range(port, last + 1):  # the port is taken first, before the library is read, so that a second start finds this copy even while it is still starting
+            server, who, told = None, "none", None
+            for look in range(3):  # (a port can be taken, or let go, in the moment between looking and taking: so it is looked at again)
+                if _held(candidate):
+                    who, told = who_is_on(candidate)
+                    if who == "silent" and look < 2:
+                        continue  # a copy on a very busy computer can be slow to answer: it is asked again
+                    if who == "none" and here and _taken(here, candidate):
+                        who = "other"  # a program has this port on the network's address only: it is left alone
+                    if who != "none":
+                        break  # a program is listening there
+                try:  # free, or held by nothing that listens: a port only just let go, or a copy in its very first moment
+                    server = Server(("0.0.0.0" if here else "127.0.0.1", candidate), Handler)
+                    break
+                except PermissionError:
+                    break  # the system keeps this port for itself
+                except OSError:
+                    if look < 2:
+                        time.sleep(0.15)
+            if server:
+                break
+            if who == "same":  # a second copy would only be in the way: the one that is there is shown
+                return already_running(candidate, told, open_browser, here)
+        else:
+            sys.exit(f"No free port between {port} and {last}.")
+        url = f"http://127.0.0.1:{candidate}/"
+        server.collection, server.hosts, server.ready, server.opens = None, {f"127.0.0.1:{candidate}", f"localhost:{candidate}"}, threading.Event(), bool(open_browser)
+        if here:  # one network, and only with the link. (Set before anything is answered: a call from the network must never get in without it.)
+            server.lan = dict(network=ipaddress.ip_network(f"{here}/24", strict=False), key=lan_key())
+            server.hosts.add(f"{here}:{candidate}")
+            server.lan_at = f"{here}:{candidate}"
+        answering = threading.Thread(target=answer, daemon=True)  # from here on it tells a second start who it is; everything else waits until the library has been read
+        answering.start()
+        collection = None
+        if not folders.reason():  # otherwise the page opens on the first-run screen
+            print("Reading your library...", flush=True)
+            collection = Collection(app_paths())
+            collection.refresh()
+            saving.sweep(os.path.dirname(collection.paths["decisions"]))  # what a save left behind if the app was killed in the middle of one
+        if failed:
+            raise failed[0]
+        server.collection, server.began = collection, time.monotonic()
+        server.ready.set()
+        opening = f"Your library is open at {url} ({len(collection.songs)} files)." if collection else f"Open {url} to choose your folders."
+        print(f"{opening} Press Ctrl+C to stop.", flush=True)
+        if here:
+            print(f"On your home network: http://{here}:{candidate}/?key={server.lan['key']}", flush=True)
+        if open_browser:
+            threading.Timer(0.3, webbrowser.open, [url]).start()
+        while answering.is_alive():
+            answering.join(0.5)
+        if failed:
+            raise failed[0]
     except KeyboardInterrupt:
         pass
-    finally:
-        server.server_close()
+    finally:  # also when the library couldn't be read: the port must not stay held by a copy that never opens
+        if server is not None:
+            if answering is not None and answering.is_alive():
+                server.shutdown()
+            server.server_close()
 
 
 def show_decisions():
