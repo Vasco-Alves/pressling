@@ -833,7 +833,7 @@ window.Effects = (() => {
     return ((s[b - 1] + 2 * s[b] + s[b + 1]) * (1 - part) + (s[b] + 2 * s[b + 1] + s[b + 2]) * part) / 4;
   };
   function ribbon() { // bundles of threads drifting across, like a waving cloth
-    const { t, bass, mid, kick, hatHit } = sound, LINES = 14, step = Math.max(6, w / 150), N = V.bundles, k = V.waves;
+    const { t, bass, mid, kick, hatHit } = sound, LINES = 14, step = Math.max(6, w / 150), N = countOf("bundles"), k = V.waves, ALL = Math.ceil(N - 1e-6); // (on its way from one count to another, every bundle moves over to its new place and the one coming or going fades in or out)
     const yAt = (u, r, spread) => h * (0.5 + (r - (N - 1) / 2) * (0.32 / Math.max(1, N - 1))) + Math.sin(u * 3.4 * k + t * 0.55 + r * 2.1 + spread * 1.6) * h * (0.07 + 0.1 * bass + 0.08 * acidLook.open)
       + Math.sin(u * 8.2 * k - t * 0.9 + r * 2.1 + spread * 4) * h * (0.012 + 0.03 * mid)
       + spread * h * (0.09 + 0.16 * smooth(u * BANDS * 0.7 + r * 6)) * Math.sin(u * 2.6 * k + t * 0.4 + r)
@@ -841,7 +841,8 @@ window.Effects = (() => {
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineWidth = Math.max(1, h / 540);
-    for (let r = 0; r < N; r++) {
+    for (let r = 0; r < ALL; r++) {
+      const share = shareOf(r, N);
       for (let l = 0; l < LINES; l++) {
         const spread = l / (LINES - 1) - 0.5;
         g.beginPath();
@@ -849,11 +850,11 @@ window.Effects = (() => {
           const y = yAt(x / w, r, spread);
           if (x) g.lineTo(x, y); else g.moveTo(x, y);
         }
-        g.strokeStyle = rgba(colors[r % 3], (0.16 + 0.22 * kick + 0.2 * acidLook.knob) * (1 - Math.abs(spread) * 1.1));
+        g.strokeStyle = rgba(colors[r % 3], share * (0.16 + 0.22 * kick + 0.2 * acidLook.knob) * (1 - Math.abs(spread) * 1.1));
         g.stroke();
       }
     }
-    if (hatHit) for (let i = 0; i < 3; i++) { const u = Math.random(); twinkle(u * w, yAt(u, i % N, rnd(-0.5, 0.5)), h * 0.06); }
+    if (hatHit) for (let i = 0; i < 3; i++) { const u = Math.random(); twinkle(u * w, yAt(u, i % Math.floor(N), rnd(-0.5, 0.5)), h * 0.06); }
   }
 
   function silk() { // broad sheets of light folding over each other, like the old glass desktop wallpapers
@@ -866,8 +867,8 @@ window.Effects = (() => {
       paint.addColorStop(0.3, rgba(a, 1));
       paint.addColorStop(0.7, rgba(mix(a, b, 0.7), 1));
       paint.addColorStop(1, rgba(b, 0.2));
-      for (let f = 0; f < SHEETS; f++) {
-        const fold = f / (SHEETS - 1) - 0.5, sheet = new Path2D(), edge = new Path2D(), under = [];
+      for (let f = 0, N = countOf("sheets"); f < Math.ceil(N - 1e-6); f++) { // (a count on its way: see ribbon)
+        const fold = f / (N - 1) - 0.5, sheet = new Path2D(), edge = new Path2D(), under = [], share = shareOf(f, N);
         for (let x = 0; x <= w + step; x += step) {
           const u = x / w, y = base + fold * h * 0.05 + Math.sin(u * 2.4 * k + t * 0.32 + phase + fold) * h * (0.1 + 0.07 * bass) + Math.sin(u * 5.7 * k - t * 0.46 + phase * 2) * h * (0.024 + 0.07 * acidLook.soft), thick = h * (0.016 + 0.1 * smooth(u * BANDS * 0.7 + r * 7) + 0.035 * bass + 0.05 * acidLook.soft) * (1.15 + Math.sin(u * 3.3 + t * 0.26 + r + fold * 3));
           if (x) { sheet.lineTo(x, y - thick); edge.lineTo(x, y - thick); } else { sheet.moveTo(x, y - thick); edge.moveTo(x, y - thick); }
@@ -877,11 +878,11 @@ window.Effects = (() => {
         for (let i = under.length - 2; i >= 0; i -= 2) sheet.lineTo(under[i], under[i + 1]);
         sheet.closePath();
         g.fillStyle = paint;
-        g.globalAlpha = 0.07 + 0.09 * kick;
+        g.globalAlpha = (0.07 + 0.09 * kick) * share;
         g.fill(sheet);
         g.strokeStyle = paint;
         g.lineWidth = Math.max(1, h / 620);
-        g.globalAlpha = 0.34 + 0.4 * kick + 0.25 * acidLook.knob;
+        g.globalAlpha = (0.34 + 0.4 * kick + 0.25 * acidLook.knob) * share;
         g.stroke(edge);
       }
     }
@@ -889,24 +890,28 @@ window.Effects = (() => {
   }
 
   function helix() { // strands wound round each other, with the sound strung between them
-    const { t, bass, kick, hatHit } = sound, n = 90, N = V.strands, amp = h * (0.17 + 0.08 * bass + 0.1 * acidLook.open), lines = Array.from({ length: N }, () => new Path2D()), width = Math.max(1.6, h / 340) * (1 + kick);
+    const { t, bass, kick, hatHit } = sound, n = 90, N = countOf("strands"), ALL = Math.ceil(N - 1e-6), WHOLE = Math.floor(N + 1e-6), PART = N - WHOLE, amp = h * (0.17 + 0.08 * bass + 0.1 * acidLook.open), lines = Array.from({ length: ALL }, () => new Path2D()), width = Math.max(1.6, h / 340) * (1 + kick);
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
     for (let i = 0; i <= n; i++) {
       const u = i / n, x = u * w, phase = u * TAU * (V.twists + 1.6 * acidLook.soft) + t * 0.8, y = h / 2 + Math.sin(u * 2.1 + t * 0.2) * h * 0.06, at = (k) => y + Math.sin(phase + (k * TAU) / N) * amp;
-      for (let k = 0; k < N; k++) { if (i) lines[k].lineTo(x, at(k)); else lines[k].moveTo(x, at(k)); }
+      for (let k = 0; k < ALL; k++) { if (i) lines[k].lineTo(x, at(k)); else lines[k].moveTo(x, at(k)); }
       if (i % 2) continue;
-      const v = smooth(u * BANDS * 0.85), pair = (i / 2) % N, a = at(pair), b = at((pair + 1) % N); // with more than two strands the rungs go between each pair in turn
-      g.strokeStyle = rgba(around(u * 0.9 + t * 0.03), 0.18 + 0.75 * v + 0.2 * acidLook.knob);
-      g.lineWidth = Math.max(1, h / 450) * (1 + 2.4 * v);
-      g.beginPath();
-      g.moveTo(x, a);
-      g.lineTo(x, b);
-      g.stroke();
-      if (hatHit && Math.random() < 0.07) twinkle(x, Math.random() < 0.5 ? a : b, h * 0.055);
+      const v = smooth(u * BANDS * 0.85);
+      for (let side = 0; side < 2; side++) { // with more than two strands the rungs go between each pair in turn; while a strand comes or goes, the pairs of both counts, each by its share
+        const many = side ? ALL : WHOLE, share = side ? PART : 1 - PART, pair = (i / 2) % many, a = at(pair), b = at((pair + 1) % many);
+        if (share < 0.004) continue;
+        g.strokeStyle = rgba(around(u * 0.9 + t * 0.03), (0.18 + 0.75 * v + 0.2 * acidLook.knob) * share);
+        g.lineWidth = Math.max(1, h / 450) * (1 + 2.4 * v);
+        g.beginPath();
+        g.moveTo(x, a);
+        g.lineTo(x, b);
+        g.stroke();
+        if (hatHit && Math.random() < 0.07 * share) twinkle(x, Math.random() < 0.5 ? a : b, h * 0.055);
+      }
     }
-    lines.forEach((line, k) => neon(line, rgba(colors[k % 3], 1), width, 0.9));
+    lines.forEach((line, k) => neon(line, rgba(colors[k % 3], 1), width, 0.9 * shareOf(k, N)));
   }
 
   function strings() { // a row of strings, each plucked by its own part of the sound
@@ -914,114 +919,171 @@ window.Effects = (() => {
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
-    for (let s = 0; s < N; s++) {
-      const v = smooth(((N - 1 - s) / N) * BANDS * 0.9 + 1), y0 = pad + s * gapY, shake = Math.sin(t * (13 + s * 1.9)) * gapY * 3.4 * (v + (0.9 * acidLook.open + 0.4 * acidLook.note) * (1 - s / N)) * (24 / N) ** 0.5, loops = (1 + (s % 3)) * V.loops, path = new Path2D();
+    for (let s = 0, M = countOf("count"), gap = (h - pad * 2) / (M - 1); s < Math.ceil(M - 1e-6); s++) {
+      const v = smooth(((M - 1 - s) / M) * BANDS * 0.9 + 1), y0 = pad + s * gap, shake = Math.sin(t * (13 + s * 1.9)) * gap * 3.4 * (v + (0.9 * acidLook.open + 0.4 * acidLook.note) * (1 - s / M)) * (24 / M) ** 0.5, on = shareOf(s, M), loops = (1 + (s % 3)) * V.loops, path = new Path2D();
       for (let x = 0; x <= w + step; x += step) { const y = y0 + Math.sin((x / w) * Math.PI * loops) * shake; if (x) path.lineTo(x, y); else path.moveTo(x, y); }
-      neon(path, rgba(around(s / N + t * 0.02), 1), width * (1 + 1.6 * v), 0.3 + 0.7 * v + 0.2 * kick + 0.25 * acidLook.knob * (1 - s / N), 0.6);
+      neon(path, rgba(around(s / M + t * 0.02), 1), width * (1 + 1.6 * v), (0.3 + 0.7 * v + 0.2 * kick + 0.25 * acidLook.knob * (1 - s / M)) * on, 0.6);
     }
     if (hatHit) for (let i = 0; i < 3; i++) twinkle(rnd(0, w), pad + Math.floor(rnd(0, N * 0.4)) * gapY, h * 0.05);
   }
 
+  const BAR_LAYOUTS = { floor: [0.8, 0.6, 0, 0, 1], middle: [0.5, 0.62, 1, 0, 0], split: [0.93, 0.4, 0, 1, 0] }; // for each way of standing in a row: where the floor is and how tall the bars stand (shares of the height), how much they stand out both ways from it (0 up only, 1 both ways), the copy hanging from the ceiling and the reflection under the floor
+  const SLOTS = 160, slotOf = (i, n) => Math.min(SLOTS - 1, Math.floor(((i + 0.5) / n) * SLOTS)), capLift = new Float32Array(SLOTS); // the falling caps are kept by where they are along the spectrum, so that any number of bars reads and lifts the same ones (capLift: how high the bars under each cap have stood this frame, for mirror)
   function bars() { // the spectrum, with little caps that fall back slowly: standing on the floor, out both ways from the middle, up from the floor and down from the ceiling, or round in a ring
     const n = V.count, layout = V.layout, level = (i) => acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92);
     backdrop();
-    for (let i = 0; i < n; i++) peaks[i] = Math.max(level(i), peaks[i] - sound.dt * 0.5);
-    if (layout === "circle") {
-      const cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.15 + 0.012 * sound.kick), tall = size * 0.3, caps = new Path2D(), ray = (a, from, to) => [cx + Math.cos(a) * from, cy + Math.sin(a) * from, cx + Math.cos(a) * to, cy + Math.sin(a) * to];
+    const pc = overOf("count");
+    for (let s = 0; s < SLOTS; s++) peaks[s] = Math.max(0, peaks[s] - sound.dt * 0.5); // (once a frame, however many bars are drawn: each set lifts its own caps as it is drawn)
+    if (pc < 1) barSet(vary.was.count, 1 - pc); // on the way from one number of bars to another, both sets show, the old going as the new one comes
+    barSet(n, pc, level); // (with its own level(), which the bars' other answers may lift)
+  }
+  function barSet(n, share, lift) { // one set of n bars, as bright as its share, in its layout, or on the way from the last layout to this one; lift: how high each stands (the old set works its own out)
+    const pl = overOf("layout"), from = pl < 1 ? vary.was.layout : V.layout, to = V.layout, level = lift || ((i) => acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92)), capAt = [];
+    for (let i = 0; i < n; i++) { const s = slotOf(i, n), v = level(i); if (peaks[s] < v) peaks[s] = v; }
+    const cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.15 + 0.012 * sound.kick), ringTall = size * 0.3, ringWide = Math.max(1.5, ((TAU * r) / (n * 2)) * 0.62);
+    if (from === "circle" && to === "circle") {
+      const caps = new Path2D(), ray = (a, from, to) => [cx + Math.cos(a) * from, cy + Math.sin(a) * from, cx + Math.cos(a) * to, cy + Math.sin(a) * to];
       g.lineCap = "butt";
-      g.lineWidth = Math.max(1.5, ((TAU * r) / (n * 2)) * 0.62);
+      g.lineWidth = ringWide;
       for (let i = 0; i < n * 2; i++) { // both halves, the left the mirror image of the right
-        const b = i < n ? i : n * 2 - 1 - i, a = (i / (n * 2)) * TAU - Math.PI / 2, [x0, y0, x1, y1] = ray(a, r, r + Math.max(2, level(b) * tall)), [c0, d0, c1, d1] = ray(a, r + peaks[b] * tall + 4, r + peaks[b] * tall + 6.5);
-        g.strokeStyle = rgba(acidTinge(around((b / n) * 0.9), (b / n) * 0.92), 0.85);
+        const b = i < n ? i : n * 2 - 1 - i, a = (i / (n * 2)) * TAU - Math.PI / 2, cap = peaks[slotOf(b, n)], [x0, y0, x1, y1] = ray(a, r, r + Math.max(2, level(b) * ringTall)), [c0, d0, c1, d1] = ray(a, r + cap * ringTall + 4, r + cap * ringTall + 6.5);
+        g.strokeStyle = rgba(acidTinge(around((b / n) * 0.9), (b / n) * 0.92), 0.85 * share);
         g.beginPath();
         g.moveTo(x0, y0);
         g.lineTo(x1, y1);
         g.stroke();
         caps.moveTo(c0, d0);
         caps.lineTo(c1, d1);
-        if (sound.hatHit && b > n * 0.45 && Math.random() < 0.02) twinkle(c1, d1, h * 0.06);
+        if (sound.hatHit && b > n * 0.45 && Math.random() < 0.02 * share) twinkle(c1, d1, h * 0.06);
       }
-      g.strokeStyle = rgba(mix(colors[0], [255, 255, 255], 0.6), 0.9);
+      g.strokeStyle = rgba(mix(colors[0], [255, 255, 255], 0.6), 0.9 * share);
       g.stroke(caps);
       return;
     }
-    const side = w * 0.05, gap = w * (n > 90 ? 0.0018 : 0.0035), wide = (w - side * 2 - gap * (n - 1)) / n, split = layout === "split", middle = layout === "middle";
-    const floor = middle ? h * 0.5 : split ? h * 0.93 : h * 0.8, tall = middle ? h * 0.62 : split ? h * 0.4 : h * 0.6, ceiling = h * 0.07, capAt = [];
+    const A = BAR_LAYOUTS[from === "circle" ? to : from], B = BAR_LAYOUTS[to === "circle" ? from : to], q = from === to || from === "circle" || to === "circle" ? 1 : pl, at = (k) => A[k] + (B[k] - A[k]) * q; // between two layouts in a row every number glides; into or out of the ring, see below
+    const side = w * 0.05, gap = w * (n > 90 ? 0.0018 : 0.0035), wide = (w - side * 2 - gap * (n - 1)) / n, floor = h * at(0), tall = h * at(1), both = at(2), ceil = at(3), shine = at(4), ceiling = h * 0.07;
+    const round = from === "circle" ? 1 - pl : to === "circle" ? pl : 0; // how far into the ring the row has gone: each bar splits down the middle, and its halves swing out to their two places round the ring (where the right half of the ring mirrors the left)
+    if (round) { g.lineCap = "butt"; g.lineWidth = wide / 2 + (ringWide - wide / 2) * round; }
+    const capPath = round ? new Path2D() : null, toward = (a, b) => a + (b - a) * round; // (a place in the row, and the same in the ring)
     for (let i = 0; i < n; i++) {
-      const x = side + i * (wide + gap), high = Math.max(2, level(i) * tall), c = acidTinge(around((i / n) * 0.9), (i / n) * 0.92), top = mix(c, [255, 255, 255], 0.55);
-      g.fillStyle = rgba(c, 0.82);
-      if (middle) { // out both ways from a line across the middle, with a cap at each end
-        g.fillRect(x, floor - high / 2, wide, high);
-        g.fillStyle = rgba(top, 0.9);
-        g.fillRect(x, floor - (peaks[i] * tall) / 2 - 5, wide, 2.5);
-        g.fillRect(x, floor + (peaks[i] * tall) / 2 + 2.5, wide, 2.5);
-        capAt.push([x + wide / 2, floor - (peaks[i] * tall) / 2 - 5]);
-        continue;
+      const x = side + i * (wide + gap), v = level(i), high = Math.max(2, v * tall), cap = peaks[slotOf(i, n)], c = acidTinge(around((i / n) * 0.9), (i / n) * 0.92), top = mix(c, [255, 255, 255], 0.55);
+      if (round) for (let half = 0; half < 2; half++) { // the two halves of this bar, each between its place in the row and its place round the ring
+        const a = ((half ? n * 2 - 1 - i : i) / (n * 2)) * TAU - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), bx = x + wide * (half ? 0.25 : 0.75), by = floor + (high * both) / 2;
+        const rx0 = cx + ca * r, ry0 = cy + sa * r, rTall = Math.max(2, v * ringTall), rCap = cap * ringTall;
+        g.strokeStyle = rgba(c, (0.82 + 0.03 * round) * share);
+        g.beginPath();
+        g.moveTo(toward(bx, rx0), toward(by, ry0));
+        g.lineTo(toward(bx, rx0 + ca * rTall), toward(by - high, ry0 + sa * rTall));
+        g.stroke();
+        const lineCap = floor - cap * tall * (1 - both / 2);
+        capPath.moveTo(toward(bx, rx0 + ca * (rCap + 4)), toward(lineCap - 2.5, ry0 + sa * (rCap + 4)));
+        capPath.lineTo(toward(bx, rx0 + ca * (rCap + 6.5)), toward(lineCap - 5, ry0 + sa * (rCap + 6.5)));
       }
-      g.fillRect(x, floor - high, wide, high);
-      if (split) { // and the spectrum the other way round hanging from the ceiling
+      else {
+        g.fillStyle = rgba(c, 0.82 * share);
+        g.fillRect(x, floor - high * (1 - both / 2), wide, high);
+      }
+      const keep = (1 - round) * share; // what stays only in a row: the reflection, the bottom caps and the copy from the ceiling
+      if (shine * keep > 0.004) { g.fillStyle = rgba(c, 0.14 * shine * keep); g.fillRect(x, floor + 3 + (high * both) / 2, wide, high * 0.32); }
+      if (ceil * keep > 0.004) { // and the spectrum the other way round hanging from the ceiling
         const j = n - 1 - i, down = Math.max(2, level(j) * tall);
-        g.fillStyle = rgba(around((j / n) * 0.9), 0.82);
+        g.fillStyle = rgba(around((j / n) * 0.9), 0.82 * ceil * keep);
         g.fillRect(x, ceiling, wide, down);
-        g.fillStyle = rgba(top, 0.9);
-        g.fillRect(x, ceiling + peaks[j] * tall + 2.5, wide, 2.5);
-      } else {
-        g.fillStyle = rgba(c, 0.14);
-        g.fillRect(x, floor + 3, wide, high * 0.32);
+        g.fillStyle = rgba(top, 0.9 * ceil * keep);
+        g.fillRect(x, ceiling + peaks[slotOf(j, n)] * tall + 2.5, wide, 2.5);
       }
-      g.fillStyle = rgba(top, 0.9);
-      g.fillRect(x, floor - peaks[i] * tall - 5, wide, 2.5);
-      capAt.push([x + wide / 2, floor - peaks[i] * tall - 5]);
+      if (round) continue;
+      g.fillStyle = rgba(top, 0.9 * share);
+      g.fillRect(x, floor - cap * tall * (1 - both / 2) - 5, wide, 2.5);
+      if (both > 0.004) { g.fillStyle = rgba(top, 0.9 * both * share); g.fillRect(x, floor + (cap * tall * both) / 2 + 2.5, wide, 2.5); } // out both ways: a cap at each end
+      capAt.push([x + wide / 2, floor - cap * tall * (1 - both / 2) - 5]);
     }
-    if (sound.hatHit) for (let k = 0; k < 3; k++) twinkle(...capAt[Math.floor(rnd(n * 0.45, n))], h * 0.06);
+    if (round) { g.strokeStyle = rgba(mix(colors[0], [255, 255, 255], 0.6), 0.9 * share); g.stroke(capPath); return; }
+    if (sound.hatHit && share > 0.5) for (let k = 0; k < 3; k++) twinkle(...capAt[Math.floor(rnd(n * 0.45, n))], h * 0.06);
   }
 
   function mirror() { // the spectrum folded about the middle and standing on black glass
     const { t, dt, hatHit } = sound, n = V.count, side = w * 0.03, gap = w * 0.003, wide = (w / 2 - side - gap * n) / n, floor = h * V.floor, tall = h * Math.min(0.52, V.floor * 0.78);
     backdrop();
-    for (let i = 0; i < n; i++) {
-      const v = acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92), high = Math.max(2, v * tall), c = acidTinge(around((i / n) * 0.9 + t * 0.02), (i / n) * 0.92), out = i * (wide + gap) + gap / 2, cap = floor - peaks[i] * tall - 5;
-      peaks[i] = Math.max(v, peaks[i] - dt * 0.5);
-      for (const x of [w / 2 + out, w / 2 - out - wide]) {
-        g.fillStyle = rgba(c, 0.86);
-        g.fillRect(x, floor - high, wide, high);
-        g.fillStyle = "rgba(255,255,255,.26)"; // the shine down one side
-        g.fillRect(x, floor - high, wide * 0.3, high);
-        g.fillStyle = rgba(c, 0.2);
-        g.fillRect(x, floor + 3, wide, high * 0.5);
-        g.fillStyle = rgba(c, 0.09);
-        g.fillRect(x, floor + 3 + high * 0.5, wide, high * 0.2);
-        g.fillStyle = rgba(mix(c, [255, 255, 255], 0.55), 0.9);
-        g.fillRect(x, cap, wide, 2.5);
+    const p = overOf("count");
+    for (let set = p < 1 ? 0 : 1; set < 2; set++) { // on the way from one number of bars to another, both sets show, the old going as the new one comes
+      const n = set ? V.count : vary.was.count, share = set ? p : 1 - p, side = w * 0.03, gap = w * 0.003, wide = (w / 2 - side - gap * n) / n;
+      g.globalAlpha = share;
+      for (let i = 0; i < n; i++) {
+        const v = acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92), high = Math.max(2, v * tall), c = acidTinge(around((i / n) * 0.9 + t * 0.02), (i / n) * 0.92), out = i * (wide + gap) + gap / 2, s = slotOf(i, n), cap = floor - peaks[s] * tall - 5;
+        if (capLift[s] < v) capLift[s] = v;
+        for (const x of [w / 2 + out, w / 2 - out - wide]) {
+          g.fillStyle = rgba(c, 0.86);
+          g.fillRect(x, floor - high, wide, high);
+          g.fillStyle = "rgba(255,255,255,.26)"; // the shine down one side
+          g.fillRect(x, floor - high, wide * 0.3, high);
+          g.fillStyle = rgba(c, 0.2);
+          g.fillRect(x, floor + 3, wide, high * 0.5);
+          g.fillStyle = rgba(c, 0.09);
+          g.fillRect(x, floor + 3 + high * 0.5, wide, high * 0.2);
+          g.fillStyle = rgba(mix(c, [255, 255, 255], 0.55), 0.9);
+          g.fillRect(x, cap, wide, 2.5);
+        }
+        if (hatHit && i > n * 0.5 && Math.random() < 0.08 * share) twinkle(w / 2 + (Math.random() < 0.5 ? out : -out), cap, h * 0.06);
       }
-      if (hatHit && i > n * 0.5 && Math.random() < 0.08) twinkle(w / 2 + (Math.random() < 0.5 ? out : -out), cap, h * 0.06);
     }
+    for (let s = 0; s < SLOTS; s++) { peaks[s] = Math.max(capLift[s], peaks[s] - dt * 0.5); capLift[s] = 0; } // the caps, by where they are along the spectrum (see bars): each falls back slowly or is lifted by the bars under it, once a frame however many sets were drawn, and after it was drawn (so it shows where it was left, as it always did)
+    g.globalAlpha = 1;
     g.fillStyle = "rgba(255,255,255,.22)";
     g.fillRect(side, floor, w - side * 2, 1.5);
   }
 
   function leds() { // a hi-fi's columns of little lamps, the top ones warming to red
     const { dt, hatHit } = sound, COLS = V.cols, ROWS = Math.round(COLS * 0.67), side = w * 0.09, floor = h * 0.86, tall = h * 0.7, stepX = (w - side * 2) / COLS, stepY = tall / ROWS, lamp = stepX * 0.8, thin = stepY * 0.64, lit = [new Path2D(), new Path2D(), new Path2D()], off = new Path2D(), caps = new Path2D();
-    const round = Math.min(lamp, stepY) * 0.4, put = V.lamp === "round" ? (p, x, y) => { p.moveTo(x + lamp / 2 + round, y + thin / 2); p.arc(x + lamp / 2, y + thin / 2, round, 0, TAU); } : V.lamp === "thin" ? (p, x, y) => p.rect(x, y + thin * 0.36, lamp, thin * 0.28) : (p, x, y) => p.rect(x, y, lamp, thin); // little square lamps, round ones, or thin bars of light
+    for (let s = 0; s < SLOTS; s++) peaks[s] = Math.max(0, peaks[s] - dt * 0.35); // (the caps by where they are along the spectrum: see bars)
+    const round = Math.min(lamp, stepY) * 0.4, pl = overOf("lamp"), pc = overOf("cols"), put = pl < 1 && Path2D.prototype.roundRect ? ledBox(lamp, thin, round, pl) : V.lamp === "round" ? (p, x, y) => { p.moveTo(x + lamp / 2 + round, y + thin / 2); p.arc(x + lamp / 2, y + thin / 2, round, 0, TAU); } : V.lamp === "thin" ? (p, x, y) => p.rect(x, y + thin * 0.36, lamp, thin * 0.28) : (p, x, y) => p.rect(x, y, lamp, thin); // little square lamps, round ones, or thin bars of light
     backdrop();
     for (let c = 0; c < COLS; c++) {
       const v = acidAdd(sound.bands[Math.floor((c / COLS) * BANDS * 0.92)], (c / COLS) * 0.92), level = Math.round(v * ROWS), x = side + c * stepX;
-      peaks[c] = Math.max(v, peaks[c] - dt * 0.35);
-      const cap = Math.min(ROWS - 1, Math.round(peaks[c] * ROWS));
+      const slot = slotOf(c, COLS);
+      peaks[slot] = Math.max(v, peaks[slot]);
+      const cap = Math.min(ROWS - 1, Math.round(peaks[slot] * ROWS));
       for (let r = 0; r < ROWS; r++) put(r < level ? lit[r < ROWS * 0.62 ? 0 : r < ROWS * 0.85 ? 1 : 2] : r === cap ? caps : off, x, floor - (r + 1) * stepY);
       if (hatHit && c > COLS * 0.55 && Math.random() < 0.1) twinkle(x + lamp / 2, floor - (cap + 0.6) * stepY, h * 0.05);
     }
+    g.globalAlpha = pc; // (while the number of columns goes over, the new grid comes in as the old one, drawn over it, goes)
     g.fillStyle = "rgba(255,255,255,.04)";
     g.fill(off);
     [colors[0], [255, 196, 60], [255, 72, 50]].forEach((tone, k) => { g.fillStyle = rgba(tone, 0.95); g.fill(lit[k]); });
     g.fillStyle = rgba(mix(colors[0], [255, 255, 255], 0.6), 0.95);
     g.fill(caps);
+    g.globalAlpha = 1;
+    if (pc < 1) ledsWas(vary.was.cols, 1 - pc);
+  }
+
+  function ledBox(lamp, thin, round, pl) { // on the way from one kind of lamp to another (square, round, thin), each lamp is a box between the two, pl of the way there
+    const was = vary.was.lamp, now = V.lamp, wideOf = (k) => (k === "round" ? round * 2 : lamp), highOf = (k) => (k === "round" ? round * 2 : k === "thin" ? thin * 0.28 : thin), cornerOf = (k) => (k === "round" ? round : 0);
+    const bw = wideOf(was) + (wideOf(now) - wideOf(was)) * pl, bh = highOf(was) + (highOf(now) - highOf(was)) * pl, br = cornerOf(was) + (cornerOf(now) - cornerOf(was)) * pl;
+    return (p, x, y) => p.roundRect(x + (lamp - bw) / 2, y + (thin - bh) / 2, bw, bh, br);
+  }
+  function ledsWas(COLS, share) { // the old number of columns, while it goes over to the new one: the same grid drawn for it, as bright as its share, over the new one going the other way (see leds)
+    const { hatHit } = sound, ROWS = Math.round(COLS * 0.67), side = w * 0.09, floor = h * 0.86, tall = h * 0.7, stepX = (w - side * 2) / COLS, stepY = tall / ROWS, lamp = stepX * 0.8, thin = stepY * 0.64, lit = [new Path2D(), new Path2D(), new Path2D()], off = new Path2D(), caps = new Path2D();
+    const round = Math.min(lamp, stepY) * 0.4, pl = overOf("lamp"), put = pl < 1 && Path2D.prototype.roundRect ? ledBox(lamp, thin, round, pl) : V.lamp === "round" ? (p, x, y) => { p.moveTo(x + lamp / 2 + round, y + thin / 2); p.arc(x + lamp / 2, y + thin / 2, round, 0, TAU); } : V.lamp === "thin" ? (p, x, y) => p.rect(x, y + thin * 0.36, lamp, thin * 0.28) : (p, x, y) => p.rect(x, y, lamp, thin);
+    for (let c = 0; c < COLS; c++) {
+      const v = acidAdd(sound.bands[Math.floor((c / COLS) * BANDS * 0.92)], (c / COLS) * 0.92), level = Math.round(v * ROWS), x = side + c * stepX, s = slotOf(c, COLS);
+      peaks[s] = Math.max(v, peaks[s]);
+      const cap = Math.min(ROWS - 1, Math.round(peaks[s] * ROWS));
+      for (let r = 0; r < ROWS; r++) put(r < level ? lit[r < ROWS * 0.62 ? 0 : r < ROWS * 0.85 ? 1 : 2] : r === cap ? caps : off, x, floor - (r + 1) * stepY);
+      if (hatHit && c > COLS * 0.55 && Math.random() < 0.1 * share) twinkle(x + lamp / 2, floor - (cap + 0.6) * stepY, h * 0.05);
+    }
+    g.globalAlpha = share;
+    g.fillStyle = "rgba(255,255,255,.04)";
+    g.fill(off);
+    [colors[0], [255, 196, 60], [255, 72, 50]].forEach((tone, k) => { g.fillStyle = rgba(tone, 0.95); g.fill(lit[k]); });
+    g.fillStyle = rgba(mix(colors[0], [255, 255, 255], 0.6), 0.95);
+    g.fill(caps);
+    g.globalAlpha = 1;
   }
 
   const RIDGES = 34, ACROSS = 56, land = new Float32Array(RIDGES * ACROSS), landX = new Float32Array(ACROSS), landY = new Float32Array(ACROSS);
   let landAt = 0, landClock = 0;
   function terrain() { // the sound as a landscape: the newest line is the nearest, and it rolls away to the horizon
-    const { t, dt, kick, hatHit } = sound, horizon = h * 0.4, WAIT = 0.05;
+    const { t, dt, kick, hatHit } = sound, horizon = h * 0.4, WAIT = 0.05, pm = overOf("mesh"), meshOn = pm < 1 ? (V.mesh ? pm : 1 - pm) : V.mesh ? 1 : 0; // (the mesh fades in or out as it comes or goes)
     landClock += dt;
     if (landClock >= WAIT) {
       landClock %= WAIT;
@@ -1051,7 +1113,7 @@ window.Effects = (() => {
     }
     g.lineJoin = "round";
     for (let r = RIDGES - 1; r >= 0; r--) { // the far ones first, so the near ones hide them
-      const depth = Math.min(1, (r + landClock / WAIT) / (RIDGES - 1)), near = (1 - depth) ** 2.6, y0 = horizon + (h * 1.04 - horizon) * near, half = w * (0.3 + 0.4 * near), lift = h * (0.012 + 0.3 * near) * V.height, row = (landAt + r) % RIDGES, line = new Path2D(), mesh = V.mesh && r < RIDGES - 1 ? new Path2D() : null;
+      const depth = Math.min(1, (r + landClock / WAIT) / (RIDGES - 1)), near = (1 - depth) ** 2.6, y0 = horizon + (h * 1.04 - horizon) * near, half = w * (0.3 + 0.4 * near), lift = h * (0.012 + 0.3 * near) * V.height, row = (landAt + r) % RIDGES, line = new Path2D(), mesh = meshOn > 0.004 && r < RIDGES - 1 ? new Path2D() : null;
       for (let a = 0; a < ACROSS; a++) {
         const x = w / 2 + (a / (ACROSS - 1) - 0.5) * 2 * half, y = y0 - land[row * ACROSS + a] * lift;
         if (a) line.lineTo(x, y); else line.moveTo(x, y);
@@ -1071,7 +1133,7 @@ window.Effects = (() => {
       g.strokeStyle = rgba(around(depth * 0.8 + t * 0.03), 0.25 + 0.75 * (1 - depth));
       g.lineWidth = Math.max(1, h / 700) * (1 + 2 * near);
       g.stroke(line);
-      if (mesh) g.stroke(mesh);
+      if (mesh) { g.globalAlpha = meshOn; g.stroke(mesh); g.globalAlpha = 1; }
     }
   }
 
@@ -1087,10 +1149,11 @@ window.Effects = (() => {
     for (let i = 0; i <= 10; i++) { const x = left + (wide * i) / 10; g.moveTo(x, h * 0.16); g.lineTo(x, h * 0.84); }
     for (let i = 0; i <= 8; i++) { const y = h * 0.16 + (h * 0.68 * i) / 8; g.moveTo(left, y); g.lineTo(left + wide, y); }
     g.stroke();
-    const traceAt = V.trace === "xy" ? (p) => [w / 2 + (wave[p % POINTS] + acidRing(p)) * h * 0.3, mid + wave[(p + 23) % POINTS] * h * 0.3] // the sound against itself a moment later, which draws loops and figures
-      : V.trace === "ring" ? (p) => { const a = (p / POINTS) * TAU - Math.PI / 2, r = h * (0.22 + 0.11 * (wave[p % POINTS] + acidRing(p))); return [w / 2 + Math.cos(a) * r, mid + Math.sin(a) * r]; } // wrapped round into a circle
-      : (p) => [left + (wide * p) / (POINTS - 1), mid + (wave[p] + acidRing(p)) * h * 0.3];
-    for (let p = 0, end = V.trace === "line" ? POINTS - 1 : POINTS; p <= end; p++) { const [x, y] = traceAt(p); if (p) trace.lineTo(x, y); else trace.moveTo(x, y); }
+    const traceOf = (kind) => kind === "xy" ? (p) => [w / 2 + (wave[p % POINTS] + acidRing(p)) * h * 0.3, mid + wave[(p + 23) % POINTS] * h * 0.3] // the sound against itself a moment later, which draws loops and figures
+      : kind === "ring" ? (p) => { const a = (p / POINTS) * TAU - Math.PI / 2, r = h * (0.22 + 0.11 * (wave[p % POINTS] + acidRing(p))); return [w / 2 + Math.cos(a) * r, mid + Math.sin(a) * r]; } // wrapped round into a circle
+      : (p) => [left + (wide * Math.min(p, POINTS - 1)) / (POINTS - 1), mid + (wave[p % POINTS] + acidRing(p)) * h * 0.3], nowAt = traceOf(V.trace), pt = overOf("trace"), wasAt = pt < 1 ? traceOf(vary.was.trace) : null;
+    const traceAt = wasAt ? (p) => { const [x0, y0] = wasAt(p), [x1, y1] = nowAt(p); return [x0 + (x1 - x0) * pt, y0 + (y1 - y0) * pt]; } : nowAt; // (while it goes over, each point between where the old way and the new one put it)
+    for (let p = 0, end = V.trace === "line" && (!wasAt || vary.was.trace === "line") ? POINTS - 1 : POINTS; p <= end; p++) { const [x, y] = traceAt(p); if (p) trace.lineTo(x, y); else trace.moveTo(x, y); }
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
     neon(trace, rgba(tone, 1), Math.max(1.4, h / 460) * (1 + 0.6 * acidLook.soft), 0.8 + 0.2 * kick + 0.2 * acidLook.knob);
@@ -1176,16 +1239,16 @@ window.Effects = (() => {
   }
 
   function vortex() { // arms of sound wound into a spiral
-    const { t, wave, bass, kick, dt } = sound, pace = dt * 60, reach = Math.hypot(w, h) * 0.5, ARMS = V.arms, spin = turned("vortex", 0.3);
+    const { t, wave, bass, kick, dt } = sound, pace = dt * 60, reach = Math.hypot(w, h) * 0.5, ARMS = countOf("arms"), spin = turned("vortex", 0.3);
     echo(1 + (0.007 + 0.012 * bass) * pace, (0.03 + 0.03 * bass + 0.05 * acidLook.soft) * pace * V.spin, 0.955 ** pace);
-    for (let arm = 0; arm < ARMS; arm++) {
-      const a = (arm / ARMS) * TAU + spin, path = new Path2D(), nx = -Math.sin(a), ny = Math.cos(a);
+    for (let arm = 0; arm < Math.ceil(ARMS - 1e-6); arm++) {
+      const a = (arm / ARMS) * TAU + spin, path = new Path2D(), nx = -Math.sin(a), ny = Math.cos(a), share = shareOf(arm, ARMS);
       for (let p = 0; p < POINTS; p += 2) {
         const part = p / POINTS, along = reach * (0.04 + 0.62 * part), off = wave[p] * reach * (0.06 + 0.14 * acidLook.open) * Math.sin(part * Math.PI), x = w / 2 + Math.cos(a) * along + nx * off, y = h / 2 + Math.sin(a) * along + ny * off;
         if (p) path.lineTo(x, y); else path.moveTo(x, y);
       }
-      neon(path, rgba(around(arm / ARMS + t * 0.05), 1), Math.max(1.5, h / 400) * (1 + kick), 0.5 + 0.4 * kick, 0.5);
-      spray(2, (u) => [w / 2 + Math.cos(a) * reach * (0.08 + 0.58 * u), h / 2 + Math.sin(a) * reach * (0.08 + 0.58 * u)], h * 0.05);
+      neon(path, rgba(around(arm / ARMS + t * 0.05), 1), Math.max(1.5, h / 400) * (1 + kick), (0.5 + 0.4 * kick) * share, 0.5);
+      if (share > 0.5) spray(2, (u) => [w / 2 + Math.cos(a) * reach * (0.08 + 0.58 * u), h / 2 + Math.sin(a) * reach * (0.08 + 0.58 * u)], h * 0.05);
     }
     remember();
   }
@@ -1214,16 +1277,16 @@ window.Effects = (() => {
     const angle = turning.from + (turning.to - turning.from) * eased(clamp((t - turning.start) / turning.long)), reach = (W / 2) * Math.abs(Math.cos(angle)) + (H / 2) * Math.abs(Math.sin(angle)); // as far as the line has to go for the window to be covered, at this angle
     turning.angle = angle;
     if (!pools.length || pools[0].width !== B) pools.splice(0, 2, paper(B)[0], paper(B)[0]);
-    const [now, was] = pools, along = (p) => mid + (p / (POINTS - 1) - 0.5) * 2 * reach, swell = (p, k = 0) => mid + (k - (V.lines - 1) / 2) * H * 0.15 + wave[(p + k * 41) % POINTS] * H * (0.11 + 0.2 * acidLook.open) * Math.sin((p / (POINTS - 1)) * Math.PI) ** 0.6, keep = [g, w, h];
+    const [now, was] = pools, L = countOf("lines"), along = (p) => mid + (p / (POINTS - 1) - 0.5) * 2 * reach, swell = (p, k = 0) => mid + (k - (L - 1) / 2) * H * 0.15 + wave[(p + k * 41) % POINTS] * H * (0.11 + 0.2 * acidLook.open) * Math.sin((p / (POINTS - 1)) * Math.PI) ** 0.6, keep = [g, w, h];
     [g, w, h] = [now.getContext("2d"), B, B];
     try {
       echo(1 + 0.002 * pace, 0, 0.972 ** pace, 0, 0, 1 + (0.012 + 0.04 * bass + 0.025 * kick + 0.03 * acidLook.open) * pace, 0.5, was);
       const paint = g.createLinearGradient(mid - reach, 0, mid + reach, 0);
       for (let i = 0; i <= 6; i++) paint.addColorStop(i / 6, rgba(around(i / 6 + t * 0.06), 1));
-      for (let k = 0; k < V.lines; k++) { // one line of the waveform, or a few side by side, each a little later in the sound
+      for (let k = 0; k < Math.ceil(L - 1e-6); k++) { // one line of the waveform, or a few side by side, each a little later in the sound (and the one coming or going, fading)
         const path = new Path2D();
         for (let p = 0; p < POINTS; p++) { if (p) path.lineTo(along(p), swell(p, k)); else path.moveTo(along(p), swell(p, k)); }
-        neon(path, paint, Math.max(1.3, H / 430) * (1 + 0.7 * kick), (0.36 + 0.26 * kick) / Math.sqrt(V.lines), 0.7);
+        neon(path, paint, Math.max(1.3, H / 430) * (1 + 0.7 * kick), ((0.36 + 0.26 * kick) / Math.sqrt(L)) * shareOf(k, L), 0.7);
       }
       spray(5, (u) => { const p = Math.floor(u * (POINTS - 1)); return [along(p), swell(p)]; }, H * 0.05);
     } finally { [g, w, h] = keep; }
@@ -1235,25 +1298,33 @@ window.Effects = (() => {
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
 
+  const cometOff = new Float64Array(HEADS * 2), cometWas = new Float64Array(HEADS * 2); // for each comet's way across and its way up and down: what a number of heads or a loop on its way has taken up so far (see comets), and how tightly it looped last frame (0: it was not there)
   function comets() { // points of light on looping paths, each quicker when its part of the sound is busy
     const { t, kick, dt } = sound, pace = dt * 60, size = Math.min(w, h);
     echo(1 + 0.0015 * pace, 0.0015 * pace, 0.935 ** pace);
     g.lineCap = "butt"; // round ends would overlap from one frame to the next and show up as beads
-    for (let i = 0, n = V.heads; i < n; i++) {
-      const share = i / n, v = smooth((share + 0.05) * BANDS * 0.85);
+    for (let i = 0, n = countOf("heads"), all = Math.ceil(n - 1e-6); i < HEADS; i++) {
+      if (i >= all) { past[i * 2] = NaN; cometWas[i * 2] = 0; continue; }
+      const share = i / n, v = smooth((share + 0.05) * BANDS * 0.85), on = shareOf(i, n), across = 1 + share, up = (1.6 - share * 0.4) * V.loop, sofar = orbits[i] + share * TAU;
+      if (cometWas[i * 2] && (cometWas[i * 2] !== across || cometWas[i * 2 + 1] !== up)) { // the number of heads or the loop is on its way: the head stays where its turning so far has brought it, and goes on from there
+        cometOff[i * 2] = (cometOff[i * 2] + sofar * (cometWas[i * 2] - across)) % TAU;
+        cometOff[i * 2 + 1] = (cometOff[i * 2 + 1] + sofar * (cometWas[i * 2 + 1] - up)) % TAU;
+      }
+      cometWas[i * 2] = across;
+      cometWas[i * 2 + 1] = up;
       orbits[i] += dt * (0.3 + 1.6 * v + 1.2 * kick + 1.4 * acidLook.open * share);
-      const turn = orbits[i] + share * TAU, x = w / 2 + Math.cos(turn * (1 + share)) * w * (0.16 + 0.26 * share), y = h / 2 + Math.sin(turn * (1.6 - share * 0.4) * V.loop) * h * (0.16 + 0.24 * share);
+      const turn = orbits[i] + share * TAU, x = w / 2 + Math.cos(turn * (1 + share) + cometOff[i * 2]) * w * (0.16 + 0.26 * share), y = h / 2 + Math.sin(turn * (1.6 - share * 0.4) * V.loop + cometOff[i * 2 + 1]) * h * (0.16 + 0.24 * share);
       if (!Number.isNaN(past[i * 2])) {
         const path = new Path2D();
         path.moveTo(past[i * 2], past[i * 2 + 1]);
         path.lineTo(x, y);
-        neon(path, rgba(around(share + t * 0.04), 1), size * (0.004 + 0.012 * v), 0.7 + 0.3 * v);
+        neon(path, rgba(around(share + t * 0.04), 1), size * (0.004 + 0.012 * v), (0.7 + 0.3 * v) * on);
         const r = size * (0.018 + 0.03 * v + 0.012 * kick + 0.02 * acidLook.open), head = g.createRadialGradient(x, y, 0, x, y, r);
-        head.addColorStop(0, rgba(mix(around(share + t * 0.04), [255, 255, 255], 0.6), 0.5));
+        head.addColorStop(0, rgba(mix(around(share + t * 0.04), [255, 255, 255], 0.6), 0.5 * on));
         head.addColorStop(1, rgba(around(share + t * 0.04), 0));
         g.fillStyle = head;
         g.fillRect(x - r, y - r, r * 2, r * 2);
-        if (sound.hatHit && Math.random() < 0.4) glint(x, y, size * 0.09, 1);
+        if (sound.hatHit && Math.random() < 0.4 * on) glint(x, y, size * 0.09, 1);
       }
       past[i * 2] = x;
       past[i * 2 + 1] = y;
@@ -1311,19 +1382,26 @@ window.Effects = (() => {
   function dust() { // specks floating up through the light
     const { t, dt, level, kick, hat, hatHit } = sound, cx = w / 2, cy = h / 2, rise = (0.03 + 0.2 * level + 0.25 * kick + 0.5 * acidLook.open) * dt, groups = colors.map(() => [new Path2D(), new Path2D(), new Path2D()]);
     backdrop();
+    const pw = overOf("way"), wasWay = pw < 1 ? vary.was.way : V.way, outward = (V.way === "out" ? pw : 0) + (wasWay === "out" ? 1 - pw : 0); // (how far one way of floating has got on its way to another, and how much of it is "out")
     g.globalCompositeOperation = "lighter";
     for (let i = 0; i < STARS; i++) {
       const z = stars[i * 3 + 2], layer = Math.min(2, Math.floor(z * 3)), grow = 1 + (0.06 * kick + 0.15 * acidLook.open) * (layer + 1), by = rise * (0.4 + z);
-      let x = stars[i * 3], y = stars[i * 3 + 1];
-      if (V.way === "down") y += by; // falling like snow
-      else if (V.way === "wind") { x += by * 1.6; y += Math.sin(t * 0.6 + i) * by * 0.4; } // blown along
-      else if (V.way === "out") { x *= 1 + by * 2.4; y *= 1 + by * 2.4; if (Math.abs(x) > 1.05 || Math.abs(y) > 1.05) { x = rnd(-0.06, 0.06); y = rnd(-0.06, 0.06); } } // going through it
-      else y -= by;
+      let x = stars[i * 3], y = stars[i * 3 + 1], dx = 0, dy = 0;
+      for (let side = pw < 1 ? 0 : 1; side < 2; side++) { // (the way it floated, while it goes over to the new one, and the new one)
+        const way = side ? V.way : wasWay, part = side ? pw : 1 - pw;
+        if (way === "down") dy += by * part; // falling like snow
+        else if (way === "wind") { dx += by * 1.6 * part; dy += Math.sin(t * 0.6 + i) * by * 0.4 * part; } // blown along
+        else if (way === "out") { dx += x * by * 2.4 * part; dy += y * by * 2.4 * part; } // going through it
+        else dy -= by * part;
+      }
+      x += dx;
+      y += dy;
+      if (outward && (Math.abs(x) > 1.05 || Math.abs(y) > 1.05)) { x = rnd(-0.06, 0.06); y = rnd(-0.06, 0.06); }
       x = x > 1 ? x - 2 : x < -1 ? x + 2 : x;
       y = y > 1 ? y - 2 : y < -1 ? y + 2 : y;
       stars[i * 3] = x;
       stars[i * 3 + 1] = y;
-      const px = cx + (x + Math.sin(t * 0.21 + i) * 0.03) * cx * 1.05 * grow, py = cy + y * cy * 1.05 * grow, r = (0.7 + layer * 0.9) * Math.max(1, h / 720) * V.size * (V.way === "out" ? 0.6 + Math.hypot(x, y) : 1) * (1 + 1.4 * acidLook.open * z), path = groups[i % colors.length][layer];
+      const px = cx + (x + Math.sin(t * 0.21 + i) * 0.03) * cx * 1.05 * grow, py = cy + y * cy * 1.05 * grow, r = (0.7 + layer * 0.9) * Math.max(1, h / 720) * V.size * (1 + (Math.hypot(x, y) - 0.4) * outward) * (1 + 1.4 * acidLook.open * z), path = groups[i % colors.length][layer];
       path.moveTo(px + r, py);
       path.arc(px, py, r, 0, TAU);
       if (hatHit && i % 60 === 0) twinkle(px, py, h * (0.03 + 0.05 * z));
@@ -1334,19 +1412,19 @@ window.Effects = (() => {
 
   const LINKS = 84, linkX = new Float32Array(LINKS), linkY = new Float32Array(LINKS);
   function links() { // points of light drifting about, joined up whenever they come close
-    const { t, dt, level, kick, hatHit } = sound, close = Math.min(w, h) * 0.25 * V.reach * (1 + 0.45 * acidLook.open), faint = new Path2D(), bright = new Path2D(), wrap = (v) => (v > 1 ? v - 2 : v < -1 ? v + 2 : v), LINKS = V.count;
+    const { t, dt, level, kick, hatHit } = sound, close = Math.min(w, h) * 0.25 * V.reach * (1 + 0.45 * acidLook.open), faint = new Path2D(), bright = new Path2D(), wrap = (v) => (v > 1 ? v - 2 : v < -1 ? v + 2 : v), N = countOf("count"), LINKS = Math.floor(N + 1e-6), ALL = Math.ceil(N - 1e-6), part = ALL > LINKS ? N - LINKS : 0, fadeFaint = part ? new Path2D() : null, fadeBright = part ? new Path2D() : null; // (LINKS whole points, and while the count is on its way the one coming or going, with its lines, at its share)
     backdrop();
-    for (let i = 0; i < LINKS; i++) {
-      const way = stars[i * 3 + 2] * TAU + t * 0.04 * (i % 2 ? 1 : -1), pace = (0.012 + 0.09 * level) * dt, grow = 1 + 0.22 * smooth((i / LINKS) * BANDS * 0.9) + 0.05 * kick;
+    for (let i = 0; i < ALL; i++) {
+      const way = stars[i * 3 + 2] * TAU + t * 0.04 * (i % 2 ? 1 : -1), pace = (0.012 + 0.09 * level) * dt, grow = 1 + 0.22 * smooth((i / N) * BANDS * 0.9) + 0.05 * kick;
       stars[i * 3] = wrap(stars[i * 3] + Math.cos(way) * pace);
       stars[i * 3 + 1] = wrap(stars[i * 3 + 1] + Math.sin(way) * pace);
       linkX[i] = w / 2 + stars[i * 3] * w * 0.54 * grow;
       linkY[i] = h / 2 + stars[i * 3 + 1] * h * 0.54 * grow;
     }
-    for (let i = 0; i < LINKS; i++) for (let j = i + 1; j < LINKS; j++) {
+    for (let i = 0; i < ALL; i++) for (let j = i + 1; j < ALL; j++) {
       const apart = Math.hypot(linkX[i] - linkX[j], linkY[i] - linkY[j]);
       if (apart > close) continue;
-      const path = apart < close * 0.55 ? bright : faint;
+      const path = j >= LINKS ? (apart < close * 0.55 ? fadeBright : fadeFaint) : apart < close * 0.55 ? bright : faint;
       path.moveTo(linkX[i], linkY[i]);
       path.lineTo(linkX[j], linkY[j]);
     }
@@ -1357,6 +1435,15 @@ window.Effects = (() => {
     g.lineWidth = Math.max(1, h / 620);
     g.strokeStyle = rgba(colors[0], 0.36 + 0.5 * kick + 0.3 * acidLook.knob);
     g.stroke(bright);
+    if (part) { // the point coming or going, with its lines, at its share
+      g.globalAlpha = part;
+      g.stroke(fadeBright);
+      g.lineWidth = Math.max(1, h / 800);
+      g.strokeStyle = rgba(colors[1], 0.14 + 0.3 * kick);
+      g.stroke(fadeFaint);
+      g.globalAlpha = 1;
+      glint(linkX[LINKS], linkY[LINKS], h * (0.018 + 0.018 * kick), 0.9 * part);
+    }
     for (let i = 0; i < LINKS; i++) glint(linkX[i], linkY[i], h * (0.018 + 0.018 * Math.max(kick, sound.beat)), 0.9); // (the points keep the beat through a break too)
     if (hatHit) for (let k = 0; k < 4; k++) { const i = Math.floor(rnd(0, LINKS)); twinkle(linkX[i], linkY[i], h * 0.07); }
   }
@@ -1416,26 +1503,31 @@ window.Effects = (() => {
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
-    g.lineWidth = Math.max(2, ((TAU * r) / (n * 2)) * 0.55);
-    for (let i = 0; i < n * 2; i++) {
-      const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82), a = (i / (n * 2)) * TAU - Math.PI / 2 + spin, from = r * 1.05, to = from + size * (0.012 + 0.24 * v) * V.reach + (acidLook.on ? size * 0.035 * acidLook.open * (1 + Math.sin(a * 10 - sound.t * 7)) : 0);
-      g.strokeStyle = rgba(around((b / n) * 0.9 + sound.t * 0.02), 0.55 + 0.4 * v);
-      g.beginPath();
-      g.moveTo(cx + Math.cos(a) * from, cy + Math.sin(a) * from);
-      g.lineTo(cx + Math.cos(a) * to, cy + Math.sin(a) * to);
-      g.stroke();
-      if (sound.hatHit && Math.random() < 0.025) twinkle(cx + Math.cos(a) * to, cy + Math.sin(a) * to, h * 0.055);
+    const p = overOf("count");
+    for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old count while it goes over, then the new one
+      const n = side ? V.count : vary.was.count, share = side ? p : 1 - p;
+      g.lineWidth = Math.max(2, ((TAU * r) / (n * 2)) * 0.55);
+      for (let i = 0; i < n * 2; i++) {
+        const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82), a = (i / (n * 2)) * TAU - Math.PI / 2 + spin, from = r * 1.05, to = from + size * (0.012 + 0.24 * v) * V.reach + (acidLook.on ? size * 0.035 * acidLook.open * (1 + Math.sin(a * 10 - sound.t * 7)) : 0);
+        g.strokeStyle = rgba(around((b / n) * 0.9 + sound.t * 0.02), share * (0.55 + 0.4 * v));
+        g.beginPath();
+        g.moveTo(cx + Math.cos(a) * from, cy + Math.sin(a) * from);
+        g.lineTo(cx + Math.cos(a) * to, cy + Math.sin(a) * to);
+        g.stroke();
+        if (sound.hatHit && Math.random() < 0.025 * share) twinkle(cx + Math.cos(a) * to, cy + Math.sin(a) * to, h * 0.055);
+      }
     }
     middle(cx, cy, r);
   }
 
   function sun() { // a soft corona round the record. Its outline is drawn several times, shrinking inward, so the light dies away along the shape and never stops at an edge
     const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), n = 96, CONTOURS = 14;
+    const pp = overOf("petals"), wasPetals = pp < 1 ? vary.was.petals : V.petals; // (how far a number of petals has got on its way to another)
     backdrop();
     g.globalCompositeOperation = "lighter";
     for (let layer = 1; layer >= 0; layer--) {
       const lift = size * (0.06 + 0.05 * layer) * (1 + 0.6 * kick + 0.9 * acidLook.soft), swing = size * (0.17 + 0.1 * layer), turn = t * (0.07 + 0.05 * layer) * (layer ? -1 : 1), out = new Float32Array(n + 1);
-      for (let i = 0; i <= n; i++) out[i] = lift + swing * smooth(Math.abs((i / n) * 2 - 1) * BANDS * 0.62 + 1) + size * (0.012 + 0.08 * acidLook.open) * Math.sin((i / n) * TAU * V.petals + t * 1.3 + layer);
+      for (let i = 0; i <= n; i++) out[i] = lift + swing * smooth(Math.abs((i / n) * 2 - 1) * BANDS * 0.62 + 1) + (pp < 1 ? size * (0.012 + 0.08 * acidLook.open) * (1 - pp) * Math.sin((i / n) * TAU * wasPetals + t * 1.3 + layer) : 0) + size * (0.012 + 0.08 * acidLook.open) * pp * Math.sin((i / n) * TAU * V.petals + t * 1.3 + layer);
       g.fillStyle = rgba(around(layer * 0.4 + t * 0.02), 0.05);
       for (let c = CONTOURS; c >= 1; c--) {
         const part = (c / CONTOURS) ** 1.4, edge = new Path2D();
@@ -1453,18 +1545,19 @@ window.Effects = (() => {
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
-    g.lineWidth = gap * 0.46;
-    for (let i = 0; i < N; i++) {
-      const v = smooth(((i + 0.5) / N) * BANDS * 0.9), at = r + gap * (i + 1), spin = (t * (0.25 + i * 0.06) + 1.6 * acidLook.soft) * (i % 2 ? -1 : 1), long = 0.08 + 1.9 * v + 0.8 * acidLook.open + 1.5 * acidSpectrum(((i + 0.5) / N) * 0.9);
-      g.strokeStyle = rgba(colors[i % 3], 0.07);
+    g.lineWidth = size * 0.021 * Math.min(1, 15 / countOf("count")) * 0.46; // (as wide as the tracks are spaced: by the count on its way)
+    for (let i = 0, M = countOf("count"), gp = size * 0.021 * Math.min(1, 15 / M), ar = countOf("arcs"), AR = Math.ceil(ar - 1e-6); i < Math.ceil(M - 1e-6); i++) {
+      const share = shareOf(i, M), v = smooth(((i + 0.5) / M) * BANDS * 0.9), at = r + gp * (i + 1), spin = (t * (0.25 + i * 0.06) + 1.6 * acidLook.soft) * (i % 2 ? -1 : 1), long = 0.08 + 1.9 * v + 0.8 * acidLook.open + 1.5 * acidSpectrum(((i + 0.5) / N) * 0.9);
+      g.strokeStyle = rgba(colors[i % 3], 0.07 * share);
       g.beginPath();
       g.arc(cx, cy, at, 0, TAU);
       g.stroke();
-      g.strokeStyle = rgba(around(i / N + t * 0.03), 0.4 + 0.6 * v);
-      for (let k = 0; k < arcs; k++) { // the lit part of the track in one piece, or two or more spread round it
-        const from = spin + (k * TAU) / arcs;
+      g.strokeStyle = rgba(around(i / M + t * 0.03), (0.4 + 0.6 * v) * share);
+      for (let k = 0; k < AR; k++) { // the lit part of the track in one piece, or two or more spread round it
+        const from = spin + (k * TAU) / ar;
+        if (k === AR - 1 && ar < AR) g.strokeStyle = rgba(around(i / M + t * 0.03), (0.4 + 0.6 * v) * share * (ar - k)); // (the one coming or going)
         g.beginPath();
-        g.arc(cx, cy, at, from, from + (long * 2) / arcs);
+        g.arc(cx, cy, at, from, from + (long * 2) / ar);
         g.stroke();
       }
       if (hatHit && i > N * 0.5 && Math.random() < 0.3) twinkle(cx + Math.cos(spin + long) * at, cy + Math.sin(spin + long) * at, h * 0.05);
@@ -1477,19 +1570,23 @@ window.Effects = (() => {
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
-    for (let layer = 0; layer < 3; layer++) {
-      const line = new Path2D(), lift = size * (0.05 + layer * 0.07), swing = size * (0.24 - layer * 0.02 + 0.15 * acidLook.soft), tone = around(layer * 0.33 + t * 0.03), spin = (t * (0.07 + layer * 0.03) + 0.35 * acidLook.soft) * (layer % 2 ? -1 : 1);
-      for (let i = 0; i <= STEPS; i++) { const u = i / STEPS, a = u * span, far = r + lift + swing * soft(u * BANDS * 0.7 + layer * 8 + 3) + acidPetal(u, layer, size), x = Math.cos(a) * far, y = Math.sin(a) * far; if (i) line.lineTo(x, y); else line.moveTo(x, y); }
-      const pane = new Path2D(line);
-      pane.lineTo(Math.cos(span) * r, Math.sin(span) * r);
-      pane.lineTo(r, 0);
-      pane.closePath();
-      for (let f = 0; f < FOLDS * 2; f++) { // every other piece is a mirror image, so the ends meet
-        const a = spin + f * span + (f % 2 ? span : 0), c = Math.cos(a), s = Math.sin(a);
-        if (f % 2) g.setTransform(c, s, s, -c, cx, cy); else g.setTransform(c, s, -s, c, cx, cy);
-        g.fillStyle = rgba(tone, 0.06 + 0.08 * kick);
-        g.fill(pane);
-        neon(line, rgba(tone, 1), Math.max(1.2, h / 480) * (1 + kick), 0.7 + 0.3 * kick, 0.55);
+    const p = overOf("folds");
+    for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old number of folds while it goes over, then the new one
+      const FOLDS = side ? V.folds : vary.was.folds, span = Math.PI / FOLDS, share = side ? p : 1 - p;
+      for (let layer = 0; layer < 3; layer++) {
+        const line = new Path2D(), lift = size * (0.05 + layer * 0.07), swing = size * (0.24 - layer * 0.02 + 0.15 * acidLook.soft), tone = around(layer * 0.33 + t * 0.03), spin = (t * (0.07 + layer * 0.03) + 0.35 * acidLook.soft) * (layer % 2 ? -1 : 1);
+        for (let i = 0; i <= STEPS; i++) { const u = i / STEPS, a = u * span, far = r + lift + swing * soft(u * BANDS * 0.7 + layer * 8 + 3) + acidPetal(u, layer, size), x = Math.cos(a) * far, y = Math.sin(a) * far; if (i) line.lineTo(x, y); else line.moveTo(x, y); }
+        const pane = new Path2D(line);
+        pane.lineTo(Math.cos(span) * r, Math.sin(span) * r);
+        pane.lineTo(r, 0);
+        pane.closePath();
+        for (let f = 0; f < FOLDS * 2; f++) { // every other piece is a mirror image, so the ends meet
+          const a = spin + f * span + (f % 2 ? span : 0), c = Math.cos(a), s = Math.sin(a);
+          if (f % 2) g.setTransform(c, s, s, -c, cx, cy); else g.setTransform(c, s, -s, c, cx, cy);
+          g.fillStyle = rgba(tone, (0.06 + 0.08 * kick) * share);
+          g.fill(pane);
+          neon(line, rgba(tone, 1), Math.max(1.2, h / 480) * (1 + kick), (0.7 + 0.3 * kick) * share, 0.55);
+        }
       }
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -1501,20 +1598,24 @@ window.Effects = (() => {
     const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), reach = Math.hypot(w, h) * 0.56, r = size * (0.2 + 0.014 * kick), n = V.count, spin = turned("rays", 0.05) + 0.8 * acidLook.soft;
     backdrop();
     g.globalCompositeOperation = "lighter";
-    for (let i = 0; i < n * 2; i++) {
-      const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82, true), a = (i / (n * 2)) * TAU + spin, wide = (TAU / (n * 2)) * (0.14 + 0.3 * v + 0.25 * acidBump((b / n) * 0.82, acidLook.glide)), end = r + (reach - r) * (0.14 + 0.86 * v), tone = acidTinge(around((b / n) * 0.9 + t * 0.02), (b / n) * 0.82, true), fade = g.createRadialGradient(cx, cy, r, cx, cy, end);
-      fade.addColorStop(0, rgba(mix(tone, [255, 255, 255], 0.25), 0.8 + 0.2 * kick));
-      fade.addColorStop(0.5, rgba(tone, 0.28));
-      fade.addColorStop(1, rgba(tone, 0));
-      g.fillStyle = fade;
-      g.beginPath();
-      g.moveTo(cx + Math.cos(a - wide * 0.4) * r, cy + Math.sin(a - wide * 0.4) * r);
-      g.lineTo(cx + Math.cos(a - wide) * end, cy + Math.sin(a - wide) * end);
-      g.lineTo(cx + Math.cos(a + wide) * end, cy + Math.sin(a + wide) * end);
-      g.lineTo(cx + Math.cos(a + wide * 0.4) * r, cy + Math.sin(a + wide * 0.4) * r);
-      g.closePath();
-      g.fill();
-      if (hatHit && Math.random() < 0.025) twinkle(cx + Math.cos(a) * end * 0.8, cy + Math.sin(a) * end * 0.8, h * 0.06);
+    const p = overOf("count");
+    for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old count while it goes over, then the new one
+      const n = side ? V.count : vary.was.count, share = side ? p : 1 - p;
+      for (let i = 0; i < n * 2; i++) {
+        const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82, true), a = (i / (n * 2)) * TAU + spin, wide = (TAU / (n * 2)) * (0.14 + 0.3 * v + 0.25 * acidBump((b / n) * 0.82, acidLook.glide)), end = r + (reach - r) * (0.14 + 0.86 * v), tone = acidTinge(around((b / n) * 0.9 + t * 0.02), (b / n) * 0.82, true), fade = g.createRadialGradient(cx, cy, r, cx, cy, end);
+        fade.addColorStop(0, rgba(mix(tone, [255, 255, 255], 0.25), (0.8 + 0.2 * kick) * share));
+        fade.addColorStop(0.5, rgba(tone, 0.28 * share));
+        fade.addColorStop(1, rgba(tone, 0));
+        g.fillStyle = fade;
+        g.beginPath();
+        g.moveTo(cx + Math.cos(a - wide * 0.4) * r, cy + Math.sin(a - wide * 0.4) * r);
+        g.lineTo(cx + Math.cos(a - wide) * end, cy + Math.sin(a - wide) * end);
+        g.lineTo(cx + Math.cos(a + wide) * end, cy + Math.sin(a + wide) * end);
+        g.lineTo(cx + Math.cos(a + wide * 0.4) * r, cy + Math.sin(a + wide * 0.4) * r);
+        g.closePath();
+        g.fill();
+        if (hatHit && Math.random() < 0.025 * share) twinkle(cx + Math.cos(a) * end * 0.8, cy + Math.sin(a) * end * 0.8, h * 0.06);
+      }
     }
     middle(cx, cy, r);
   }
@@ -3508,21 +3609,26 @@ window.Effects = (() => {
   let kal = null;
   function kaleido() { // the music drawn in one wedge, mirrored all the way round and turning; the drop changes how many times
     const { t, dt, kick, bass, wave } = sound, S = Math.max(64, Math.round(Math.min(w, h) * 0.55));
-    if (!kal || kal.S !== S) kal = { S, art: paper(S, S), parts: 8, turn: 0 };
-    if (flow.dropHit) kal.parts = [6, 8, 10, 12, 16][Math.floor(rnd(0, 5))];
+    if (!kal || kal.S !== S) kal = { S, art: paper(S, S), parts: 8, turn: 0, was: 8, over: 1, long: 1, next: 0, seen: 0 };
+    if (flow.dropHit) kal.next = [6, 8, 10, 12, 16][Math.floor(rnd(0, 5))]; // the drop's new number of wedges goes over in two beats; one asked for while the last is still going over waits until that has arrived
+    kal.over = Math.min(1, kal.over + Math.min(0.1, Math.max(0, (realNow - (kal.seen || realNow)) / 1000)) / kal.long); // (by the clock on the wall, which is what the beat keeps time by; once a frame, however often it is drawn)
+    kal.seen = realNow;
+    if (kal.next && kal.over >= 1) { if (kal.next !== kal.parts) { kal.was = kal.parts; kal.parts = kal.next; kal.over = 0; kal.long = overTakes("drop"); } kal.next = 0; }
+    const B = countOf("blobs"), pl = overOf("line"), lineWas = pl < 1 ? vary.was.line : V.line, lineShow = 0.6 * (pl < 1 ? (V.line !== "none" ? pl : 0) + (lineWas !== "none" ? 1 - pl : 0) : V.line !== "none" ? 1 : 0);
     const [, x] = kal.art, tones = moodColors(3);
     x.globalCompositeOperation = "source-over";
     x.fillStyle = "rgba(0,0,0,0.32)";
     x.fillRect(0, 0, S, S);
     x.globalCompositeOperation = "lighter";
-    for (let i = 0; i < V.blobs; i++) { const a = t * (0.2 + i * 0.07) + i * 1.7, r = S * (0.18 + 0.16 * Math.sin(t * 0.3 + i)); softBlob(x, S * 0.45 + Math.cos(a) * r, S * 0.5 + Math.sin(a) * r * 0.8, S * (0.07 + 0.07 * bass + 0.07 * acidLook.soft) * (5 / V.blobs) ** 0.4, tones[i % 3], 0.22 + 0.15 * kick); }
-    if (V.line !== "none") { // the waveform across the wedge, or wound into a ring in it
+    for (let i = 0; i < Math.ceil(B - 1e-6); i++) { const a = t * (0.2 + i * 0.07) + i * 1.7, r = S * (0.18 + 0.16 * Math.sin(t * 0.3 + i)); softBlob(x, S * 0.45 + Math.cos(a) * r, S * 0.5 + Math.sin(a) * r * 0.8, S * (0.07 + 0.07 * bass + 0.07 * acidLook.soft) * (5 / B) ** 0.4, tones[i % 3], (0.22 + 0.15 * kick) * shareOf(i, B)); }
+    if (lineShow > 0.004) { // the waveform across the wedge, or wound into a ring in it, or on its way from the one to the other
+      const from = lineWas === "none" ? V.line : lineWas, to = V.line === "none" ? lineWas : V.line, toRing = +(from === "ring") + (+(to === "ring") - +(from === "ring")) * pl; // how round it is, 0 across the wedge and 1 a ring (one that comes from nothing, or goes to it, keeps its shape and fades)
       x.beginPath();
       for (let p = 0; p <= POINTS; p += 4) {
-        const ring = V.line === "ring", a = (p / POINTS) * TAU, r = S * (0.16 + 0.07 * wave[p % POINTS] + 0.15 * acidLook.soft), px = ring ? S * 0.55 + Math.cos(a) * r : (p / POINTS) * S, py = ring ? S * 0.5 + Math.sin(a) * r : S * 0.5 + wave[p % POINTS] * S * 0.3;
+        const a = (p / POINTS) * TAU, r = S * (0.16 + 0.07 * wave[p % POINTS] + 0.15 * acidLook.soft), px = (p / POINTS) * S + (S * 0.55 + Math.cos(a) * r - (p / POINTS) * S) * toRing, py = S * 0.5 + wave[p % POINTS] * S * 0.3 + (Math.sin(a) * r - wave[p % POINTS] * S * 0.3) * toRing;
         if (p) x.lineTo(px, py); else x.moveTo(px, py);
       }
-      x.strokeStyle = rgba(mix(tones[1], [255, 255, 255], 0.2), 0.6);
+      x.strokeStyle = rgba(mix(tones[1], [255, 255, 255], 0.2), lineShow);
       x.lineWidth = Math.max(1, S * 0.01);
       x.stroke();
     }
@@ -3530,22 +3636,26 @@ window.Effects = (() => {
     g.fillStyle = "rgba(3,3,8,0.35)";
     g.fillRect(0, 0, w, h);
     kal.turn += dt * (0.12 + 0.3 * flow.intensity + 1.5 * acidLook.soft) * V.spin;
-    const N = kal.parts, zoom = 1 + 0.12 * kick + 0.15 * flow.build, reach = Math.hypot(w, h) * 0.6;
+    const zoom = 1 + 0.12 * kick + 0.15 * flow.build, reach = Math.hypot(w, h) * 0.6, p = eased(kal.over);
     g.save();
     g.translate(w / 2, h / 2);
     g.scale(zoom, zoom);
     g.globalCompositeOperation = "lighter";
-    for (let i = 0; i < N; i++) {
-      g.save();
-      g.rotate(kal.turn + (i * TAU) / N);
-      if (i % 2) g.scale(1, -1); // every other one the mirror image
-      g.beginPath();
-      g.moveTo(0, 0);
-      g.arc(0, 0, reach, -Math.PI / N, Math.PI / N);
-      g.closePath();
-      g.clip();
-      g.drawImage(kal.art[0], 0, -S / 2, reach, S);
-      g.restore();
+    for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old number of wedges while the new one comes in, then the new one
+      const N = side ? kal.parts : kal.was;
+      g.globalAlpha = side ? p : 1 - p;
+      for (let i = 0; i < N; i++) {
+        g.save();
+        g.rotate(kal.turn + (i * TAU) / N);
+        if (i % 2) g.scale(1, -1); // every other one the mirror image
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.arc(0, 0, reach, -Math.PI / N, Math.PI / N);
+        g.closePath();
+        g.clip();
+        g.drawImage(kal.art[0], 0, -S / 2, reach, S);
+        g.restore();
+      }
     }
     g.restore();
   }
@@ -3571,24 +3681,32 @@ window.Effects = (() => {
   }
   let deeper = 0;
   function fractal() { // an endless fall into turning shapes, each with smaller ones on its corners; quicker through a build
-    const { t, dt, kick, bass } = sound, tones = moodColors(3), sides = V.sides || (mood === "hard" ? 3 : mood === "acid" ? 4 : mood === "euphoric" ? 6 : 5), R = Math.hypot(w, h) * 0.62, spin = turned("fractal", 0.18);
+    const { t, dt, kick, bass } = sound, tones = moodColors(3), moodSides = mood === "hard" ? 3 : mood === "acid" ? 4 : mood === "euphoric" ? 6 : 5, sides = V.sides || moodSides, pf = overOf("sides"), wasSides = pf < 1 ? vary.was.sides || moodSides : sides, R = Math.hypot(w, h) * 0.62, spin = turned("fractal", 0.18);
     deeper = (deeper + dt * (0.25 + 0.45 * flow.intensity) * (1 + flow.build)) % 1;
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(2,2,6,0.38)";
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
-    const shape = (cx, cy, r, turn) => { g.beginPath(); for (let i = 0; i <= sides; i++) { const a = turn + (i / sides) * TAU; if (i) g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); else g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } };
+    let corners = sides; // what the next shape() draws: a shape of this many sides, or (-1) the ring on its way from one shape to the other
+    const corner = (n, a) => { const side = TAU / n, at = ((a % side) + side) % side; return Math.cos(Math.PI / n) / Math.cos(at - side / 2); }; // how far out a shape of n sides with a corner at angle 0 reaches at angle a (1 at the corners)
+    const shape = (cx, cy, r, turn) => {
+      g.beginPath();
+      if (corners < 0) { for (let i = 0; i <= 120; i++) { const a = (i / 120) * TAU, far = r * (corner(wasSides, a) + (corner(sides, a) - corner(wasSides, a)) * pf); if (i) g.lineTo(cx + Math.cos(a + turn) * far, cy + Math.sin(a + turn) * far); else g.moveTo(cx + Math.cos(a + turn) * far, cy + Math.sin(a + turn) * far); } return; } // (120 points: a corner of every shape it has falls on one)
+      for (let i = 0; i <= corners; i++) { const a = turn + (i / corners) * TAU; if (i) g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); else g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+    };
     for (let k = 0; k < 16; k++) {
+      corners = wasSides !== sides ? -1 : sides; // (the ring itself: on its way between the two shapes while they go over)
       const depth = (k + deeper) / 16, r = R * depth ** 2.3 * (1 + 0.06 * kick + 0.08 * acidLook.soft * depth), turn = spin + depth * (4.2 + 2.5 * acidLook.soft) + Math.sin(t * 0.3) * 0.5, tone = tones[k % 3], alpha = 0.2 + 0.55 * depth;
       shape(w / 2, h / 2, r, turn);
       g.strokeStyle = rgba(tone, alpha);
       g.lineWidth = Math.max(1, r * 0.01 * (1 + bass + 1.2 * acidLook.soft));
       g.stroke();
-      if (r > R * 0.05) for (let i = 0; i < sides; i++) { // the same shape again on each corner, smaller
-        const a = turn + (i / sides) * TAU;
+      if (r > R * 0.05) for (let i = 0, n = sides + (wasSides !== sides ? wasSides : 0); i < n; i++) { // the same shape again on each corner, smaller (on the way from one shape to another, on the corners of both)
+        const old = i >= sides, a = turn + ((old ? i - sides : i) / (old ? wasSides : sides)) * TAU;
+        corners = old ? wasSides : sides;
         shape(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r, r * V.child, -turn * 1.5);
-        g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.3), alpha * 0.6);
+        g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.3), alpha * 0.6 * (wasSides === sides ? 1 : old ? 1 - pf : pf));
         g.lineWidth = Math.max(1, r * 0.005);
         g.stroke();
       }
@@ -4096,20 +4214,26 @@ window.Effects = (() => {
     }
     return { travel, sumOf };
   })();
-  let juliaTrip = null, juliaPale = 0.2;
+  let juliaTrip = null, juliaPale = 0.2, juliaWas = null; // juliaWas: while the power goes over to another, the journey of the one it goes from, flown on and drawn under the new one
   const juliaSeen = { x: 0, shade: 0, edge: 0, stripe: 0.5, half: 36, t: 0, glow: 1 };
   function julia() { // the Julia set of a point on the edge of the Mandelbrot set's heart, a dust of spirals, flown through for as long as the song lasts: quicker through a build, slow and airy in a break, back out to the whole set on a drop
-    const n = V.power || 2, hand = card.off || card.lost || card.made.julia === null;
+    const n = V.power || 2, hand = card.off || card.lost || card.made.julia === null, pp = overOf("power"), was = pp < 1 ? vary.was.power || 2 : n;
     trippyOn();
-    if (!juliaTrip || juliaTrip.n !== n) juliaTrip = juliaWays.travel(n); // another power is another set: its journey starts from the whole of it
-    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1), light = F.light - (1 - trippy.kickLight) * F.kicked, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" || mood === "nightcore" ? 0.5 : 1, tones = moodColors(3).map((tone) => turnHue(tone, F.hue * share)); // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
+    if (!juliaTrip || juliaTrip.n !== n) { juliaWas = was !== n && juliaTrip && juliaTrip.n === was ? juliaTrip : null; juliaTrip = juliaWays.travel(n); } // another power is another set: its journey starts from the whole of it (and the old one's goes on under it while it goes over)
+    if (was === n) juliaWas = null;
+    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1), O = juliaWas ? juliaWas.step(sound, flow, w / h, hand, V.spin ?? 1) : null, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" || mood === "nightcore" ? 0.5 : 1; // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
     let pale = 0; // how much of the picture lies right on the set's edge, from forty dots worked out here. Where that is most of it (a shape that is a dust of fine branches) the edge glows less, or the whole picture goes pale
     for (let i = 0; i < 40; i++) { probe((((i % 8) - 3.5) / 4) * Math.min(w / h, 1.6), ((Math.floor(i / 8) - 2) / 2.5) * 0.9, juliaSeen); pale += juliaSeen.edge / 40; }
     juliaPale += (pale - juliaPale) * (1 - Math.exp(-Math.min(0.1, Math.max(0, sound.dt)) / 0.7));
     F.edge *= Math.min(1, 0.2 / Math.max(0.2, juliaPale));
-    if (!onCard("julia", JULIA_SUM, { orbit: [2, F.orbit], c: [2, [F.cx, F.cy]], view: [2, [F.vx, F.vy]], shift: [2, [F.sx, F.sy]], jump: [2, [F.jx, F.jy]], power: [1, [n]], reach: [1, [F.k]], blend: [1, [F.blend]], ahead: [1, [F.ahead]], tall: [1, [F.tall]], pen: [1, [F.pen]], limit: [1, [F.limit]], wide: [1, [F.wide]],
-      light: [1, [light]], glow: [1, [(V.glow ?? 1) * F.edge]], toneA: [3, tones[0].map((v) => v / 255)], toneB: [3, tones[1].map((v) => v / 255)], toneC: [3, tones[2].map((v) => v / 255)] })) byHand(juliaWays.sumOf(F), light, tones);
+    if (O) { O.edge *= Math.min(1, 0.2 / Math.max(0.2, juliaPale)); juliaDraw(O, was, share, 1); } // the old power, while the new one comes in over it
+    juliaDraw(F, n, share, O ? pp : 1);
     echoes(F.trueSpan, hand);
+  }
+  function juliaDraw(F, n, share, alpha) { // one picture of the set of power n, where its journey F has got, as solid as alpha: with the graphics card, or else worked out by hand
+    const light = F.light - (1 - trippy.kickLight) * F.kicked, tones = moodColors(3).map((tone) => turnHue(tone, F.hue * share)); // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
+    if (!onCard("julia", JULIA_SUM, { orbit: [2, F.orbit], c: [2, [F.cx, F.cy]], view: [2, [F.vx, F.vy]], shift: [2, [F.sx, F.sy]], jump: [2, [F.jx, F.jy]], power: [1, [n]], reach: [1, [F.k]], blend: [1, [F.blend]], ahead: [1, [F.ahead]], tall: [1, [F.tall]], pen: [1, [F.pen]], limit: [1, [F.limit]], wide: [1, [F.wide]],
+      light: [1, [light]], glow: [1, [(V.glow ?? 1) * F.edge]], toneA: [3, tones[0].map((v) => v / 255)], toneB: [3, tones[1].map((v) => v / 255)], toneC: [3, tones[2].map((v) => v / 255)] }, alpha)) byHand(juliaWays.sumOf(F), light, tones, alpha);
   }
   const DIVES = [ // places on the edge of the Mandelbrot set where the same picture comes round again and again on the way in: across, up, how many steps the sum takes there before it starts going round, how long its round is, and how many rounds bring the picture back the same way up
     [-0.10109636384562216, 0.9562865108091415, 4, 1, 3], // three arms meeting
@@ -4192,10 +4316,11 @@ window.Effects = (() => {
       return { copy: true, i: place, which, cx, cy, k: 0, stop: P, P, orbit, sx, sy, size: Math.sqrt(s2), turn: Math.atan2(sy, sx), gain: swell * swell, calm: -Math.log(swell * Math.sqrt(s2)), bendX: (bx * tx + by * ty) / t2, bendY: (by * tx - bx * ty) / t2,
         fromX: A[0] - cx, fromY: A[1] - cy, far: Math.hypot(A[0] - cx, A[1] - cy) }; // from: the place, measured from the copy
     }
-    function makeTrip(place) { // the journey: what it keeps between frames, and step(), which moves it on and says what to draw
-      const T = { phase: "fall", A: placePath(place), B: null, L: 0, dir: 1, held: 0, ahead: 0, L0: 0, a0: 0, since: 0, slow: 0, hue: 0, laps: 0, fade: null, drawn: false };
-      function start(i, cut) { // the top of a lap: the whole set, on the way to place i. cut: on a drop (the old picture goes, and the fall starts a little way in, where the set's edge already fills the picture: from the brightest picture to a small set on black would be the one hard change in the journey); otherwise from a copy just arrived at (it fades into the real set, lined up)
-        T.fade = cut ? (T.drawn ? { cut: true, t: 0, len: 0.8, fresh: true } : null) : { cut: false, t: 0, len: 1.5, path: T.B, ahead: T.ahead, fresh: true };
+    function makeTrip(place, from) { // the journey: what it keeps between frames, and step(), which moves it on and says what to draw
+      const T = from ? { ...from, fade: from.fade && { ...from.fade, fresh: false }, cutAt: -Infinity } : { phase: "fall", A: placePath(place), B: null, L: 0, dir: 1, held: 0, ahead: 0, L0: 0, a0: 0, since: 0, slow: 0, hue: 0, laps: 0, fade: null, drawn: false }; // from: another journey, to fly on from where it is (see going): it never cuts again
+      function start(i, cut) { // the top of a lap: the whole set, on the way to place i. cut: on a drop (the journey it was on flies on as it goes: see going; and the fall starts a little way in, where the set's edge already fills the picture: from the brightest picture to a small set on black would be the one hard change in the journey); otherwise from a copy just arrived at (it fades into the real set, lined up)
+        if (cut && T.drawn) T.going = { trip: makeTrip(T.A.i, T), t: 0 }; // what was on the picture when the drop landed goes on moving as it goes away, over the new one
+        T.fade = cut ? null : { cut: false, t: 0, len: 1.5, path: T.B, ahead: T.ahead, fresh: true };
         Object.assign(T, { phase: "fall", A: placePath(i), B: null, L: cut && T.drawn ? 1.2 : 0, dir: 1, held: 0, ahead: 0, since: 0, slow: cut ? 0 : 2.5, laps: T.laps + 1 });
       }
       const limitAt = (path, tall, more) => Math.min(236, Math.max(56, path.k + Math.log(1 / tall) / path.step + more));
@@ -4250,12 +4375,18 @@ window.Effects = (() => {
         if (T.fade) {
           const F = T.fade; F.t += dt / F.len;
           if (F.t >= 1) T.fade = null;
-          else if (F.cut || byHand) draws.push({ old: true, fresh: F.fresh, alpha: 1 - eased(F.t) }); // what was on the picture when the drop landed, going away: kept as a picture, which costs nothing, where working it out again every frame cost more than anything else in the journey
+          else if (byHand) draws.push({ old: true, fresh: F.fresh, alpha: 1 - eased(F.t) }); // without the graphics card, the copy just arrived at, going away (lined up with the set, so it hardly moves): kept as a picture, which costs nothing, where working it out again every frame cost more than anything else in the journey
           else { // the copy drawn over the real set: the same picture through  c + s m + b m^2, so the two stay lined up while the new lap gets going. Its steps are let go as it fades
             const B = F.path, mx = draw.mx + draw.path.cx, my = draw.my + draw.path.cy;
             draws.push({ path: B, mx: B.sx * mx - B.sy * my, my: B.sx * my + B.sy * mx, vx: B.sx * draw.vx - B.sy * draw.vy, vy: B.sx * draw.vy + B.sy * draw.vx, tall: draw.tall * B.size, limit: Math.min(CAP, 12 + (14 + 16 * (1 - eased(F.t))) * B.P), ahead: F.ahead, bend: 1, own: 1, hue: T.hue, alpha: 1 - eased(F.t) });
           }
           F.fresh = false;
+        }
+        if (T.going) { // the journey a drop cut away from, flown on and drawn over the new one as it goes, for 0.8 s
+          const G = T.going;
+          G.t += dt / 0.8;
+          if (G.t >= 1) T.going = null;
+          else for (const d of G.trip.step(sound, flow, aspect, spin, byHand)) { d.alpha *= 1 - eased(G.t); draws.push(d); }
         }
         T.drawn = true;
         return draws;
@@ -4561,7 +4692,8 @@ window.Effects = (() => {
   }
   const bubbles = [];
   function ocean() { // swimming along under the sea: light coming down from the surface, the seabed going by, bubbles rising faster as the song lifts
-    const { t, dt, kick, bass, hatHit } = sound, tones = moodColors(3), night = V.night, deep = mood === "hard" ? [18, 4, 8] : mix(night ? [1, 3, 10] : [2, 18, 38], tones[0], night ? 0.04 : 0.12), shallow = mood === "hard" ? [70, 16, 24] : mix(night ? [3, 14, 34] : [20, 96, 140], tones[0], night ? 0.08 : 0.25);
+    const { t, dt, kick, bass, hatHit } = sound, tones = moodColors(3), pn = overOf("night"), night = pn < 1 ? (V.night ? pn : 1 - pn) : V.night ? 1 : 0; // (how much it is night: 0 or 1, or in between while it goes over)
+    const deep = mood === "hard" ? [18, 4, 8] : mix(mix([2, 18, 38], tones[0], 0.12), mix([1, 3, 10], tones[0], 0.04), night), shallow = mood === "hard" ? [70, 16, 24] : mix(mix([20, 96, 140], tones[0], 0.25), mix([3, 14, 34], tones[0], 0.08), night);
     const water = g.createLinearGradient(0, 0, 0, h);
     water.addColorStop(0, rgba(acidLook.on ? mix(shallow, [40, 150, 70], 0.35 * Math.min(1, acidLook.knob + 0.3 * acidLook.on)) : shallow, 1));
     water.addColorStop(1, rgba(deep, 1));
@@ -4569,15 +4701,15 @@ window.Effects = (() => {
     g.fillStyle = water;
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = "lighter";
-    if (night) for (let i = 0; i < 90; i++) { // deep down at night nothing comes from above, and the sea lights itself: specks of plankton glowing and fading, brighter on the hi-hats
+    if (night > 0.004) for (let i = 0; i < 90; i++) { // deep down at night nothing comes from above, and the sea lights itself: specks of plankton glowing and fading, brighter on the hi-hats
       const x = ((((i * 0.618034 + t * 0.006 * (1 + (i % 3))) % 1) + 1) % 1) * w, y = (((i * 0.381966 + Math.sin(t * 0.21 + i) * 0.015) % 1) * 0.92) * h, on = (0.5 + 0.5 * Math.sin(t * (0.9 + (i % 4) * 0.3) + i * 2.3)) ** 2 * (0.6 + 0.9 * sound.hat), r = Math.max(1.6, h / 300) * (1 + (i % 3)), glow = mix(tones[i % 3], [120, 255, 220], 0.6);
-      if (i % 5 === 0) softBlob(g, x, y, r * 5, glow, 0.25 * on);
-      g.fillStyle = rgba(glow, Math.min(1, on));
+      if (i % 5 === 0) softBlob(g, x, y, r * 5, glow, 0.25 * on * night);
+      g.fillStyle = rgba(glow, Math.min(1, on) * night);
       g.fillRect(x - r / 2, y - r / 2, r, r);
     }
-    for (let i = 0; i < (night ? 0 : 7); i++) {
+    for (let i = 0; i < (night > 0.996 ? 0 : 7); i++) {
       const x0 = ((i / 7 + Math.sin(t * 0.07 + i) * 0.05 + 0.06 * acidLook.soft * Math.sin(acidFeel.t * 1.6 + i * 2.1)) * 1.4 - 0.2) * w, spread = w * (0.06 + 0.03 * Math.sin(t * 0.5 + i) + 0.04 * acidLook.soft), ray = g.createLinearGradient(0, 0, 0, h * 0.9);
-      ray.addColorStop(0, `rgba(180,230,255,${(0.12 + 0.1 * bass).toFixed(3)})`);
+      ray.addColorStop(0, `rgba(180,230,255,${((0.12 + 0.1 * bass) * (1 - night)).toFixed(3)})`);
       ray.addColorStop(1, "rgba(180,230,255,0)");
       g.fillStyle = ray;
       g.beginPath();
@@ -4612,47 +4744,90 @@ window.Effects = (() => {
       g.stroke();
     }
     if (hatHit) for (let i = 0; i < 3; i++) glint(rnd(0, w), rnd(0.2, 0.8) * h, Math.min(w, h) * 0.02, 0.7); // plankton catching the light
-    softBlob(g, w * 0.5, 0, w * 0.45, tones[1], (0.06 + 0.1 * kick + 0.1 * acidLook.knob) * (night ? 0.35 : 1));
+    softBlob(g, w * 0.5, 0, w * 0.45, tones[1], (0.06 + 0.1 * kick + 0.1 * acidLook.knob) * (1 - 0.65 * night));
+  }
+  function roadSkyline(p, horizon, tones) { // the neon road's skyline on its way from one kind to another (city, hills or flat), p of the way there
+    const from = vary.was.hills, to = V.hills, blocks = 30, bw = w / blocks, edge = new Path2D(), ridge = (j) => horizon - h * (0.05 + 0.05 * Math.abs(Math.sin((j / 32) * 7.3)) + 0.025 * Math.sin((j / 32) * 19));
+    const at = (kind, x, k) => { // how high the skyline of this kind stands at x (in block k, for a city): as the base draws it, the hills' ridge a line through 33 points
+      if (kind === "city") { const r = Math.sin((k + 1) * 12.9898) * 43758.5453, f = r - Math.floor(r); return horizon - h * (0.025 + 0.12 * f * f + (Math.abs(k - blocks / 2) < 3 ? 0.04 : 0)); }
+      if (kind !== "hills") return horizon;
+      const u = (x / w) * 32, i = Math.min(31, Math.floor(u));
+      return ridge(i) + (ridge(i + 1) - ridge(i)) * (u - i);
+    };
+    for (let j = 0; j <= 480; j++) { // (480 points: a corner of the ridge and a side of a block both fall on one)
+      const x = (j / 480) * w, k = Math.min(blocks - 1, Math.floor(j / 16));
+      if (j % 16 === 0 && j && j < 480) edge.lineTo(x, at(from, x, k - 1) + (at(to, x, k - 1) - at(from, x, k - 1)) * p); // a block's side: up or down at once
+      const y = at(from, x, k) + (at(to, x, k) - at(from, x, k)) * p;
+      if (j) edge.lineTo(x, y); else edge.moveTo(x, y);
+    }
+    const solid = new Path2D(edge);
+    solid.lineTo(w, horizon);
+    solid.lineTo(0, horizon);
+    solid.closePath();
+    g.globalCompositeOperation = "source-over";
+    g.fillStyle = "#07020f";
+    g.fill(solid);
+    const city = (to === "city" ? p : 0) + (from === "city" ? 1 - p : 0), lights = new Path2D(), flat = (to === "flat" ? p : 0) + (from === "flat" ? 1 - p : 0);
+    if (city > 0.004) { // the windows, where the blocks still stand
+      for (let k = 0; k < blocks; k++) { const top = at("city", k * bw + 1, k); for (let y = top + h * 0.012; y < horizon - h * 0.01; y += h * 0.016) for (let x = k * bw + bw * 0.18; x < (k + 1) * bw - bw * 0.2; x += bw * 0.28) { const q = Math.sin(x * 7.13 + y * 3.71) * 43758.5; if (q - Math.floor(q) > 0.66) lights.rect(x, y, Math.max(1, bw * 0.1), Math.max(1, h * 0.005)); } }
+      g.save();
+      g.clip(solid);
+      g.globalCompositeOperation = "lighter";
+      g.fillStyle = rgba(mix(tones[2], [255, 220, 150], 0.55), (0.45 + 0.4 * sound.hat) * city);
+      g.fill(lights);
+      g.restore();
+    }
+    g.globalCompositeOperation = "lighter";
+    for (const [width, alpha] of [[4, 0.1], [2, 0.26], [1, 0.75]]) { g.strokeStyle = rgba(tones[1], alpha * (0.5 + 0.1 * (1 - city - flat) + 0.3 * flat)); g.lineWidth = Math.max(1, h / (500 - 80 * flat)) * width; g.stroke(edge); } // the glowing line along its top, as glowLine() draws it
+    g.strokeStyle = rgba(mix(tones[1], [255, 255, 255], 0.7), 0.95 * (0.5 + 0.1 * (1 - city - flat) + 0.3 * flat));
+    g.lineWidth = Math.max(1, Math.max(1, h / (500 - 80 * flat)) * 0.45);
+    g.stroke(edge);
   }
   let roadAt = 0;
   function neonroad() { // driving into a striped sun along a glowing grid, quicker the more the song is going. Some versions have a moon or a ringed planet instead, a city on the skyline or nothing at all, and a road that bends
-    const { t, dt, kick, bass } = sound, tones = moodColors(3), horizon = h * 0.56, sunTone = mood === "psy" ? rainbowTone(t * 0.05, 0) : mood === "hard" ? [255, 60, 40] : mood === "acid" ? [240, 230, 60] : [255, 120, 80], dusk = rgba(mix([120, 20, 110], tones[0], 0.25), 1), moon = V.sun === "moon";
+    const { t, dt, kick, bass } = sound, tones = moodColors(3), horizon = h * 0.56, sunTone = mood === "psy" ? rainbowTone(t * 0.05, 0) : mood === "hard" ? [255, 60, 40] : mood === "acid" ? [240, 230, 60] : [255, 120, 80], dusk = rgba(mix([120, 20, 110], tones[0], 0.25), 1), ps = overOf("sun"), ph = overOf("hills"), moonShare = (V.sun === "moon" ? (ps < 1 ? ps : 1) : 0) + (ps < 1 && vary.was.sun === "moon" ? 1 - ps : 0);
     const sky = g.createLinearGradient(0, 0, 0, horizon);
     sky.addColorStop(0, "#0a0418");
     sky.addColorStop(1, dusk);
     g.globalCompositeOperation = "source-over";
     g.fillStyle = sky;
     g.fillRect(0, 0, w, horizon);
-    skyStars(moon ? 140 : 70, horizon * 0.7, 3);
-    const R = Math.min(w, h) * (0.22 + 0.02 * bass) * (moon ? 0.8 : 1), cx = w / 2, cy = horizon - R * (moon ? 0.9 : 0.35), sun = g.createLinearGradient(0, cy - R, 0, cy + R);
-    const ring = (from, to) => { g.beginPath(); g.ellipse(cx, cy, R * 1.85, R * 0.38, -0.2, from, to); g.lineWidth = Math.max(2, R * 0.08); g.strokeStyle = rgba(mix(tones[2], [255, 255, 255], 0.25), 0.8); g.stroke(); g.lineWidth = Math.max(1, R * 0.02); g.strokeStyle = rgba(mix(tones[1], [255, 255, 255], 0.5), 0.95); g.stroke(); }; // a planet's ring, in two halves: one behind it and one in front
-    sun.addColorStop(0, moon ? "rgb(236,238,255)" : rgba(mix(sunTone, [255, 240, 120], 0.5), 1));
-    sun.addColorStop(1, moon ? "rgb(140,150,205)" : rgba(mix(sunTone, [255, 0, 120], 0.5), 1));
-    g.save();
-    g.beginPath();
-    g.rect(0, 0, w, horizon);
-    g.clip();
-    g.globalCompositeOperation = "lighter";
-    softBlob(g, cx, cy, R * 1.9, moon ? [160, 180, 255] : sunTone, (moon ? 0.12 : 0.22) + 0.2 * kick + 0.12 * acidLook.knob);
-    g.globalCompositeOperation = "source-over";
-    if (V.sun === "planet") ring(Math.PI, TAU);
-    g.fillStyle = sun;
-    g.beginPath();
-    g.arc(cx, cy, R, 0, TAU);
-    g.fill();
-    g.beginPath();
-    g.arc(cx, cy, R, 0, TAU);
-    g.clip(); // the stripes, or the moon's seas, only on it
-    if (moon) {
-      g.fillStyle = "rgba(80,90,150,.33)";
-      for (const [dx, dy, r] of [[-0.32, -0.18, 0.2], [0.26, 0.12, 0.13], [-0.04, 0.38, 0.11], [0.42, -0.36, 0.08], [-0.5, 0.3, 0.07]]) { g.beginPath(); g.arc(cx + dx * R, cy + dy * R, r * R, 0, TAU); g.fill(); }
-    } else {
-      g.fillStyle = dusk; // the stripes across it, the colour of the sky behind
-      for (let i = 0; i < 6; i++) g.fillRect(cx - R, cy - R * 0.62 + i * R * 0.12, R * 2, R * Math.min(0.1, (0.018 + i * 0.013) * (1 + 1.8 * acidLook.soft))); // (a 303: the stripes widen as its filter opens, never quite meeting) // across the half above the hills: thin at the top, thicker towards them
+    skyStars(Math.round(70 + 70 * moonShare), horizon * 0.7, 3);
+    for (let side = ps < 1 ? 0 : 1; side < 2; side++) { // the old one while it goes over, then the new one over it
+      const kind = side ? V.sun : vary.was.sun, moon = kind === "moon";
+      g.globalAlpha = side ? ps : 1 - ps;
+      const R = Math.min(w, h) * (0.22 + 0.02 * bass) * (moon ? 0.8 : 1), cx = w / 2, cy = horizon - R * (moon ? 0.9 : 0.35), sun = g.createLinearGradient(0, cy - R, 0, cy + R);
+      const ring = (from, to) => { g.beginPath(); g.ellipse(cx, cy, R * 1.85, R * 0.38, -0.2, from, to); g.lineWidth = Math.max(2, R * 0.08); g.strokeStyle = rgba(mix(tones[2], [255, 255, 255], 0.25), 0.8); g.stroke(); g.lineWidth = Math.max(1, R * 0.02); g.strokeStyle = rgba(mix(tones[1], [255, 255, 255], 0.5), 0.95); g.stroke(); }; // a planet's ring, in two halves: one behind it and one in front
+      sun.addColorStop(0, moon ? "rgb(236,238,255)" : rgba(mix(sunTone, [255, 240, 120], 0.5), 1));
+      sun.addColorStop(1, moon ? "rgb(140,150,205)" : rgba(mix(sunTone, [255, 0, 120], 0.5), 1));
+      g.save();
+      g.beginPath();
+      g.rect(0, 0, w, horizon);
+      g.clip();
+      g.globalCompositeOperation = "lighter";
+      softBlob(g, cx, cy, R * 1.9, moon ? [160, 180, 255] : sunTone, (moon ? 0.12 : 0.22) + 0.2 * kick + 0.12 * acidLook.knob);
+      g.globalCompositeOperation = "source-over";
+      if (kind === "planet") ring(Math.PI, TAU);
+      g.fillStyle = sun;
+      g.beginPath();
+      g.arc(cx, cy, R, 0, TAU);
+      g.fill();
+      g.beginPath();
+      g.arc(cx, cy, R, 0, TAU);
+      g.clip(); // the stripes, or the moon's seas, only on it
+      if (moon) {
+        g.fillStyle = "rgba(80,90,150,.33)";
+        for (const [dx, dy, r] of [[-0.32, -0.18, 0.2], [0.26, 0.12, 0.13], [-0.04, 0.38, 0.11], [0.42, -0.36, 0.08], [-0.5, 0.3, 0.07]]) { g.beginPath(); g.arc(cx + dx * R, cy + dy * R, r * R, 0, TAU); g.fill(); }
+      } else {
+        g.fillStyle = dusk; // the stripes across it, the colour of the sky behind
+        for (let i = 0; i < 6; i++) g.fillRect(cx - R, cy - R * 0.62 + i * R * 0.12, R * 2, R * Math.min(0.1, (0.018 + i * 0.013) * (1 + 1.8 * acidLook.soft))); // (a 303: the stripes widen as its filter opens, never quite meeting) // across the half above the hills: thin at the top, thicker towards them
+      }
+      g.restore();
+      if (kind === "planet") { g.save(); g.beginPath(); g.rect(0, 0, w, horizon); g.clip(); ring(0, Math.PI); g.restore(); }
     }
-    g.restore();
-    if (V.sun === "planet") { g.save(); g.beginPath(); g.rect(0, 0, w, horizon); g.clip(); ring(0, Math.PI); g.restore(); }
-    if (V.hills === "city") { // a skyline of blocks, with lights in their windows
+    g.globalAlpha = 1;
+    if (ph < 1 && vary.was.hills !== V.hills) roadSkyline(ph, horizon, tones); // on its way from one skyline to another (see roadSkyline)
+    else if (V.hills === "city") { // a skyline of blocks, with lights in their windows
       const blocks = 30, bw = w / blocks, tops = [], lights = new Path2D();
       g.fillStyle = "#07020f";
       for (let k = 0; k < blocks; k++) {
@@ -4706,12 +4881,13 @@ window.Effects = (() => {
     g.fillRect(0, 0, w, h);
     skyStars(120, h * 0.75, 5);
     g.globalCompositeOperation = "lighter";
-    for (let band = 0, N = V.curtains; band < N; band++) {
-      const tone = tones[band % 3], base = h * (0.34 + band * (0.24 / N) - (V.lake ? 0.05 : 0)), top = (u) => base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
+    const pl = overOf("lake"), lake = pl < 1 ? (V.lake ? pl : 1 - pl) : V.lake ? 1 : 0, N = countOf("curtains"); // (how much lake there is, and how many curtains, while they go over)
+    for (let band = 0; band < Math.ceil(N - 1e-6); band++) {
+      const tone = tones[band % 3], share = shareOf(band, N), base = h * (0.34 + band * (0.24 / N) - 0.05 * lake), top = (u) => base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
       const red = clamp((tone[0] / (tone[0] + tone[1] + tone[2] + 1) - 0.5) / 0.3); // how much this curtain is a saturated red (the hard mood's): such a curtain hardly brightens on the kick, as a big red area flashing on every kick is a red flash, the kind that can hurt
       const curtain = g.createLinearGradient(0, base - h * 0.3, 0, base + h * 0.2);
       curtain.addColorStop(0, rgba(tone, 0));
-      curtain.addColorStop(0.5, rgba(tone, 0.26 + 0.1 * acidLook.knob + 0.2 * kick * (1 - 0.75 * red)));
+      curtain.addColorStop(0.5, rgba(tone, (0.26 + 0.1 * acidLook.knob + 0.2 * kick * (1 - 0.75 * red)) * share));
       curtain.addColorStop(1, rgba(tone, 0));
       g.fillStyle = curtain;
       g.beginPath();
@@ -4721,19 +4897,19 @@ window.Effects = (() => {
       g.closePath();
       g.fill();
       g.lineWidth = Math.max(1, w / 600);
-      for (let x = 0; x <= w; x += 7) { const u = x / w, y0 = top(u), level = bands[Math.floor(u * 48)] || 0, sway = Math.sin(x * 0.37 + t * 0.8 + band) * 3; g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.25), (0.02 + 0.14 * level + 0.2 * acidLook.open) * (0.6 + 0.4 * Math.sin(x * 1.7 + band))); g.beginPath(); g.moveTo(x + sway, y0); g.lineTo(x, y0 + h * (0.06 + 0.16 * level + 0.08 * acidLook.open)); g.stroke(); } // the rays in the curtain, brighter where its band is loud
+      for (let x = 0; x <= w; x += 7) { const u = x / w, y0 = top(u), level = bands[Math.floor(u * 48)] || 0, sway = Math.sin(x * 0.37 + t * 0.8 + band) * 3; g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.25), (0.02 + 0.14 * level + 0.2 * acidLook.open) * (0.6 + 0.4 * Math.sin(x * 1.7 + band)) * share); g.beginPath(); g.moveTo(x + sway, y0); g.lineTo(x, y0 + h * (0.06 + 0.16 * level + 0.08 * acidLook.open)); g.stroke(); } // the rays in the curtain, brighter where its band is loud
     }
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "#01030a";
-    const shore = V.lake ? h * 0.74 : h, lift = V.lake ? 0.06 : 0; // with a lake, the mountains stand along its far shore and everything shows in the water
+    const shore = h - h * 0.26 * lake, lift = 0.06 * lake; // with a lake, the mountains stand along its far shore and everything shows in the water
     g.beginPath();
     g.moveTo(0, shore);
     for (let k = 0; k <= 40; k++) g.lineTo((k / 40) * w, h * (0.78 - lift - 0.08 * Math.abs(Math.sin((k / 40) * 5.1)) - 0.04 * Math.sin((k / 40) * 17))); // counted, not added up: adding a fortieth of the width forty times falls just past the edge at some widths, and the last point went missing
     g.lineTo(w, shore);
     g.fill();
-    if (!V.lake) return;
+    if (lake < 0.004) return;
     g.save();
-    g.globalAlpha = 0.5;
+    g.globalAlpha = 0.5 * lake;
     g.setTransform(1, 0, 0, -1, 0, shore * 2);
     g.drawImage(g.canvas, 0, shore * 2 - h, w, h - shore, 0, shore * 2 - h, w, h - shore);
     g.restore();
@@ -4741,10 +4917,12 @@ window.Effects = (() => {
     water.addColorStop(0, "rgba(1,4,12,.25)");
     water.addColorStop(1, "rgba(1,3,10,.85)");
     g.fillStyle = water;
+    g.globalAlpha = lake;
     g.fillRect(0, shore, w, h - shore);
     g.globalCompositeOperation = "lighter";
     g.lineWidth = 1;
     for (let i = 0; i < 14; i++) { const y = shore + (h - shore) * ((i + 0.5) / 14) ** 1.6, x = (Math.sin(t * 0.3 + i * 2.1) * 0.3 + 0.5) * w, long = w * (0.08 + 0.1 * ((i * 0.618) % 1)); g.strokeStyle = `rgba(200,225,255,${(0.05 + 0.08 * bass).toFixed(3)})`; g.beginPath(); g.moveTo(x - long, y); g.lineTo(x + long, y); g.stroke(); } // ripples catching the light
+    g.globalAlpha = 1;
   }
 
   /* ---------- 3D: falling down an endless tube of light, big heads drawn in neon, a sphere of sound, shapes floating in space and a city of the spectrum.
@@ -4778,8 +4956,9 @@ window.Effects = (() => {
     U[2] = fx * R[1] - fy * R[0];
     return o;
   }
+  const tubeCorner = (n, j) => { const side = TAU / n, at = ((j / 24) * TAU) % side; return Math.cos(Math.PI / n) / Math.cos(at - side / 2); }; // how far out the j-th of 24 points round comes on a shape of n sides (1 at its corners)
   function tubeFx() { // falling down a tube of light that never ends: it bends one way and another and we lean into the bends, its rings swell with the sound from the bass by us to the highs far down, and every kick sends a ring of light on ahead
-    const { t, dt, kick, kickHit, hatHit, bass } = sound, tones = moodColors(3), M = V.sides, N = TUBE_RINGS, f = Math.min(w, h) * 0.95, cx = w / 2, cy = h / 2;
+    const { t, dt, kick, kickHit, hatHit, bass } = sound, tones = moodColors(3), pm = overOf("sides"), wasM = pm < 1 ? vary.was.sides : V.sides, shaping = wasM !== V.sides, MP = shaping ? 24 : V.sides, M = V.sides, N = TUBE_RINGS, f = Math.min(w, h) * 0.95, cx = w / 2, cy = h / 2;
     tube.s += dt * (2.2 + 3.4 * flow.intensity + 2.6 * kick + 3 * flow.drop);
     tubeAt(tube.s, tubeHere);
     tubeAt(tube.s + 5, tubeAhead);
@@ -4793,11 +4972,11 @@ window.Effects = (() => {
       into[o + 1] = cy - ((y * cr - x * sr) / z) * f;
       into[o + 2] = z;
     };
-    const first = Math.ceil(tube.s / TUBE_GAP), ringAt = (s, swell, j, of, into, o) => { const a = (j / of) * TAU + (s - tube.s) * (V.twist + 0.35 * acidLook.soft), ca = Math.cos(a) * swell, sa = Math.sin(a) * swell, r = tubeRing; view(r.C[0] + ca * r.R[0] + sa * r.U[0], r.C[1] + ca * r.R[1] + sa * r.U[1], r.C[2] + ca * r.R[2] + sa * r.U[2], into, o); };
+    const first = Math.ceil(tube.s / TUBE_GAP), ringAt = (s, swell, j, of, into, o) => { const a = (j / of) * TAU + (s - tube.s) * (V.twist + 0.35 * acidLook.soft), shape = shaping && of === 24 ? tubeCorner(wasM, j) + (tubeCorner(V.sides, j) - tubeCorner(wasM, j)) * pm : 1, ca = Math.cos(a) * swell * shape, sa = Math.sin(a) * swell * shape, r = tubeRing; view(r.C[0] + ca * r.R[0] + sa * r.U[0], r.C[1] + ca * r.R[1] + sa * r.U[1], r.C[2] + ca * r.R[2] + sa * r.U[2], into, o); };
     for (let k = 0; k < N; k++) {
       const s = (first + k) * TUBE_GAP, swell = 1 + V.swell * 0.3 * smooth(((s - tube.s) / (N * TUBE_GAP)) * BANDS * 0.85) + 0.05 * kick + 0.08 * acidLook.open;
       tubeAt(s, tubeRing);
-      for (let j = 0; j <= M; j++) ringAt(s, swell, j, M, tubePts, (k * (M + 1) + j) * 3);
+      for (let j = 0; j <= MP; j++) ringAt(s, swell, j, MP, tubePts, (k * (MP + 1) + j) * 3);
     }
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(2,2,8,0.6)";
@@ -4807,27 +4986,33 @@ window.Effects = (() => {
     tubeAt(tube.s + N * TUBE_GAP * 0.8, tubeRing);
     view(tubeRing.C[0], tubeRing.C[1], tubeRing.C[2], spot, 0);
     if (spot[2] > 0) softBlob(g, spot[0], spot[1], Math.min(w, h) * 0.3, tones[1], 0.12 + 0.22 * bass); // the light far down it
-    const groups = [0, 1, 2, 3].map(() => [new Path2D(), new Path2D(), new Path2D()]), seen = (o) => tubePts[o + 2] > 0.12, dots = V.look === "dots";
+    const groups = [0, 1, 2, 3].map(() => [new Path2D(), new Path2D(), new Path2D(), new Path2D(), new Path2D(), new Path2D()]), seen = (o) => tubePts[o + 2] > 0.12, pl = overOf("look"), lookWas = pl < 1 ? vary.was.look : V.look;
+    const share = (has) => (has(V.look) ? (pl < 1 ? pl : 1) : 0) + (pl < 1 && has(lookWas) ? 1 - pl : 0), ringsOn = share((k) => k === "mesh" || k === "rings"), wallsOn = share((k) => k === "mesh" || k === "lines"), dotsOn = share((k) => k === "dots"), dots = dotsOn > 0.996; // how much of each part shows: on the way from one look to another, the old one's parts fade as the new one's come
+    const everyNew = shaping ? 24 / V.sides : 1, everyOld = shaping ? 24 / wasM : 1; // while the number of sides goes over, the lines along the walls (and the dots) stand at the corners of both shapes, each by its share
     for (let k = 0; k < N; k++) {
-      const [rings, walls, lit] = groups[Math.min(3, Math.floor((k / N) * 4))], s = (first + k) * TUBE_GAP;
-      for (let j = 0; j < M; j++) {
-        const a = (k * (M + 1) + j) * 3, b = a + 3, c = a + (M + 1) * 3;
-        if (dots) { if (seen(a)) { const r = Math.min(6, Math.max(1, (f * 0.012) / tubePts[a + 2])); rings.rect(tubePts[a] - r / 2, tubePts[a + 1] - r / 2, r, r); } continue; }
-        if (V.look !== "lines" && seen(a) && seen(b)) { rings.moveTo(tubePts[a], tubePts[a + 1]); rings.lineTo(tubePts[b], tubePts[b + 1]); }
-        if (V.look !== "rings" && k < N - 1 && seen(a) && seen(c)) { const path = V.stripes && Math.sin((j / M) * TAU * V.stripes + s * 0.9 - t * 4) > 0.8 ? lit : walls; path.moveTo(tubePts[a], tubePts[a + 1]); path.lineTo(tubePts[c], tubePts[c + 1]); } // lines along the walls, some lit and running past
+      const [rings, walls, lit, wallsNew, wallsOld, spots] = groups[Math.min(3, Math.floor((k / N) * 4))], s = (first + k) * TUBE_GAP;
+      for (let j = 0; j < MP; j++) {
+        const a = (k * (MP + 1) + j) * 3, b = a + 3, c = a + (MP + 1) * 3, isNew = j % everyNew === 0, isOld = j % everyOld === 0, corner = isNew && isOld ? 1 : isNew ? pm : isOld ? 1 - pm : 0;
+        if (dotsOn > 0.004 && corner > 0.004 && seen(a)) { const r = Math.min(6, Math.max(1, (f * 0.012) / tubePts[a + 2])) * corner; (dots ? rings : spots).rect(tubePts[a] - r / 2, tubePts[a + 1] - r / 2, r, r); }
+        if (dots) continue;
+        if (ringsOn > 0.004 && seen(a) && seen(b)) { rings.moveTo(tubePts[a], tubePts[a + 1]); rings.lineTo(tubePts[b], tubePts[b + 1]); }
+        if (wallsOn > 0.004 && corner > 0.004 && k < N - 1 && seen(a) && seen(c)) { const on = V.stripes && (isNew ? pm >= 0.5 || !isOld : isOld) && Math.sin((j / MP) * TAU * V.stripes + s * 0.9 - t * 4) > 0.8, path = on && V.stripes >= 1 ? lit : isNew && isOld ? walls : isNew ? wallsNew : wallsOld; path.moveTo(tubePts[a], tubePts[a + 1]); path.lineTo(tubePts[c], tubePts[c + 1]); if (on && V.stripes < 1) { lit.moveTo(tubePts[a], tubePts[a + 1]); lit.lineTo(tubePts[c], tubePts[c + 1]); } } // lines along the walls, some lit and running past (under one stripe, on its way to none or from none, the lit ones are wall lines too, with the light over them by that share)
       }
     }
     for (let q = 3; q >= 0; q--) { // the far end first, fading into the dark
-      const fog = [1, 0.62, 0.34, 0.15][q], tone = mix(tones[0], tones[1], q / 3), wide = Math.max(1, (h / 400) * [2.6, 1.6, 1.1, 0.8][q]), [rings, walls, lit] = groups[q];
+      const fog = [1, 0.62, 0.34, 0.15][q], tone = mix(tones[0], tones[1], q / 3), wide = Math.max(1, (h / 400) * [2.6, 1.6, 1.1, 0.8][q]), [rings, walls, lit, wallsNew, wallsOld, spots] = groups[q];
       if (dots) { g.fillStyle = rgba(mix(tone, [255, 255, 255], 0.2), (0.6 + 0.4 * kick) * fog); g.fill(rings); continue; }
       g.lineWidth = wide;
-      g.strokeStyle = rgba(tone, (0.5 + 0.45 * kick) * fog);
-      g.stroke(rings);
-      g.strokeStyle = rgba(tone, 0.3 * fog);
-      g.stroke(walls);
-      g.lineWidth = wide * 1.8;
-      g.strokeStyle = rgba(mix(tones[2], [255, 255, 255], 0.35), 0.85 * fog);
-      g.stroke(lit);
+      if (ringsOn > 0.004) { g.strokeStyle = rgba(tone, (0.5 + 0.45 * kick) * fog * ringsOn); g.stroke(rings); }
+      if (wallsOn > 0.004) {
+        g.strokeStyle = rgba(tone, 0.3 * fog * wallsOn);
+        g.stroke(walls);
+        if (shaping) { g.strokeStyle = rgba(tone, 0.3 * fog * wallsOn * pm); g.stroke(wallsNew); g.strokeStyle = rgba(tone, 0.3 * fog * wallsOn * (1 - pm)); g.stroke(wallsOld); }
+        g.lineWidth = wide * 1.8;
+        g.strokeStyle = rgba(mix(tones[2], [255, 255, 255], 0.35), 0.85 * fog * wallsOn * Math.min(1, V.stripes));
+        g.stroke(lit);
+      }
+      if (dotsOn > 0.004) { g.fillStyle = rgba(mix(tone, [255, 255, 255], 0.2), (0.6 + 0.4 * kick) * fog * dotsOn); g.fill(spots); }
     }
     if (kickHit) tube.pulses.push({ s: tube.s + 1.2, light: 0.6 + 0.4 * kickHit });
     if (flow.dropHit) for (let i = 0; i < 4; i++) tube.pulses.push({ s: tube.s + 1 + i * 1.5, light: 1 });
@@ -4844,7 +5029,7 @@ window.Effects = (() => {
       }
       neon(path, rgba(mix(tones[2], [255, 255, 255], 0.4), 1), Math.max(1.5, h / 300), p.light);
     }
-    if (hatHit) for (let i = 0; i < 3; i++) { const o = (Math.floor(rnd(3, 14)) * (M + 1) + Math.floor(rnd(0, M))) * 3; if (seen(o)) twinkle(tubePts[o], tubePts[o + 1], h * 0.05); }
+    if (hatHit) for (let i = 0; i < 3; i++) { const o = (Math.floor(rnd(3, 14)) * (MP + 1) + Math.floor(rnd(0, MP))) * 3; if (seen(o)) twinkle(tubePts[o], tubePts[o + 1], h * 0.05); }
   }
 
   /* The heads: slices round a head from the neck up, with the shape of a face on the front, worked out once. Each frame they're turned, nodded and seen from in front, and the slices facing away are drawn faintly behind. */
@@ -4928,86 +5113,106 @@ window.Effects = (() => {
     }
     neon(frame, rgba(mix(tone(1), [255, 255, 255], 0.35), 1), wide * 1.6, strength * (0.8 + 0.2 * kick), 0.9);
   }
-  function headStage(tones) { // what's behind the heads: the dark and a few stars, a striped sun, or a floor of light going by
-    const { dt, kick } = sound;
+  function headStage(tones) { // what's behind the heads: the dark and a few stars, a striped sun, or a floor of light going by (while one goes over to another, both, the old fading as the new one comes)
+    const { dt, kick } = sound, ps = overOf("stage");
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(3,2,10,0.5)";
     g.fillRect(0, 0, w, h);
-    if (V.stage === "void") { skyStars(90, h, 7); return; }
-    if (V.stage === "sun") {
-      const R = Math.min(w, h) * 0.34, sx = w / 2, sy = h * 0.42, paint = g.createLinearGradient(0, sy - R, 0, sy + R);
-      paint.addColorStop(0, rgba(mix(tones[0], [255, 230, 120], 0.5), 1));
-      paint.addColorStop(1, rgba(mix(tones[1], [255, 0, 120], 0.5), 1));
-      g.globalCompositeOperation = "lighter";
-      softBlob(g, sx, sy, R * 1.7, tones[0], 0.1 + 0.12 * kick);
-      g.globalCompositeOperation = "source-over";
-      g.save();
-      g.beginPath();
-      g.arc(sx, sy, R, 0, TAU);
-      g.clip();
-      g.globalAlpha = 0.5;
-      g.fillStyle = paint;
-      g.fillRect(sx - R, sy - R, R * 2, R * 2);
-      g.globalAlpha = 1;
-      g.fillStyle = "rgb(3,2,10)";
-      for (let i = 0; i < 7; i++) g.fillRect(sx - R, sy + R * (0.04 + i * 0.13), R * 2, R * (0.02 + i * 0.013));
-      g.restore();
-      return;
+    if (V.stage === "grid" || (ps < 1 && vary.was.stage === "grid")) HEAD.floor = (HEAD.floor + dt * (0.5 + 0.8 * flow.intensity)) % 1;
+    for (let side = ps < 1 ? 0 : 1; side < 2; side++) {
+      const stage = side ? V.stage : vary.was.stage;
+      g.globalAlpha = side ? ps : 1 - ps;
+      if (stage === "void") skyStars(90, h, 7);
+      else if (stage === "sun") {
+        const R = Math.min(w, h) * 0.34, sx = w / 2, sy = h * 0.42, paint = g.createLinearGradient(0, sy - R, 0, sy + R), share = g.globalAlpha;
+        paint.addColorStop(0, rgba(mix(tones[0], [255, 230, 120], 0.5), 1));
+        paint.addColorStop(1, rgba(mix(tones[1], [255, 0, 120], 0.5), 1));
+        g.globalCompositeOperation = "lighter";
+        softBlob(g, sx, sy, R * 1.7, tones[0], 0.1 + 0.12 * kick);
+        g.globalCompositeOperation = "source-over";
+        g.save();
+        g.beginPath();
+        g.arc(sx, sy, R, 0, TAU);
+        g.clip();
+        g.globalAlpha = 0.5 * share;
+        g.fillStyle = paint;
+        g.fillRect(sx - R, sy - R, R * 2, R * 2);
+        g.globalAlpha = share;
+        g.fillStyle = "rgb(3,2,10)";
+        for (let i = 0; i < 7; i++) g.fillRect(sx - R, sy + R * (0.04 + i * 0.13), R * 2, R * (0.02 + i * 0.013));
+        g.restore();
+      } else {
+        const horizon = h * 0.64, grid = mix(tones[2], [255, 60, 200], 0.4);
+        g.globalCompositeOperation = "lighter";
+        g.lineWidth = Math.max(1, h / 700);
+        for (let k = 0; k < 12; k++) { const z = (k + HEAD.floor) / 12, y = horizon + (h - horizon) * z ** 2.5; g.strokeStyle = rgba(grid, (0.2 + 0.4 * kick) * z); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+        g.strokeStyle = rgba(grid, 0.22 + 0.2 * kick);
+        g.beginPath();
+        for (let i = -10; i <= 10; i++) { g.moveTo(w / 2 + i * w * 0.03, horizon); g.lineTo(w / 2 + i * w * 0.3, h); }
+        g.stroke();
+        g.beginPath();
+        g.moveTo(0, horizon);
+        g.lineTo(w, horizon);
+        glowLine(tones[1], Math.max(1, h / 450), 0.7);
+      }
     }
-    const horizon = h * 0.64, grid = mix(tones[2], [255, 60, 200], 0.4);
-    HEAD.floor = (HEAD.floor + dt * (0.5 + 0.8 * flow.intensity)) % 1;
-    g.globalCompositeOperation = "lighter";
-    g.lineWidth = Math.max(1, h / 700);
-    for (let k = 0; k < 12; k++) { const z = (k + HEAD.floor) / 12, y = horizon + (h - horizon) * z ** 2.5; g.strokeStyle = rgba(grid, (0.2 + 0.4 * kick) * z); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-    g.strokeStyle = rgba(grid, 0.22 + 0.2 * kick);
-    g.beginPath();
-    for (let i = -10; i <= 10; i++) { g.moveTo(w / 2 + i * w * 0.03, horizon); g.lineTo(w / 2 + i * w * 0.3, h); }
-    g.stroke();
-    g.beginPath();
-    g.moveTo(0, horizon);
-    g.lineTo(w, horizon);
-    glowLine(tones[1], Math.max(1, h / 450), 0.7);
+    g.globalAlpha = 1;
   }
   function headsFx() { // big heads drawn in neon: slices of light from the neck up, lit from the bass at the bottom to the highs at the top. They nod to the kick and harder in a drop, look about, sing along, their eyes light up on the beat, and some versions wear glasses
     const { t, dt, kick, mid, hatHit } = sound, tones = moodColors(3), model = HEAD.model || (HEAD.model = makeHead()), f = h * 0.95, cx = w / 2, cy = h / 2, S = HEAD.slices, A = HEAD.around;
     HEAD.mid = HEAD.mid === undefined ? mid : HEAD.mid + (mid - HEAD.mid) * Math.min(1, dt / 1.2);
     HEAD.open += (clamp((mid - HEAD.mid) * 6 + 0.25 * kick + 1.2 * acidLook.open) - HEAD.open) * Math.min(1, dt * 14); // the mouth goes with the rises and falls of the voice, not how loud it is all along
-    HEAD.turn += V.move === "spin" ? dt * 0.45 : (Math.round(HEAD.turn / TAU) * TAU - HEAD.turn) * Math.min(1, dt * 1.3); // turning round and round; once that's over it comes back to face us, the short way
+    const pv = overOf("move"), moveWas = pv < 1 ? vary.was.move : V.move, moving = (kind) => (V.move === kind ? (pv < 1 ? pv : 1) : 0) + (pv < 1 && moveWas === kind ? 1 - pv : 0), spins = moving("spin"), sways = moving("sway"), pk = overOf("look"), lookWas = pk < 1 ? vary.was.look : V.look; // (how much they spin and sway, while one way of moving goes over to another)
+    HEAD.turn += spins * dt * 0.45 + (1 - spins) * (Math.round(HEAD.turn / TAU) * TAU - HEAD.turn) * Math.min(1, dt * 1.3); // turning round and round; once that's over it comes back to face us, the short way
     HEAD.ring += dt * 0.22;
     headStage(tones);
-    const heads = V.layout === "two" ? [{ x: -1.45, y: -0.2, z: 3.6, yaw: -1.2 }, { x: 1.45, y: -0.2, z: 3.6, yaw: 1.2 }]
-      : V.layout === "three" ? [{ x: -2.3, y: -0.25, z: 4.8, yaw: -0.55 }, { x: 0, y: -0.25, z: 4.4, yaw: 0 }, { x: 2.3, y: -0.25, z: 4.8, yaw: 0.55 }]
-      : V.layout === "ring" ? Array.from({ length: 5 }, (_, k) => { const a = HEAD.ring + (k * TAU) / 5; return { x: Math.sin(a) * 2.6, y: -0.3, z: 6.4 - Math.cos(a) * 2.6, yaw: -a }; }) // round and round, each looking out
+    const placed = (layout) => layout === "two" ? [{ x: -1.45, y: -0.2, z: 3.6, yaw: -1.2 }, { x: 1.45, y: -0.2, z: 3.6, yaw: 1.2 }]
+      : layout === "three" ? [{ x: -2.3, y: -0.25, z: 4.8, yaw: -0.55 }, { x: 0, y: -0.25, z: 4.4, yaw: 0 }, { x: 2.3, y: -0.25, z: 4.8, yaw: 0.55 }]
+      : layout === "ring" ? Array.from({ length: 5 }, (_, k) => { const a = HEAD.ring + (k * TAU) / 5; return { x: Math.sin(a) * 2.6, y: -0.3, z: 6.4 - Math.cos(a) * 2.6, yaw: -a }; }) // round and round, each looking out
       : [{ x: 0, y: -0.42, z: 3.5, yaw: 0.42 }]; // turned a little, so the face shows in the slices
+    const heads = placed(V.layout), pl = overOf("layout");
     heads.forEach((one, n) => (one.n = n)); // each keeps its own number, so its colors, its sway and its glasses stay its own as they pass one another
+    if (pl < 1 && vary.was.layout !== V.layout) { // on the way from one way of standing to another, each head from its old place to its new one; one more grows in, or one fewer shrinks away
+      const was = placed(vary.was.layout);
+      for (let n = 0; n < Math.max(was.length, heads.length); n++) {
+        if (n >= heads.length) { heads.push({ ...was[n], n, s: 1 - pl }); continue; }
+        if (n >= was.length) { heads[n].s = pl; continue; }
+        const one = heads[n], from = was[n], turn = Math.atan2(Math.sin(one.yaw - from.yaw), Math.cos(one.yaw - from.yaw)); // (the short way round)
+        one.x = from.x + (one.x - from.x) * pl; one.y = from.y + (one.y - from.y) * pl; one.z = from.z + (one.z - from.z) * pl; one.yaw = from.yaw + turn * pl;
+      }
+    }
     heads.sort((a, b) => b.z - a.z); // the far ones first
     g.lineCap = g.lineJoin = "round";
     const tips = [], over = vary.over.glasses, wearing = (kind, n) => (kind === "mixed" ? WORN[n % WORN.length] : kind) || "";
     heads.forEach((one) => {
-      const k = one.n, sway = V.move === "sway" ? 0.55 * Math.sin(t * 0.23 + k * 1.7) + 0.18 * Math.sin(t * 0.57 + k) : 0, m = turner(one.yaw + sway + HEAD.turn, -(0.06 + sky.bob * 0.55 * T.nod) * (1 + flow.drop * 0.8) + 0.05 * Math.sin(t * 0.3 + k), 0.07 * Math.sin(t * 0.17 + k * 2));
+      const k = one.n, s = one.s ?? 1, sway = sways * (0.55 * Math.sin(t * 0.23 + k * 1.7) + 0.18 * Math.sin(t * 0.57 + k)), m = turner(one.yaw + sway + HEAD.turn, -(0.06 + sky.bob * 0.55 * T.nod) * (1 + flow.drop * 0.8) + 0.05 * Math.sin(t * 0.3 + k), 0.07 * Math.sin(t * 0.17 + k * 2));
       const look = (p, drop) => { // a point of the head as seen, and whether that side of the head faces us
-        const x = p.at[0], y = p.at[1] - drop, z = p.at[2], X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z;
+        const x = p.at[0] * s, y = (p.at[1] - drop) * s, z = p.at[2] * s, X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z;
         return [cx + (X / Z) * f, cy - (Y / Z) * f, Z, (m[0] * p.out[0] + m[2] * p.out[1]) * X + (m[3] * p.out[0] + m[5] * p.out[1]) * Y + (m[6] * p.out[0] + m[8] * p.out[1]) * Z < 0];
       };
       const { at, out, jaw } = model, open = HEAD.open * 0.11 + 0.2 * acidLook.soft + 0.1 * acidLook.note; // (a 303: the jaw drops as its filter opens, and snaps a little wider on each note)
       for (let p = 0; p < S * A; p++) {
-        const o = p * 3, x = at[o], y = at[o + 1] - jaw[p] * open, z = at[o + 2], X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z, nx = out[p * 2], nz = out[p * 2 + 1];
+        const o = p * 3, x = at[o] * s, y = (at[o + 1] - jaw[p] * open) * s, z = at[o + 2] * s, X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z, nx = out[p * 2], nz = out[p * 2 + 1];
         headFront[p] = (m[0] * nx + m[2] * nz) * X + (m[3] * nx + m[5] * nz) * Y + (m[6] * nx + m[8] * nz) * Z < 0 ? 1 : 0;
         headPts[o] = cx + (X / Z) * f;
         headPts[o + 1] = cy - (Y / Z) * f;
         headPts[o + 2] = Z;
       }
-      const LEVELS = 4, lit = Array.from({ length: LEVELS * 2 }, () => new Path2D()), dim = new Path2D(), dots = V.look === "dots", line = (path, a, b) => { path.moveTo(headPts[a * 3], headPts[a * 3 + 1]); path.lineTo(headPts[b * 3], headPts[b * 3 + 1]); };
-      for (let i = 0; i < S; i++) {
-        const level = Math.min(LEVELS - 1, Math.floor(smooth((i / (S - 1)) * BANDS * 0.8 + 1) * LEVELS)), path = lit[level * 2 + (i > S * 0.55 ? 1 : 0)];
-        for (let j = 0; j < A; j++) {
-          const a = i * A + j, b = i * A + ((j + 1) % A);
-          if (dots) { if (headFront[a]) { const r = Math.max(1.2, f * 0.007 / headPts[a * 3 + 2]); path.rect(headPts[a * 3] - r / 2, headPts[a * 3 + 1] - r / 2, r, r); } continue; }
-          line(headFront[a] && headFront[b] ? path : dim, a, b);
-          if (V.look === "mesh" && j % 4 === 0 && i < S - 1) line(headFront[a] && headFront[a + A] ? path : dim, a, a + A); // and lines down the head, so it's a mesh
+      const LEVELS = 4, lines = [], line = (path, a, b) => { path.moveTo(headPts[a * 3], headPts[a * 3 + 1]); path.lineTo(headPts[b * 3], headPts[b * 3 + 1]); };
+      for (let side = pk < 1 ? 0 : 1; side < 2; side++) { // the old look while it goes over, then the new one, each drawn by its share (below)
+        const look = side ? V.look : lookWas, lit = Array.from({ length: LEVELS * 2 }, () => new Path2D()), dim = new Path2D(), dots = look === "dots";
+        lines.push([lit, dim, dots, side ? pk : 1 - pk]);
+        for (let i = 0; i < S; i++) {
+          const level = Math.min(LEVELS - 1, Math.floor(smooth((i / (S - 1)) * BANDS * 0.8 + 1) * LEVELS)), path = lit[level * 2 + (i > S * 0.55 ? 1 : 0)];
+          for (let j = 0; j < A; j++) {
+            const a = i * A + j, b = i * A + ((j + 1) % A);
+            if (dots) { if (headFront[a]) { const r = Math.max(1.2, f * 0.007 / headPts[a * 3 + 2]); path.rect(headPts[a * 3] - r / 2, headPts[a * 3 + 1] - r / 2, r, r); } continue; }
+            line(headFront[a] && headFront[b] ? path : dim, a, b);
+            if (look === "mesh" && j % 4 === 0 && i < S - 1) line(headFront[a] && headFront[a + A] ? path : dim, a, a + A); // and lines down the head, so it's a mesh
+          }
         }
       }
-      const wide = Math.max(1, (f * 0.006) / one.z), shade = heads.length > 3 ? clamp(1.25 - (one.z - 3.8) / 5.2) : 1, tone = (n) => tones[(n + k) % 3];
+      const wide = Math.max(1, (f * 0.006) / one.z), shade = (heads.length > 3 ? clamp(1.25 - (one.z - 3.8) / 5.2) : 1) * s, tone = (n) => tones[(n + k) % 3]; // (one coming or going is as bright as it is big)
       const left = [], right = [];
       for (let i = 0; i < S; i++) { // the outline: the furthest point of each slice to either side, up one side and down the other
         let lo = i * A, hi = i * A;
@@ -5021,10 +5226,12 @@ window.Effects = (() => {
       [...left, ...right.reverse()].forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
       g.fill();
       g.globalCompositeOperation = "lighter";
-      g.lineWidth = wide;
-      g.strokeStyle = rgba(tone(2), 0.05 * shade);
-      g.stroke(dim);
-      lit.forEach((path, n) => { const level = n >> 1, light = (0.3 + 0.7 * ((level + 1) / LEVELS)) * shade; if (dots) { g.fillStyle = rgba(tone(n & 1), light); g.fill(path); return; } g.strokeStyle = rgba(tone(n & 1), light * 0.25); g.lineWidth = wide * 3; g.stroke(path); g.strokeStyle = rgba(mix(tone(n & 1), [255, 255, 255], 0.15), light); g.lineWidth = wide; g.stroke(path); });
+      for (const [lit, dim, dots, share] of lines) {
+        g.lineWidth = wide;
+        g.strokeStyle = rgba(tone(2), 0.05 * shade * share);
+        g.stroke(dim);
+        lit.forEach((path, n) => { const level = n >> 1, light = (0.3 + 0.7 * ((level + 1) / LEVELS)) * shade * share; if (dots) { g.fillStyle = rgba(tone(n & 1), light); g.fill(path); return; } g.strokeStyle = rgba(tone(n & 1), light * 0.25); g.lineWidth = wide * 3; g.stroke(path); g.strokeStyle = rgba(mix(tone(n & 1), [255, 255, 255], 0.15), light); g.lineWidth = wide; g.stroke(path); });
+      }
       if (HEAD.open > 0.08) for (const [n, lip] of model.lips.entries()) { // the lips, apart as it sings
         const path = new Path2D();
         let on = false;
@@ -5048,7 +5255,7 @@ window.Effects = (() => {
   /* The sound sphere: a ball of points, each pushed out by its part of the sound. */
   const SPHERE = { lat: 22, lon: 40, yaw: 0 }, spherePts = new Float32Array(22 * 40 * 6);
   function sphereFx() { // a ball of points that the sound pushes out: the bass round its middle and the highs at its poles. It wobbles, turns, and grows on every kick
-    const { t, dt, kick, bass, hatHit } = sound, tones = moodColors(3), LAT = SPHERE.lat, LON = SPHERE.lon, f = Math.min(w, h) * 1.05, Z = 3.6, cx = w / 2, cy = h / 2, grow = 1 + 0.1 * kick + 0.08 * flow.drop;
+    const { t, dt, kick, bass, hatHit } = sound, tones = moodColors(3), pk = overOf("look"), LAT = SPHERE.lat, LON = SPHERE.lon, f = Math.min(w, h) * 1.05, Z = 3.6, cx = w / 2, cy = h / 2, grow = 1 + 0.1 * kick + 0.08 * flow.drop;
     SPHERE.yaw += dt * (0.25 + 0.5 * flow.intensity) * V.spin;
     const m = turner(SPHERE.yaw, 0.4 + 0.25 * Math.sin(t * 0.1), 0.12 * Math.sin(t * 0.13)), P = spherePts;
     g.globalCompositeOperation = "source-over";
@@ -5070,18 +5277,21 @@ window.Effects = (() => {
         P[o + 5] = cy - ((Y * grow) / (D * grow + Z)) * f;
       }
     }
-    const paths = Array.from({ length: 6 }, () => new Path2D()), look = V.look, line = (path, a, b) => { path.moveTo(P[a], P[a + 1]); path.lineTo(P[b], P[b + 1]); };
-    for (let i = 0; i < LAT; i++) for (let j = 0; j < LON; j++) {
-      const o = (i * LON + j) * 6, path = paths[Math.min(2, Math.floor((i / LAT) * 3)) * 2 + (P[o + 2] < Z ? 0 : 1)];
-      if (look === "dots") { const r = Math.max(1, ((f * 0.011) / P[o + 2]) * (1 + 2 * P[o + 3])); path.rect(P[o] - r / 2, P[o + 1] - r / 2, r, r); }
-      else if (look === "spikes") { path.moveTo(P[o + 4], P[o + 5]); path.lineTo(P[o], P[o + 1]); }
-      else {
-        line(path, o, (i * LON + ((j + 1) % LON)) * 6); // round the ball
-        if (look === "mesh" && i < LAT - 1) line(path, o, o + LON * 6); // and from pole to pole
+    for (let side = pk < 1 ? 0 : 1; side < 2; side++) { // the old look while it goes over, then the new one
+      const share = side ? pk : 1 - pk;
+      const paths = Array.from({ length: 6 }, () => new Path2D()), look = side ? V.look : vary.was.look, line = (path, a, b) => { path.moveTo(P[a], P[a + 1]); path.lineTo(P[b], P[b + 1]); };
+      for (let i = 0; i < LAT; i++) for (let j = 0; j < LON; j++) {
+        const o = (i * LON + j) * 6, path = paths[Math.min(2, Math.floor((i / LAT) * 3)) * 2 + (P[o + 2] < Z ? 0 : 1)];
+        if (look === "dots") { const r = Math.max(1, ((f * 0.011) / P[o + 2]) * (1 + 2 * P[o + 3])); path.rect(P[o] - r / 2, P[o + 1] - r / 2, r, r); }
+        else if (look === "spikes") { path.moveTo(P[o + 4], P[o + 5]); path.lineTo(P[o], P[o + 1]); }
+        else {
+          line(path, o, (i * LON + ((j + 1) % LON)) * 6); // round the ball
+          if (look === "mesh" && i < LAT - 1) line(path, o, o + LON * 6); // and from pole to pole
+        }
       }
+      g.lineCap = "round";
+      paths.forEach((path, n) => { const tone = tones[n >> 1], light = (n & 1 ? 0.3 : 0.85 + 0.15 * kick) * share; if (look === "dots") { g.fillStyle = rgba(mix(tone, [255, 255, 255], 0.2), light); g.fill(path); return; } g.lineWidth = Math.max(1, h / (look === "spikes" ? 420 : 560)); g.strokeStyle = rgba(tone, light); g.stroke(path); });
     }
-    g.lineCap = "round";
-    paths.forEach((path, n) => { const tone = tones[n >> 1], light = n & 1 ? 0.3 : 0.85 + 0.15 * kick; if (look === "dots") { g.fillStyle = rgba(mix(tone, [255, 255, 255], 0.2), light); g.fill(path); return; } g.lineWidth = Math.max(1, h / (look === "spikes" ? 420 : 560)); g.strokeStyle = rgba(tone, light); g.stroke(path); });
     if (hatHit) for (let k = 0; k < 3; k++) { const o = Math.floor(rnd(0, LAT * LON)) * 6; if (P[o + 2] < Z) twinkle(P[o], P[o + 1], h * 0.05); }
   }
 
@@ -5109,44 +5319,49 @@ window.Effects = (() => {
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = "lighter";
     g.lineJoin = g.lineCap = "round";
-    const paths = Array.from({ length: 9 }, () => new Path2D()), put = (form, size, ax, ay, X, Y, Z, path) => { // one shape into a path, turned and seen from here
-      const ca = Math.cos(ax), sa = Math.sin(ax), cb = Math.cos(ay), sb = Math.sin(ay), seen = form.at.map(([x, y, z]) => { const y1 = y * ca - z * sa, z1 = y * sa + z * ca, x2 = x * cb + z1 * sb, z2 = -x * sb + z1 * cb, D = Z + z2 * size; return D > 0.2 ? [cx + ((X + x2 * size) / D) * f, cy - ((Y + y1 * size) / D) * f] : null; });
-      for (const [a, b] of form.edges) if (seen[a] && seen[b]) { path.moveTo(...seen[a]); path.lineTo(...seen[b]); }
-    };
-    if (V.mode === "nested") ["dodeca", "icosa", "cube", "octa", "tetra"].forEach((kind, k) => { // each inside the last, turning its own way, the outside with the highs and the middle with the bass
-      const v = smooth((1 - k / 4) * BANDS * 0.75 + 1), size = (1.75 - k * 0.32) * (1 + 0.18 * v + 0.1 * kick + 0.12 * acidLook.open), turn = turned(`nest${k}`, (0.25 + k * 0.12) * (k % 2 ? -1 : 1));
-      put(all[kind], size, turn * 0.7 + k, turn + k * 0.5, 0, 0, 4.6, paths[(k % 3) * 3 + (k < 2 ? 1 : 0)]);
-    });
-    else if (V.mode === "orbit") {
-      const spin = turned("orbitSpin", 0.7);
-      for (let ring = 0, along = 0; ring < 3; ring++) for (let k = 0; k < 4; k++) { // three tilted rings of four, going round at their own speeds
-        if (!k) along = turned(`orbit${ring}`, 0.35 + ring * 0.12) + ring;
-        const a = along + (k * TAU) / 4, tilt = 0.5 + ring * 0.9, r = 1.7 + ring * 0.55, x = Math.cos(a) * r, y = Math.sin(a) * r * Math.sin(tilt), z = Math.sin(a) * r * Math.cos(tilt), b = ring * 1.1, X = x * Math.cos(b) + z * Math.sin(b), Zr = -x * Math.sin(b) + z * Math.cos(b), n = ring * 4 + k, v = sound.bands[Math.floor((n / 12) * BANDS * 0.85)];
-        put(all[kinds[n % kinds.length]], 0.32 * (1 + 0.6 * v + 0.2 * kick + 0.4 * acidLook.open), spin + n, spin * 0.8 + n * 0.7, X, y, 5.5 + Zr, paths[ring * 3 + (Zr < 0 ? 0 : 1)]);
-        if (Zr < 0) near.push([cx + (X / (5.5 + Zr)) * f, cy - (y / (5.5 + Zr)) * f]);
+    const pm = overOf("mode"), pf = overOf("forms"), modeWas = pm < 1 ? vary.was.mode : V.mode, formsWas = pf < 1 ? vary.was.forms : V.forms, two = modeWas !== V.mode || (formsWas !== V.forms && V.mode !== "field"), p = modeWas !== V.mode ? pm : pf;
+    for (let side = two ? 0 : 1; side < 2; side++) { // the old arrangement while it goes over, then the new one
+      const mode = side ? V.mode : modeWas, kinds = all[side ? V.forms : formsWas] ? [side ? V.forms : formsWas] : Object.keys(all), share = two ? (side ? p : 1 - p) : 1;
+      const turnOnce = (key, rate) => (side && two && modeWas === V.mode ? vary.turned[key] || 0 : turned(key, rate)); // (two sets in one arrangement turn together, once a frame: the new one takes how far the old one has turned)
+      const paths = Array.from({ length: 9 }, () => new Path2D()), put = (form, size, ax, ay, X, Y, Z, path) => { // one shape into a path, turned and seen from here
+        const ca = Math.cos(ax), sa = Math.sin(ax), cb = Math.cos(ay), sb = Math.sin(ay), seen = form.at.map(([x, y, z]) => { const y1 = y * ca - z * sa, z1 = y * sa + z * ca, x2 = x * cb + z1 * sb, z2 = -x * sb + z1 * cb, D = Z + z2 * size; return D > 0.2 ? [cx + ((X + x2 * size) / D) * f, cy - ((Y + y1 * size) / D) * f] : null; });
+        for (const [a, b] of form.edges) if (seen[a] && seen[b]) { path.moveTo(...seen[a]); path.lineTo(...seen[b]); }
+      };
+      if (mode === "nested") ["dodeca", "icosa", "cube", "octa", "tetra"].forEach((kind, k) => { // each inside the last, turning its own way, the outside with the highs and the middle with the bass
+        const v = smooth((1 - k / 4) * BANDS * 0.75 + 1), size = (1.75 - k * 0.32) * (1 + 0.18 * v + 0.1 * kick + 0.12 * acidLook.open), turn = turnOnce(`nest${k}`, (0.25 + k * 0.12) * (k % 2 ? -1 : 1));
+        put(all[kind], size, turn * 0.7 + k, turn + k * 0.5, 0, 0, 4.6, paths[(k % 3) * 3 + (k < 2 ? 1 : 0)]);
+      });
+      else if (mode === "orbit") {
+        const spin = turnOnce("orbitSpin", 0.7);
+        for (let ring = 0, along = 0; ring < 3; ring++) for (let k = 0; k < 4; k++) { // three tilted rings of four, going round at their own speeds
+          if (!k) along = turnOnce(`orbit${ring}`, 0.35 + ring * 0.12) + ring;
+          const a = along + (k * TAU) / 4, tilt = 0.5 + ring * 0.9, r = 1.7 + ring * 0.55, x = Math.cos(a) * r, y = Math.sin(a) * r * Math.sin(tilt), z = Math.sin(a) * r * Math.cos(tilt), b = ring * 1.1, X = x * Math.cos(b) + z * Math.sin(b), Zr = -x * Math.sin(b) + z * Math.cos(b), n = ring * 4 + k, v = sound.bands[Math.floor((n / 12) * BANDS * 0.85)];
+          put(all[kinds[n % kinds.length]], 0.32 * (1 + 0.6 * v + 0.2 * kick + 0.4 * acidLook.open), spin + n, spin * 0.8 + n * 0.7, X, y, 5.5 + Zr, paths[ring * 3 + (Zr < 0 ? 0 : 1)]);
+          if (Zr < 0) near.push([cx + (X / (5.5 + Zr)) * f, cy - (y / (5.5 + Zr)) * f]);
+        }
+      } else {
+        while (field.length < 44) field.push(newSolid(rnd(3, 40), kinds));
+        const speed = 3 + 6 * flow.intensity + 5 * kick + 6 * flow.drop;
+        for (const o of field) {
+          o.z -= dt * speed;
+          if (o.z < 0.6) Object.assign(o, newSolid(rnd(36, 42), kinds));
+          o.ax += dt * o.sx * V.spin * (1 + kick + 2 * acidLook.open);
+          o.ay += dt * o.sy * V.spin * (1 + kick + 2 * acidLook.open);
+          if (o.z > 41) continue;
+          put(all[o.kind] || all.cube, o.size * (1 + 0.5 * (sound.bands[o.band] + acidSpectrum(o.band / BANDS)) + 0.15 * kick + 0.6 * acidLook.open), o.ax, o.ay, o.x, o.y, o.z, paths[o.tone * 3 + (o.z < 8 ? 0 : o.z < 20 ? 1 : 2)]);
+          if (o.z < 10) near.push([cx + (o.x / o.z) * f, cy - (o.y / o.z) * f]);
+        }
       }
-    } else {
-      while (field.length < 44) field.push(newSolid(rnd(3, 40), kinds));
-      const speed = 3 + 6 * flow.intensity + 5 * kick + 6 * flow.drop;
-      for (const o of field) {
-        o.z -= dt * speed;
-        if (o.z < 0.6) Object.assign(o, newSolid(rnd(36, 42), kinds));
-        o.ax += dt * o.sx * V.spin * (1 + kick + 2 * acidLook.open);
-        o.ay += dt * o.sy * V.spin * (1 + kick + 2 * acidLook.open);
-        if (o.z > 41) continue;
-        put(all[o.kind] || all.cube, o.size * (1 + 0.5 * (sound.bands[o.band] + acidSpectrum(o.band / BANDS)) + 0.15 * kick + 0.6 * acidLook.open), o.ax, o.ay, o.x, o.y, o.z, paths[o.tone * 3 + (o.z < 8 ? 0 : o.z < 20 ? 1 : 2)]);
-        if (o.z < 10) near.push([cx + (o.x / o.z) * f, cy - (o.y / o.z) * f]);
-      }
+      if (mode !== "field") softBlob(g, cx, cy, f * 0.12, mix(tones[0], [255, 255, 255], 0.4), (0.2 + 0.4 * kick) * share);
+      paths.forEach((path, n) => { const tone = tones[Math.floor(n / 3)], depth = n % 3, light = [0.9, 0.55, 0.22][depth] * (0.75 + 0.25 * kick) * share, wide = Math.max(1, (h / 520) * [2, 1.3, 0.8][depth]); g.strokeStyle = rgba(tone, light * 0.22); g.lineWidth = wide * 3.2; g.stroke(path); g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.2), light); g.lineWidth = wide; g.stroke(path); });
     }
-    if (V.mode !== "field") softBlob(g, cx, cy, f * 0.12, mix(tones[0], [255, 255, 255], 0.4), 0.2 + 0.4 * kick);
-    paths.forEach((path, n) => { const tone = tones[Math.floor(n / 3)], depth = n % 3, light = [0.9, 0.55, 0.22][depth] * (0.75 + 0.25 * kick), wide = Math.max(1, (h / 520) * [2, 1.3, 0.8][depth]); g.strokeStyle = rgba(tone, light * 0.22); g.lineWidth = wide * 3.2; g.stroke(path); g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.2), light); g.lineWidth = wide; g.stroke(path); });
     if (hatHit && near.length) twinkle(...near[Math.floor(rnd(0, near.length))], h * 0.05);
   }
 
   /* The neon city: flying down an avenue between towers of light. */
   const CITY = { z: 0 }, CITY_ROWS = 13, CITY_GAP = 2.4;
   function cityFx() { // flying low down an avenue of towers made of light, each as tall as its part of the sound: the bass along the road and the highs further out, and a moon at the end of it
-    const { t, dt, kick, hatHit, bass } = sound, tones = moodColors(3), f = Math.min(w, h) * 0.95, cx = w / 2, cy = h * 0.46, glass = V.look === "glass", tops = [];
+    const { t, dt, kick, hatHit, bass } = sound, tones = moodColors(3), f = Math.min(w, h) * 0.95, cx = w / 2, cy = h * 0.46, pg = overOf("look"), glass = pg < 1 ? (V.look === "glass" ? pg : vary.was.look === "glass" ? 1 - pg : 0) : V.look === "glass" ? 1 : 0, tops = []; // (how much glass, while it goes over)
     CITY.z += dt * (3 + 5 * flow.intensity + 4 * kick + 5 * flow.drop);
     const camX = Math.sin(t * 0.11) * Math.min(1.3, 0.9 * V.weave), camY = 1.9 + 0.45 * Math.sin(t * 0.17) + 0.8 * flow.build, roll = -Math.cos(t * 0.11) * 0.1 * V.weave, cr = Math.cos(roll), sr = Math.sin(roll);
     const see = (x, y, z) => { const X = x - camX, Y = y - camY; return [cx + ((X * cr + Y * sr) / z) * f, cy - ((Y * cr - X * sr) / z) * f]; };
@@ -5200,7 +5415,7 @@ window.Effects = (() => {
         face.forEach(([x, y, z], i) => { const [sx, sy] = see(x, y, z); if (i) path.lineTo(sx, sy); else path.moveTo(sx, sy); });
         path.closePath();
         g.globalCompositeOperation = "source-over";
-        g.fillStyle = glass ? rgba(mix(tone, [0, 0, 0], 0.78), 0.5) : "#05030b";
+        g.fillStyle = glass ? rgba(mix([5, 3, 11], mix(tone, [0, 0, 0], 0.78), glass), 1 - 0.5 * glass) : "#05030b";
         g.fill(path);
         g.globalCompositeOperation = "lighter";
         g.strokeStyle = glow;
@@ -5387,7 +5602,7 @@ window.Effects = (() => {
 
   /* Versions: every effect keeps changing a little by itself, so it never looks quite the same twice. Each has a few dials (how many, what shape, which way round, folded how, and the colors),
      picked at random when it starts, all picked again when a drop lands, and one or two now and then in the groove, on a kick. A dial of numbers glides to its new place, a fold or a shape
-     goes over in the picture itself, and any other changes behind a quick fade. Sometimes the change in the groove is a slow one instead: over eight bars or more the effect becomes another version of itself,
+     goes over in the picture itself, and so does every other dial (see "versions morph"): only one with no way of its own would change behind a quick fade. Sometimes the change in the groove is a slow one instead: over eight bars or more the effect becomes another version of itself,
      everything that can glide moving together and the rest a step at a time, a count through the sizes in between.
      The first choice on each dial is how it was designed, and "Changes by itself" in Adjust sets how often it changes: at 0 it stays as designed. */
   const FOLD = ["", "", "mirror", "flip", "quad", "kal6", "kal8"], SHAPES = ["circle", "circle", "triangle", "square", "star", "flower", "hexagon"], HUES = [0, 0, 0, 25, -25, 50, -50, 110, 180];
@@ -5448,14 +5663,59 @@ window.Effects = (() => {
   const GLIDES = new Set(["flurry", "wind", "perch", "streaks", "orbs", "panes", "lean", "leafy", "mills", "canopy", "swish", "arcset", "dusk", "shardy", "sunway", "school", "kelp", "caps", "shine", "murk", "current", "froth", "sunx", "tide", "glassy", "breeze", "golden", "hour", "going", "weather", "rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
   const dialsOf = (style) => VERSIONS[style] && { hue: HUES, order: [0, 0, 1, 2], ...VERSIONS[style] };
   const LIVE = new Set(["fold", "form", "glasses", "roots"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16, roots: 0.5 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, a head takes its glasses off and puts others on, and Newton's new roots open as a ring of light. Each takes this much of a slow change
-  const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }; // where each dial is going, what a fold or a shape was and how far over it is, and the slow change that's on
+  const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, queued: {}, takes: {}, trip: null }; // where each dial is going, what a dial on its way was, how far over it is, where it goes next and how long it takes, and the slow change that's on
   const anyOf = (list) => (Math.random() < 0.3 ? list[0] : list[Math.floor(Math.random() * list.length)]); // as designed now and then, otherwise any of them
   const otherThan = (list, now) => { const rest = list.filter((v) => v !== now); return rest.length ? rest[Math.floor(Math.random() * rest.length)] : now; };
-  const glides = (key) => GLIDES.has(key) || (key === "stripes" && name === "plasma"); // the tube's stripes are a count, the plasma's how many bands of color
+  const glides = (key) => GLIDES.has(key) || key === "stripes" || key === "bands" || key === "loop" || key === "trail" || key === "pace"; // and the tube's stripes, the plasma's bands of color, the faces' bands, the comets' loops (a running sum now: see comets) and the living grid's trails and pace
   const turned = (key, rate, by = V.spin ?? 1) => (vary.turned[key] = (vary.turned[key] || 0) + sound.dt * rate * by); // how far something has turned so far, at a rate the version can slow, stop or turn round
   const phrase = () => ((flow.bpm ? (64 * 60) / flow.bpm : 30) * rnd(1, 2)) / Math.max(0.2, T.vary); // sixteen bars or so, or up to twice that
+  /* ==== versions morph: begin ==== */
+  /* When an effect changes from one version of itself to another, it morphs into it rather than fading: the old version is no longer kept as a still picture that fades away over the new one.
+     Each dial that would have jumped goes over in the picture itself, over a few beats from the kick it set off on (four in the groove, two on a drop; while the song's clock is sure of
+     the beat it sets off on a beat and arrives on one: see overTakes): a count is drawn as a number on its way
+     from one to the other, so the things re-space and the one coming or going fades in or out; two settings that cannot be in between are drawn together, the old one going as the new one comes;
+     and a layout or a look moves each part from where it was to where it goes. A dial that is still on its way when it is asked to change again waits until it has arrived, and then sets off
+     for the newest place (queued), so nothing ever jumps. Nothing is wiped either: the trails, the sparks and the falling caps go on through the change.
+     GOES_OVER lists the dials of each style that go over like this; the four that always did (a fold, a ring's shape, a head's glasses, Newton's roots) now do on a drop too. */
+  const GOES_OVER = {
+    ribbon: ["bundles"], silk: ["sheets"], helix: ["strands"], strings: ["count"],
+    halo: ["count"], sun: ["petals"], rings: ["count", "arcs"], mandala: ["folds"], rays: ["count"],
+    bars: ["layout", "count"], mirror: ["count"], leds: ["cols", "lamp"], terrain: ["mesh"], scope: ["trace"],
+    vortex: ["arms"], ripple: ["lines"], comets: ["heads"], dust: ["way"], links: ["count"], fireworks: ["burst"], // (fireworks: new shells burst the new way, and those in the air burn out)
+    kaleido: ["blobs", "line"], fractal: ["sides"], julia: ["power"],
+    ocean: ["night"], neonroad: ["sun", "hills"], aurora: ["lake", "curtains"],
+    tube: ["sides", "look"], heads: ["layout", "move", "look", "stage"], sphere: ["look"], solids: ["mode", "forms"], city: ["look"],
+    places: ["land"], life: ["rule", "sym", "bead"], forms: ["arms"], beings: ["body", "eyes"], // (each of these goes over in its own way: another land comes in from the left, a new garden grows under the old one, the forms send a front, a being becomes another)
+  };
+  const goesOver = (key) => LIVE.has(key) || (!!GOES_OVER[name] && GOES_OVER[name].includes(key)); // whether this dial of the style showing goes over in the picture
+  const overOf = (key) => (vary.over[key] === undefined || !(key in vary.was) ? 1 : eased(vary.over[key])); // how far a dial on its way has got: 0 as it sets off, 1 when it is there (and when it isn't on its way)
+  const countOf = (key) => { const p = overOf(key); return p < 1 ? vary.was[key] + (V[key] - vary.was[key]) * p : V[key]; }; // a count on its way from one to another, as a number in between
+  const shareOf = (i, n) => clamp(n - i); // how much shows of the i-th of n things, when n is a count on its way: all of each whole one, and the part left over of the one coming or going
+  const SLOW_OVER = { night: 3, sun: 2, layout: 2, lamp: 2 }; // dials that change the light of the whole picture a lot (day into night under the sea, the sun into the moon, the bars into a ring, the heads into a crowd, the hi-fi's lamps into thin bars): they take this many times as long, so it changes gently
+  function overTakes(way, key) { // how long a dial takes to go over: four beats in the groove, two on a drop, about 0.8 s to 2.8 s (in whole beats when the clock is sure, so a little outside that now and then); more for a slow one
+    const slow = SLOW_OVER[key] || 1, beats = way === "fade" ? 4 : 2, beat = flow.period;
+    if (flow.beatSure > 0.6 && beat > 0.2 && beat < 2) { // the song's clock is sure of the beat (see the clock block): whole beats, so that it sets off on a beat and arrives on one
+      const n = slow * Math.min(Math.max(1, Math.floor(2.8 / beat)), Math.max(beats, Math.ceil(0.8 / beat)));
+      return beat * (flow.inBeat < 0.25 ? n - flow.inBeat : n + 1 - flow.inBeat); // (a quarter of a beat or less after a beat, as on a bar's start or a drop's kick: what is left of that many beats; later: that many from the beat about to land)
+    }
+    return slow * Math.min(2.8, Math.max(0.8, (flow.bpm ? 60 / flow.bpm : 0.45) * beats)); // not sure of it: as long by the tempo of the kicks, or by the clock on the wall when there is none
+  }
+  function overDone(key) { // a dial has arrived: if another place was asked for on the way, it sets off for it now, from here
+    delete vary.over[key];
+    delete vary.was[key];
+    delete vary.takes[key];
+    if (!(key in vary.queued)) return;
+    const next = vary.queued[key];
+    delete vary.queued[key];
+    if (next === V[key]) return;
+    vary.was[key] = V[key];
+    vary.over[key] = 0;
+    vary.takes[key] = overTakes("fade", key);
+    V[key] = next;
+  }
+  /* ==== versions morph: end ==== */
   function setVersion(next, way, trip) { // the dials that change, and how the picture goes over to them: what glides starts on its way, a fold or a shape goes over in the picture, anything else changes behind the old picture going away
-    const live = (key) => LIVE.has(key) && way === "fade" && vary.over[key] === undefined; // (not on a drop, where it all changes on the beat, and not one that's still on its way from the last time)
+    const live = (key) => !!way && goesOver(key); // (on a drop too; one still on its way from the last time waits for it to arrive: see "versions morph")
     const jumps = Object.keys(next).filter((key) => !glides(key) && next[key] !== V[key] && !live(key));
     if (jumps.length && way && name && !quiet) {
       quiet = true;
@@ -5469,8 +5729,9 @@ window.Effects = (() => {
     for (const [key, value] of Object.entries(next)) {
       vary.aim[key] = value;
       if (glides(key)) { if (!way) V[key] = value; continue; }
-      if (value !== V[key] && live(key)) { vary.was[key] = V[key]; vary.over[key] = 0; } // from here it goes over by itself
-      else if (value !== V[key] || !way) { delete vary.was[key]; delete vary.over[key]; } // and this one is there at once
+      if (live(key) && vary.over[key] !== undefined) { if (value === V[key]) delete vary.queued[key]; else vary.queued[key] = value; continue; } // still on its way: the new place waits until it has arrived
+      if (value !== V[key] && live(key)) { vary.was[key] = V[key]; vary.over[key] = 0; vary.takes[key] = overTakes(way, key); } // from here it goes over by itself, over a few beats
+      else if (value !== V[key] || !way) { delete vary.was[key]; delete vary.over[key]; delete vary.queued[key]; } // and this one is there at once
       V[key] = value;
     }
     if (jumps.length && way) wipe(); // a fresh start for what streams and fades, behind the old picture
@@ -5479,7 +5740,7 @@ window.Effects = (() => {
   function freshVersion(designed) { // every dial at once: picked, or as designed
     const dials = dialsOf(name);
     V = {};
-    Object.assign(vary, { aim: {}, was: {}, over: {}, trip: null });
+    Object.assign(vary, { aim: {}, was: {}, over: {}, queued: {}, takes: {}, trip: null });
     if (dials) setVersion(Object.fromEntries(Object.entries(dials).map(([key, list]) => [key, designed || !T.vary ? list[0] : anyOf(list)])));
     vary.on = 0;
     vary.due = phrase();
@@ -5524,8 +5785,8 @@ window.Effects = (() => {
     }
     for (const key in vary.over) {
       const span = trip && trip.live[key];
-      vary.over[key] = span ? clamp((trip.at - span[0]) / (span[1] - span[0])) : vary.over[key] + real / 1.8;
-      if (vary.over[key] >= 1) { delete vary.over[key]; delete vary.was[key]; }
+      vary.over[key] = span ? clamp((trip.at - span[0]) / (span[1] - span[0])) : vary.over[key] + real / (vary.takes[key] || 1.8);
+      if (vary.over[key] >= 1) overDone(key);
     }
     if (!dials || !T.vary || !hearing || pending || morph) return;
     if (flow.dropHit) {
@@ -5807,7 +6068,7 @@ window.Effects = (() => {
     }
     for (let l = 0; l < 2; l++) { const f = (F.z + l * 0.5) % 1; told.flowIs[1][l * 2] = 0.55 * Math.exp(FACES_LEVEL * (f - 0.5)); told.flowIs[1][l * 2 + 1] = Math.sin(Math.PI * f) ** 2; } // two layers of the stuff, one fading in small as the other fades out big, so the travel has no seam
     told.gaze[1][0] = F.gx; told.gaze[1][1] = F.gy; told.gaze[1][2] = 0.42 + 0.16 * F.lit - 0.1 * F.swell; // the dark middle: wide on the drop, a little smaller on each kick
-    told.clear[1][0] = c; told.melt[1][0] = 0.03 + 0.4 * (1 - ramp(0, 0.55, c)); told.mid[1][0] = mid; told.flowAt[1][0] = F.flowAt; told.swell[1][0] = F.swell * narrow; told.bandsN[1][0] = Math.round(V.bands ?? 5); told.crawl[1][0] = F.crawl;
+    told.clear[1][0] = c; told.melt[1][0] = 0.03 + 0.4 * (1 - ramp(0, 0.55, c)); told.mid[1][0] = mid; told.flowAt[1][0] = F.flowAt; told.swell[1][0] = F.swell * narrow; told.bandsN[1][0] = V.bands ?? 5; told.crawl[1][0] = F.crawl;
     told.rush[1][0] = 0.6 * Math.max(F.lit * F.lit, Math.min(1, 6.75 * plunge));
     told.light[1][0] = 0.78 + 0.1 * F.swell * narrow + 0.14 * F.lit; // the kick through the same soft follower as the iris: a breath of light on the beat, a twentieth or so, not a flash; and less of it in an upright picture, where a face fills more of what there is
     return F;
@@ -7149,7 +7410,7 @@ window.Effects = (() => {
     const noise = (x, s = 0) => { const i = Math.floor(x), f = x - i; return lerp(hash(i, s), hash(i + 1, s), eased(f)); }; // a smooth wandering number (0..1) along x: the same place always gives the same
     const fbm = (x, s = 0) => noise(x, s) * 0.6 + noise(x * 2.3, s + 1) * 0.28 + noise(x * 5.1, s + 2) * 0.12; // the same with finer wobbles on top, for a skyline
     const noise2 = (x, y, s = 0) => { const i = Math.floor(x), j = Math.floor(y), u = eased(x - i), v = eased(y - j); return lerp(lerp(hash(i + j * 7919, s), hash(i + 1 + j * 7919, s), u), lerp(hash(i + (j + 1) * 7919, s), hash(i + 1 + (j + 1) * 7919, s), u), v); }; // and one over a flat area, for mist
-    let HZ = 0, air = [], ni = 0, grand = 0, day = 0, land = 1, moonAt = 0.74, weather = 1, pick = "", coming = false; // this frame's horizon row, sky colors (top to horizon), how much it is night (0..1), how much of the drop's grand thing there is (0..1), the hour, and the version's dials
+    let HZ = 0, air = [], ni = 0, grand = 0, day = 0, land = 1, moonAt = 0.74, weather = 1, pick = "", coming = false, landWas = "", pickFrom = "", landFrom = ""; // this frame's horizon row, sky colors (top to horizon), how much it is night (0..1), how much of the drop's grand thing there is (0..1), the hour, and the version's dials
 
     // The drawing tools. Each puts whole dots into B; where a blend is wanted (l from 0 to 1) it is dithered: so many dots of every sixteen, in a fixed pattern.
     const dit = (x, y, l) => M[(x & 3) | ((y & 3) << 2)] < l * 16; // is this dot on, at a blend of l (0..1)
@@ -7791,17 +8052,21 @@ window.Effects = (() => {
     WORLDS.meadow = meadowOf(false); WORLDS.day = meadowOf(true);
 
     function paint() {
-      if (pick !== st.world) { coming = !!pick && st.over < 1; if (coming) old.set(B); pick = st.world; } // another place: keep the last picture of the old one, for the new one to come through
-      const wd = WORLDS[pick] || WORLDS.meadow;
-      land = PLACE_LANDS.indexOf(V.land) + 1 || 1; moonAt = land % 2 ? 0.74 : 0.26; weather = V.weather ?? 1;
-      day = (((st.day + (PLACE_HOUR[pick] || 0) + (V.hour || 0)) % 1) + 1) % 1;
+      if (pick !== st.world || landWas !== st.landIs) { coming = !!pick && st.over < 1; pickFrom = pick; landFrom = landWas; pick = st.world; landWas = st.landIs; } // another place, or another lie of the land: the one it leaves is still painted, under the new one coming through it
+      if (coming && st.over < 1) { paintOne(pickFrom, landFrom); old.set(B); } // (the old place as it is now, going on living under the wipe: not its last picture, standing still)
+      paintOne(pick, landWas);
+      if (coming && st.over < 1) { for (let y = 0; y < H; y++) { const row = y * W, my = (y & 3) << 2; for (let x = 0; x < W; x++) if ((M[(x & 3) | my] + 0.5) / 16 >= st.over * 1.5 - (x / W) * 0.5) B[row + x] = old[row + x]; } } // the new place comes through the old one from the left, dot by dot
+      else coming = false;
+      S.x.putImageData(img, 0, 0);
+    }
+    function paintOne(where, lie) { // one place in one lie of the land, into B
+      const wd = WORLDS[where] || WORLDS.meadow;
+      land = PLACE_LANDS.indexOf(lie) + 1 || 1; moonAt = land % 2 ? 0.74 : 0.26; weather = V.weather ?? 1;
+      day = (((st.day + (PLACE_HOUR[where] || 0) + (V.hour || 0)) % 1) + 1) % 1;
       HZ = Math.round(H * (WIDE ? 0.62 : 0.6) + st.wide * H * 0.07);
       air = hour(wd.SKY); ni = hour(wd.NIGHT); grand = clamp(Math.min(st.gT / (0.4 + 2.6 * st.soft), 1 - st.gT / 12)); // the grand thing comes in over a moment (never in one frame) and is gone after twelve seconds
       paintSky(air, HZ + 2);
       wd.draw();
-      if (coming && st.over < 1) { for (let y = 0; y < H; y++) { const row = y * W, my = (y & 3) << 2; for (let x = 0; x < W; x++) if ((M[(x & 3) | my] + 0.5) / 16 >= st.over * 1.5 - (x / W) * 0.5) B[row + x] = old[row + x]; } } // the new place comes through the old one from the left, dot by dot
-      else coming = false;
-      S.x.putImageData(img, 0, 0);
     }
     return { S, paint };
   }
@@ -7812,7 +8077,8 @@ window.Effects = (() => {
     const S = pixelScreen(Math.round(w / size));
     if (!placeView || placeView.S !== S) { placeView = placeMake(S); st.painted = -1e9; } // a picture of another shape: the place is laid out again for it, and placeSt carries on (the view and the sky do not start again)
     if (st.stepped !== realNow) { st.stepped = realNow; placeStep(); } // (this can be called twice in one frame: the clocks step once)
-    const look = st.world + V.land;
+    if (st.landIs !== V.land && (st.over >= 1 || !st.landIs)) { if (st.world && st.landIs) st.over = 0; st.landIs = V.land; } // another lie of the land from the version: it comes through the old one as another place would, once the last change has come through (and at once as Places opens)
+    const look = st.world + st.landIs;
     if (Math.abs(realNow - st.painted) >= 30 || look !== st.look) { st.painted = realNow; st.look = look; placeView.paint(); } // (another lie of the land is painted at once, behind the old picture going away)
     S.show();
   }
@@ -8160,7 +8426,7 @@ window.Effects = (() => {
       if (K.pulse >= 0) { K.pulse += dt * (reach / 0.35); if (K.pulse > reach * 0.8 + 3 || K.ring >= 0) K.pulse = -1; } // the kick's ring runs out in about a third of a second, and makes way for the drop's
     }
     function paint(dt) { // each cell's light eases to where it should be (quickly up, slowly down: the trail) and picks its color from the ramp: the top left dot a shade up and the bottom right a shade down, which makes the bead
-      const up = 1 - Math.exp(-dt / R.up), down = 1 - Math.exp(-dt / (R.down * trail * (1 + 0.8 * flow.calm))), hi = bead ? 0.6 : 0.3, lo = bead ? 0.1 : 0.05, rest = dt * 2;
+      const up = 1 - Math.exp(-dt / R.up), down = 1 - Math.exp(-dt / (R.down * trail * (1 + 0.8 * flow.calm))), hi = 0.3 + 0.3 * bead, lo = 0.05 + 0.05 * bead, rest = dt * 2;
       const P = K.pulse, band = 3.5, ringLight = 0.65 * K.pulseOf * T.react, kickLight = 0.2 * clamp(sound.kick) * T.react; // the kick, shown in the light only: a ring three or four cells wide, bright at its front and fading behind it, and a flash of the living cells
       for (let y = 0, i = 0; y < rows; y++) for (let x = 0, o = y * 2 * dotsW; x < cols; x++, i++, o += 2) {
         const aim = tgt[i], F = tired[i]; let L = lum[i];
@@ -8206,25 +8472,28 @@ window.Effects = (() => {
       const next = lifeGrid(cols, rows, worldName, ruleName), same = L && L.world === worldName && L.rule === ruleName, last = now.screen;
       if (same) next.adopt(L); // only the window's shape changed: the garden goes along
       else if (L) { next.K.phase = L.K.phase; next.K.kicks = L.K.kicks; } // another world or rule-set: a new garden, at the same place in the song
-      if (L && last && (L.world !== worldName || (same && Math.abs(cols * rows - L.cols * L.rows) > 0.1 * L.cols * L.rows))) { // another kind of music, or a grid of quite another size all at once (the app makes its picture smaller on a slow machine, and the cells change size with it): the last picture is kept, and goes away over the new one in a second or two. A window being dragged changes a column at a time and needs none of this
+      if (L && last && (L.world !== worldName || L.rule !== ruleName || (same && Math.abs(cols * rows - L.cols * L.rows) > 0.1 * L.cols * L.rows))) { // another kind of music, or a grid of quite another size all at once (the app makes its picture smaller on a slow machine, and the cells change size with it): the last picture is kept, and goes away over the new one in a second or two. A window being dragged changes a column at a time and needs none of this
         if (!now.old || now.old[0].width !== last.across || now.old[0].height !== last.down) now.old = paper(last.across, last.down);
         now.old[1].globalCompositeOperation = "copy";
         now.old[1].drawImage(last.c, 0, 0);
         now.fade = 1;
+        now.was = L.cols === cols && L.rows === rows ? L : null; // the old garden, when it is of the same size, goes on growing under its fade (another rule-set, or another kind of music)
       }
       L = now.grid = next;
     }
     now.screen = S;
     const s = Math.round(V.sym || 0);
-    L.dials(s >= 6 ? 8 : s >= 3 ? 4 : s >= 1 ? 2 : 0, V.trail || 1, V.pace || 1, (V.bead ?? 1) > 0.5 ? 1 : 0);
+    L.dials(s >= 6 ? 8 : s >= 3 ? 4 : s >= 1 ? 2 : 0, V.trail || 1, V.pace || 1, V.bead === undefined ? 1 : clamp(countOf("bead"))); // (the beads come or go by shades as the dial goes over)
     L.tones((V.hue || 0) * world.turns);
     L.frame(dt, again);
     S.x.putImageData(L.img, 0, 0);
     if (now.fade > 0) {
+      if (now.was) { const kick = sound.kick, hit = sound.kickHit; sound.kick = sound.kickHit = 0; now.was.frame(dt, again); sound.kick = kick; sound.kickHit = hit; now.old[1].putImageData(now.was.img, 0, 0); } // (the old garden living on as it goes, but no longer lit or planted by the kicks: lit over the new one it would flash)
       S.x.globalAlpha = eased(now.fade);
       S.x.drawImage(now.old[0], 0, 0, S.across, S.down);
       S.x.globalAlpha = 1;
       now.fade -= dt / 1.6;
+      if (now.fade <= 0) now.was = null;
     }
     S.show();
     if (!now.soft || now.soft[0].width !== S.across >> 2 || now.soft[0].height !== S.down >> 2) now.soft = paper(Math.max(1, S.across >> 2), Math.max(1, S.down >> 2));
@@ -14014,7 +14283,7 @@ window.Effects = (() => {
       g.drawImage(tiny, 0, 0, across, down, 0, 0, across * size, down * size);
     },
   };
-  function blend() { // the old picture over the new one, on its way out: the old effect itself, still moving, while one effect changes into another (see the live change); a still of it while a version changes
+  function blend() { // the old picture over the new one, on its way out: the old effect itself, still moving, while one effect changes into another (see the live change); a still of it while a version changes in a way that has no morph (see "versions morph": none of the built-in dials)
     const live = morph.live;
     if (live && aside.on && !morph.done) drawAside(); // (once nothing of it is left to show, it is no longer drawn)
     const p = live ? morph.p : (realNow - morph.from) / morph.long;
@@ -14031,7 +14300,7 @@ window.Effects = (() => {
     name = next;
     if (next === "forms") formsKept.started = false; // (each of these starts afresh only when it is the one coming in)
     if (next === "runner") runner.fresh = true;
-    if (next === "places") { placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); } // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
+    if (next === "places") { placeSt.world = ""; placeSt.over = 1; placeSt.landIs = ""; placeSt.gT = Math.max(placeSt.gT, 12); } // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
     if (next === "life") lifeNow.grid = null; // the living grid plants a new garden each time it is shown
     awReset(next); // Frutiger Aero starts with a fresh sky, and Aqua with a fresh tank
     if (next === "dorfic") asDorf.w = 0; if (next === "eco") asEco.w = 0; // DORFic and Frutiger Eco lay out a fresh page and a fresh world each time they are shown (each only its own, so one still showing on its way out is left as it is)
@@ -14075,7 +14344,7 @@ window.Effects = (() => {
      One picked by hand is quick: two beats, or about a second. A drop never starts one; a drop that lands while one is on hurries it to its end within a quarter of a second, so that the drop
      lands on the new effect. A machine too slow to draw both draws the old one every other frame, and if that is still too much, shows the old one's last picture kept moving (swelling with
      the kick, turning slowly) instead of drawing it. The visitors, the 303's singer, the band, the punch, the click rings and the little windows are drawn once, over both, as always. */
-  const aside = { on: false, c: null, x: null, spare: null, back: null, name: "", V: {}, vary: { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }, T: { ...T }, colors: PLAIN,
+  const aside = { on: false, c: null, x: null, spare: null, back: null, name: "", V: {}, vary: { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, queued: {}, takes: {}, trip: null }, T: { ...T }, colors: PLAIN,
     clean: null, dirty: false, clearing: 0, dt: 0, tapped: null, mine: [], own: [], spareOwn: [], inPlace: [], seeds: new Float32Array(64), cover: new Float32Array(576), still: false, keep: null, keepX: null, mix: null,
     half: false, skip: false, owed: 0, frames: 0, goods: 0, load: 0, cost: 0, spent: 0, alone: 0, began: 0, real: 0, drawnAt: -1, light: 1, lit: 1, litWas: 1, tuned: false, toggle: false, warned: new Set() };
   // aside: the going effect's picture (c, x) and trails (spare, back), and everything else of its own while it is traded out; own: its arrays while the new one has others (mine: which ones);
@@ -14190,7 +14459,7 @@ window.Effects = (() => {
     A.V = V;
     V = {};
     swapIn(A.vary, vary);
-    Object.assign(vary, { aim: {}, was: {}, over: {}, trip: null, turned: { ...A.vary.turned } }); // what has turned so far goes on turning from where it was, in both
+    Object.assign(vary, { aim: {}, was: {}, over: {}, queued: {}, takes: {}, trip: null, turned: { ...A.vary.turned } }); // what has turned so far goes on turning from where it was, in both
     Object.assign(A.T, A.tuned ? shownT : T); // its own sliders, as it was last drawn
     A.light = A.lit;
     A.colors = colors;

@@ -2514,12 +2514,12 @@ function setFx(name) {
   paintFxBar();
   syncFx();
 }
-/* Morph: the effect changes into another by itself now and then, on the beat. effects.js says when; this picks which, from any style of any effect, and not one just seen. */
+/* Morph: the effect changes into another by itself now and then, on the beat. effects.js says when; this picks which: a style of another effect than the one showing (two styles of one effect can be so alike that the change looks like the effect fading into itself), and not one just seen. */
 function morphFx() {
   if (fxWriting && familyOf(fxName) === "recipes") return; // not while a recipe is being written: the editor would go with the effect
-  const all = FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style)), fresh = all.filter((s) => s !== fxName && !fxSeen.includes(s));
+  const all = FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style)), fresh = all.filter((s) => s !== fxName && !fxSeen.includes(s)), away = fresh.filter((s) => familyOf(s) !== familyOf(fxName)), pool = away.length ? away : fresh;
   FX.slow();
-  setFx(fresh[Math.floor(Math.random() * fresh.length)] || all.find((s) => s !== fxName));
+  setFx(pool[Math.floor(Math.random() * pool.length)] || all.find((s) => s !== fxName));
 }
 function setMorph(on, now = true) {
   fxMorph = on;
