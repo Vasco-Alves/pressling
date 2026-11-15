@@ -208,6 +208,12 @@ input::placeholder { color: var(--ink-3); }
 .cover.four-up img:nth-of-type(3) { bottom: 0; left: 0; }
 .cover.four-up img:nth-of-type(4) { bottom: 0; right: 0; }
 .fact-link:hover { text-decoration: underline; }
+.artist-link:focus-visible { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; } /* an artist's name keeps its look until the keyboard (or the mouse, below) is on it: then a quiet underline */
+@media (hover: hover) { .artist-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; } } /* (only with a mouse: on a touch screen a tapped name would stay underlined) */
+body.fx-full .artist-link { cursor: inherit; text-decoration: none; } /* in Full view the names are only words, as before */
+@media (hover: none) { .t-cell .t-sub { margin-right: 94px; } .t-cell:has(.row-out) .t-sub { margin-right: 126px; } } /* a touch screen shows a row's heart and queue buttons all the time: the names end before them (with ...), so a tap on a name never lands on a button, nor on a cut-off name hidden beside them */
+.shelf-head:has(.all-songs) { flex-wrap: wrap; } /* an artist's head: where the column is too narrow beside the picture (a tall screen with the panel open), the name and the rest go under it */
+.shelf-head:has(.all-songs) .shelf-info { min-width: min(260px, 100%); align-self: stretch; } /* (a width, never a height: on a phone the head is one column, where a flex-basis of 260px would be a height and leave an empty band under its buttons) */
 
 /* ---------- songs ---------- */
 .table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }

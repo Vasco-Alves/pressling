@@ -430,7 +430,7 @@ function pageHome() {
     page.append(el("div", { class: "cols" },
       el("div", { class: "card" }, el("h2", {}, "Most played", seeAll("plays")), el("div", { class: "rows" }, most.map((s, i) => el("div", { class: "row has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
         coverEl(s, () => playQueue(most.map((x) => x.id), i, "Most played")),
-        el("div", { class: "grow" }, el("div", { class: "now", title: songName(s) }, s.title || s.file), el("div", { class: "was", title: s.artist }, s.artist)),
+        el("div", { class: "grow" }, el("div", { class: "now", title: songName(s) }, s.title || s.file), el("div", { class: "was", title: s.artist }, artistLinks(s))),
         el("span", { class: "time" }, plural(s.plays, "play")))))),
       enough && played.genres.length > 1 ? panel("Genres you play", played.genres.slice(0, 10), "genre") : null));
   }
@@ -623,7 +623,7 @@ function renderTable(box, list, update, takeOut, moved) {
   if (moved) sortable(body, "tr", moved);
   lazy(body, list, (s) => el("tr", { class: `has-play${moved ? " can-move" : ""}${isFavourite(s) ? " fav" : ""}`, draggable: moved ? "true" : null, dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     el("td", { class: "c-cover" }, coverEl(s, () => playFrom(s.id))),
-    el("td", { class: "t-cell" }, el("button", { class: "t-main", type: "button", title: s.title, onclick: (e) => { e.stopPropagation(); openDrawer(s.id); } }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist),
+    el("td", { class: "t-cell" }, el("button", { class: "t-main", type: "button", title: s.title, onclick: (e) => { e.stopPropagation(); openDrawer(s.id); } }, s.title), el("span", { class: "t-sub", title: s.artist }, artistLinks(s)),
       takeOut ? el("button", { class: "row-add row-out", type: "button", title: "Take out of this playlist", "aria-label": `Take ${songName(s)} out of this playlist`, onclick: (e) => { e.stopPropagation(); takeOut(s, e.currentTarget.closest("tr")); } }, icon("x", 15)) : null,
       el("button", { class: "row-add row-list", type: "button", title: "Add to a playlist", "aria-label": `Add ${songName(s)} to a playlist`, onclick: (e) => { e.stopPropagation(); addToList([s.id], songName(s) || s.file); } }, icon("plus", 15)),
       el("button", { class: "row-add", type: "button", title: "Add to queue", "aria-label": `Add ${songName(s)} to the queue`, onclick: (e) => { e.stopPropagation(); enqueue([s.id]); } }, icon("listadd", 15)),
@@ -871,10 +871,29 @@ const shelfTile = (item, mosaic, glass) => { // glass: a record on its glass pla
     item.lines.map((line) => el("span", { class: "t-sub", title: line }, line)));
 };
 const songTile = (s, play) => el("div", { class: "tile has-play shelf", dataset: { song: s.id }, onclick: () => openDrawer(s.id) }, // like an album on the shelf: the record slides out, and play is its own button
-  el("div", { class: sleeveClass(mediumOf(s)) }, disc(null, mediumOf(s)), hinge(mediumOf(s)), stuck(coverEl(s, play), [s])), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist));
+  el("div", { class: sleeveClass(mediumOf(s)) }, disc(null, mediumOf(s)), hinge(mediumOf(s)), stuck(coverEl(s, play), [s])), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, artistLinks(s)));
 const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title));
 const yearsOf = (songs) => songs.map((s) => +s.year).filter(Boolean);
 const artistsOf = (s) => (s.artist || "").split(" & ").map((a) => a.trim()).filter(Boolean);
+/* ---------- artist names you can click ---------- */
+/* Wherever a song's artist is shown, each name is a link to the Songs page with that artist's songs ("A & B" is two names, so two links), and that page says so at its top (artistHead).
+   A name that isn't really an artist stays plain words: a genre word, "Various", a game's or a film's "... OST", or nothing at all (the same rule as Overview's Top artists).
+   The names look as they always did until the mouse is over one (style.css), and a click on one does only that: never also what a click on the row or the tile around it does.
+   In Full view a name is only words, as before: a click on it goes on to what's around it. */
+let notArtists = { of: null, words: new Set() }; // the genre names in the library (not in Review or the downloads, whose tags can be anything), as words that aren't artists: worked out again only when the library has been read again
+function artistLinks(s, shown = s.artist) { // the names in shown (the song's artist, or an album's), each a link where it's a real artist, joined by " & " as they were
+  if (notArtists.of !== S.lib) notArtists = { of: S.lib, words: new Set(S.lib.map((x) => fold(x.genre).trim()).filter(Boolean)) };
+  const real = (a) => !!a && !/ OST$/.test(a) && !/^various( artists)?$/i.test(a) && !notArtists.words.has(fold(a).trim());
+  const area = s.area && s.area !== "library" ? "all" : ""; // a song not in the library yet: its artist's songs from everywhere, so it's there among them
+  const go = (e) => {
+    if (fxFull) return e.preventDefault(); // Full view: only words, and the click goes on to the play bar as it always did
+    e.stopPropagation(); // the name only: not the row's click (play, select, open the panel) as well
+    if (location.hash === e.currentTarget.getAttribute("href")) { e.preventDefault(); route(); } // that page is open already: it's shown again from the top
+  };
+  const left = (e) => { if (e.currentTarget.parentElement) e.currentTarget.parentElement.scrollLeft = 0; }; // the keyboard slid a cut-off line along to show a name: back to its start once it's gone
+  return (shown || "").split(" & ").flatMap((name, i) => [i ? " & " : "", real(name.trim()) ? el("a", { class: "artist-link", href: `#/songs?${q2({ artist: name.trim(), area })}`, draggable: "false", onclick: go, onblur: left }, name) : name]).filter(Boolean);
+}
+const songLine = (s) => (s.artist ? [artistLinks(s), s.title ? ` - ${s.title}` : ""] : s.title || s.file); // "Artist - Title" as songName says it, with the artist's names as links
 function albumItems() {
   const byName = new Map();
   for (const s of S.lib) if (s.album) {
@@ -947,7 +966,7 @@ const yearSpan = (years) => (!years.length ? "" : Math.min(...years) === Math.ma
 function albumHead(songs) {
   const who = [...new Set(songs.map((s) => s.artist).filter(Boolean))], record = songs.find((s) => siteOf(s.link) === "discogs") || songs[0], shop = shopLink(record);
   const onRecord = Math.max(...songs.map((s) => s.tracks || 0)), years = yearsOf(songs), verified = songs.filter((s) => s.trust === "verified").length;
-  return shelfHead({ name: songs[0].album, by: who.length === 1 ? who[0] : who.length ? "Various artists" : "", songs,
+  return shelfHead({ name: songs[0].album, by: who.length === 1 ? artistLinks(songs[0], who[0]) : who.length ? "Various artists" : "", songs,
     facts: [["Format", record.format], ["Year", years.length ? String(Math.min(...years)) : ""], ["Label", namesIn(songs, "label", 3)], ["Country", namesIn(songs, "country", 3)], ["Genre", namesIn(songs, "genre", 3)],
       ["You have", `${onRecord > songs.length ? `${songs.length} of ${onRecord} tracks` : plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}`], ["How sure", extra("curator") ? `${verified} of ${songs.length} verified` : ""]],
     links: [record.link ? el("a", { class: "btn small", href: record.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(record.link)) : null,
@@ -960,7 +979,7 @@ function labelHead(name, songs) {
 }
 function artistHead(name, songs) {
   const records = new Set(songs.map((s) => fold(s.album).trim()).filter(Boolean)).size, plays = sum(songs.map((s) => s.plays));
-  return shelfHead({ name, by: namesIn(songs, "genre", 3), songs,
+  return shelfHead({ name, by: namesIn(songs, "genre", 3), songs, links: [el("a", { class: "btn small all-songs", href: "#/songs" }, icon("music", 14), "All songs")],
     facts: [["You have", `${plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}`], ["Records", records ? String(records) : ""], ["Years", yearSpan(yearsOf(songs))], ["Labels", namesIn(songs, "label", 4)], ["Played", plays ? plural(plays, "time") : ""]] });
 }
 function playlistHead(name, songs) {
@@ -1103,7 +1122,7 @@ const answerOf = (key) => S.decisions[key] || (checkedNow.has(key) ? { kind: "au
 function doubleLines(s, c, inPanel) { // what to look at before saying it's right: the names, the tags, the cover, the record and how sure Curate was
   if (c.kind !== "auto") return null;
   const cover = ["Cover", c.px ? `${c.px[0]} × ${c.px[1]}` : s.cover ? "yes" : "none"]; // the panel lists the rest already
-  const tags = inPanel ? [cover] : [["Artist", s.artist], ["Title", s.title], ["Album", s.album || "none (a single)"], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], cover];
+  const tags = inPanel ? [cover] : [["Artist", s.artist && artistLinks(s)], ["Title", s.title], ["Album", s.album || "none (a single)"], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], cover];
   const disc = c.disc ? [c.disc.title, [c.disc.label, c.disc.year].filter(Boolean).join(", ")].filter(Boolean) : [];
   return el("div", { class: "double" },
     s.was && s.was !== s.file ? el("div", { class: "item-also double-names" }, el("span", { class: "was" }, s.was), " → ", el("b", {}, s.file)) : null,
@@ -1322,7 +1341,7 @@ function pageQuick(params) {
     [...answers.querySelectorAll("button")].slice(0, 9).forEach((b, n) => { b.dataset.key = n + 1; b.prepend(el("kbd", {}, n + 1)); });
     card.replaceChildren(coverEl(it.s), el("div", { class: "quick-body" },
       el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
-      el("h2", {}, songName(it.s) || it.s.file), el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
+      el("h2", {}, songLine(it.s)), el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
   }
   function go(way) { // the next one still waiting for an answer, going round to the start if need be
     for (let n = 1; n <= items.length; n++) {
@@ -1383,7 +1402,7 @@ function addRow(s, name, paintCounts) {
   const seen = !there ? null : there.secs ? `${name} has it at ${clock(there.secs)}, and your file is ${clock(s.secs)}: that may be another cut.` : `${name} has "${there.name}", which may be another version of it.`;
   return el("div", { class: "row has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     coverEl(s, () => playQueue([s.id], 0, "To add")),
-    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songName(s) || s.file), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / ")),
+    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songLine(s)), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / ")),
       seen ? el("div", { class: "item-also" }, `${seen} If that's the one you meant, press Added.`) : null),
     action);
 }
@@ -1401,7 +1420,7 @@ function takeOutRow(s, name, paintCounts) {
   paint(false);
   return el("div", { class: "row has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     coverEl(s, () => playQueue([s.id], 0, "To take out")),
-    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songName(s) || s.file), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / "))),
+    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songLine(s)), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / "))),
     action);
 }
 function removeCard(r) {
@@ -2168,7 +2187,7 @@ function paintPanel() {
   fill(drawer, {}, [
     close,
     isNow ? el("div", { class: "panel-tag" }, "Now playing") : now ? el("button", { class: "linkish panel-tag", type: "button", onclick: () => openDrawer(now.id) }, "Back to what's playing") : null,
-    el("div", { class: `${sleeveClass(mediumOf(s))}${isNow ? " now" : ""}` }, disc(isNow ? s : null, mediumOf(s)), hinge(mediumOf(s)), stuck(coverEl(s), [s])), el("h2", {}, s.title), el("div", { class: "by" }, s.artist),
+    el("div", { class: `${sleeveClass(mediumOf(s))}${isNow ? " now" : ""}` }, disc(isNow ? s : null, mediumOf(s)), hinge(mediumOf(s)), stuck(coverEl(s), [s])), el("h2", {}, s.title), el("div", { class: "by" }, artistLinks(s)),
     el("div", { class: "actions" },
       isNow ? null : el("button", { class: "btn primary small", type: "button", onclick: () => (S.list.includes(s.id) ? playFrom(s.id) : playQueue([s.id], 0, "")) }, icon("play", 14), "Play"),
       isNow ? null : queueButtons([s.id]),
@@ -2227,7 +2246,7 @@ function pageNow() {
       el("div", { class: "now-info" },
         el("div", { class: "eyebrow" }, P.label && P.label !== "Shuffle" ? P.label : "Now playing"),
         el("h1", {}, s.title || s.file),
-        el("div", { class: "by" }, artistsOf(s).flatMap((a, i) => [i ? " & " : "", el("a", { href: songs({ artist: a }) }, a)])),
+        el("div", { class: "by" }, artistLinks(s)),
         el("div", { class: "now-about" }, about.flatMap((a, i) => (i ? [dot(), a] : [a]))),
         el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), favButton(s), listButton([s.id], songName(s) || s.file), spotifyButton(s), radioButton(s), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
       el("div", { class: "wave-box wave-big", dataset: { bars: 300 } }, waveShape("wave-rest"), waveShape("wave-done"), place)),
@@ -2840,7 +2859,7 @@ function showSong(s) { // everything on the page that goes with the song that's 
   $("#np-heart").setAttribute("aria-label", `Favourite ${songName(s) || s.file}`);
   paintHearts();
   $("#np-title").title = songName(s);
-  $("#np-artist").textContent = P.label ? `${s.artist} · ${P.label}` : s.artist;
+  $("#np-artist").replaceChildren(...artistLinks(s), P.label ? ` · ${P.label}` : ""); // each name a link, then the playlist or album it's playing from
   const c = $("#np-cover");
   c.replaceChildren(); c.className = `cover${s.cover ? "" : " blank"}`;
   c.append(s.cover ? el("img", { src: coverUrl(s), alt: "" }) : whiteLabel(s));
