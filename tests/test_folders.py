@@ -12,6 +12,7 @@ import tomllib
 import unittest
 from unittest import mock
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import _no_real_settings  # noqa: E402,E702,F401  first of all: keeps the tests away from your own settings, music and token
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 from music_curator import config, folders, webapp  # noqa: E402
 from test_webapp import write_mp3  # noqa: E402
