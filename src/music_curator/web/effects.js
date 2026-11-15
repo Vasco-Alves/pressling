@@ -2910,7 +2910,7 @@ window.Effects = (() => {
       g.rotate(p.rot);
       g.globalAlpha = fade;
       g.beginPath();
-      if (o.style === "snow") { g.fillStyle = "rgba(255,255,255,.85)"; g.arc(0, 0, p.size, 0, TAU); }
+      if (o.style === "snow") { g.fillStyle = o.ink || "rgba(255,255,255,.85)"; g.arc(0, 0, p.size, 0, TAU); } // (o.ink: over a light page of the app a snowflake is blue-grey, or it could not be seen. See "things on top")
       else if (o.style === "petals") { g.fillStyle = "rgba(255,182,205,.9)"; g.ellipse(0, 0, p.size * 1.6, p.size * 0.8, 0, 0, TAU); }
       else { g.fillStyle = p.tone; g.moveTo(0, -p.size * 1.6); g.quadraticCurveTo(p.size * 1.2, 0, 0, p.size * 1.6); g.quadraticCurveTo(-p.size * 1.2, 0, 0, -p.size * 1.6); }
       g.fill();
@@ -13340,6 +13340,7 @@ window.Effects = (() => {
     for (const [u, v, lean] of [[0, 1, 0], [0.5, 1, 0.2], [1, 1, 0], [0, 0, 0.4], [0.5, 0, 0.6], [1, 0, 0.4]]) {
       const x = fit(left + m + ww / 2 + (right - left - 2 * m - ww) * u, ww / 2, W), y = fit(v ? floor - m - wh / 2 : top + m + wh / 2, wh / 2, H);
       let busy = lean + Math.random() * 0.3; // (a tie goes either way)
+      if (place.mouse && Math.abs(place.mouse[0] - x) < ww / 2 + 40 && Math.abs(place.mouse[1] - y) < wh / 2 + 40) busy += 20; // (on the app: not where the mouse lies, or it would open and be gone again at once. See "things on top")
       for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) if (winBusy(document.elementFromPoint(x + (i / 3 - 0.5) * ww * 0.9, y + (j / 2 - 0.5) * wh * 0.9))) busy++;
       if (busy < least) { least = busy; best = [x, y]; }
     }
@@ -14721,7 +14722,7 @@ window.Effects = (() => {
     return dx * dx + dy * dy < 1;
   }
   function seenAt(o, x, y, r, tall = 1) { // where a visitor was drawn this frame, in the picture's dots, and how far round it a click is its own (tall: how much less up and down than across)
-    if (guest.drawing) return;
+    if (guest.drawing) { guestSeen(x, y, r, r * tall); return; } // on the app itself its place is kept for the page's own mouse, in the page's dots (see "things on top")
     o.seenX = x + folkHand.dx;
     o.seenY = y + folkHand.dy;
     o.seenR = r;
@@ -15059,13 +15060,13 @@ window.Effects = (() => {
 
   /* Visitors on the app itself, now and then: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it,
      somebody hangs on a thread from the top, an astronaut or a jellyfish goes by. They have a layer of their own over the page, shown only while one is there, and clicks go straight through it. */
-  const guestCanvas = Object.assign(document.createElement("canvas"), { id: "guests", hidden: true }), guestPaint = guestCanvas.getContext("2d"), guest = { list: [], t: 0 };
+  const guestCanvas = Object.assign(document.createElement("canvas"), { id: "guests", hidden: true, width: 1, height: 1 }), guestPaint = guestCanvas.getContext("2d"), guest = { list: [], t: 0 };
   guestCanvas.setAttribute("aria-hidden", "true");
   document.body.append(guestCanvas);
   function liftCover(o) { // the cover itself goes up into the light, and comes back down when it's let go
     const it = o.el, up = Math.max(16, Math.min(200, (o.top - (o.y + o.size * 0.24)) * 0.75)), at = (y, turn, scale, offset, easing) => ({ translate: `0 ${y.toFixed(1)}px`, rotate: `${turn}deg`, scale: String(scale), offset, ...(easing ? { easing } : {}) });
     if (!it.isConnected || !it.animate) return;
-    it.animate([at(0, 0, 1, 0, "ease-in-out"), at(-up, -7, 0.84, 0.42, "ease-in-out"), at(-up * 1.05, 6, 0.84, 0.6, "ease-in-out"), at(-up, -3, 0.86, 0.76, "cubic-bezier(.55,0,1,.45)"), at(0, 0, 1, 0.88, "ease-out"), at(-8, 0, 1, 0.94, "ease-in"), at(0, 0, 1, 1)], { duration: o.life * 360 });
+    o.lift = it.animate([at(0, 0, 1, 0, "ease-in-out"), at(-up, -7, 0.84, 0.42, "ease-in-out"), at(-up * 1.05, 6, 0.84, 0.6, "ease-in-out"), at(-up, -3, 0.86, 0.76, "cubic-bezier(.55,0,1,.45)"), at(0, 0, 1, 0.88, "ease-out"), at(-8, 0, 1, 0.94, "ease-in"), at(0, 0, 1, 1)], { duration: o.life * 360 }); // (kept, so the cover can be put back early: see coverBack)
   }
   function beam(fromX, fromY, toX, toY, top, wide, light, tone) { // a saucer's light, from under it down to whatever it's after
     const paint = g.createLinearGradient(0, fromY, 0, toY);
@@ -15085,24 +15086,45 @@ window.Effects = (() => {
   }
   function flying(o, part, hoverX, hoverY, come, go, fromSide) { // where a saucer is: in from one side, over the spot, and away up the other
     const { t } = sound, arrive = 1 - (1 - clamp((part - come[0]) / (come[1] - come[0]))) ** 3, leave = clamp((part - go) / (1 - go)) ** 2, fromX = hoverX + fromSide * w * 0.7, fromY = hoverY - h * 0.3, toX = hoverX - fromSide * w * 0.8, toY = hoverY - h * 0.5;
-    let x = fromX + (hoverX - fromX) * arrive, y = fromY + (hoverY - fromY) * arrive;
+    let x = fromX + (hoverX - fromX) * arrive, y = fromY + (hoverY - fromY) * arrive, lean = leave;
     x += (toX - x) * leave + Math.sin(t * 1.1 + o.seed) * o.size * 0.03;
     y += (toY - y) * leave + Math.sin(t * 1.7 + o.seed) * o.size * 0.02 + sky.bob * o.size * 0.3;
-    return { x, y, arrive, tilt: -(1 - arrive) * fromSide * 0.3 - leave * fromSide * 0.4 + Math.sin(t * 1.3 + o.seed) * 0.05 + sky.bob * 0.15 };
+    if (o.away !== undefined) { // told to go (see "things on top"): from wherever it has got to, off the way it would have left and out over the top, quicker and quicker (after o.hold seconds, if it has something to finish first)
+      if (o.awayX === undefined) { o.awayX = x; o.awayY = y; }
+      const wait = o.hold || 0, e = clamp((o.away - wait) / (GUEST_GO - wait)) ** 2;
+      x = o.awayX + (toX - o.awayX) * e;
+      y = o.awayY + (Math.min(toY, -o.size) - o.awayY) * e;
+      lean = Math.max(leave, e);
+    }
+    return { x, y, arrive, tilt: -(1 - arrive) * fromSide * 0.3 - lean * fromSide * 0.4 + Math.sin(t * 1.3 + o.seed) * 0.05 + sky.bob * 0.15 };
   }
   function drawBorrow(o, part) { // a saucer comes over a cover, takes it up in its beam, thinks better of it and drops it back
-    const at = flying(o, part, o.x, o.y, [0, 0.2], 0.84, o.side), light = clamp((part - 0.26) / 0.04) * clamp((0.585 - part) / 0.02), shrug = part > 0.64 && part < 0.8 ? Math.sin((part - 0.64) * 70) * 0.09 : 0;
-    if (!o.lifted && part > 0.3) { o.lifted = true; liftCover(o); }
+    const going = o.away !== undefined, at = flying(o, part, o.x, o.y, [0, 0.2], 0.84, o.side), light = clamp((part - 0.26) / 0.04) * clamp((0.585 - part) / 0.02) * (going ? clamp(1 - o.away / 0.1) : 1), shrug = !going && part > 0.64 && part < 0.8 ? Math.sin((part - 0.64) * 70) * 0.09 : 0; // (told to go, its light is out in a tenth of a second and the cover is back already: see "things on top")
+    if (!o.lifted && part > 0.3 && !going) { o.lifted = true; liftCover(o); }
     if (light > 0) beam(at.x, at.y + o.size * 0.05, o.middle, o.bottom + 8, o.size * 0.08, Math.max(o.wide * 1.25, o.size * 0.6), light, o.tone);
+    guestBox(at.x, at.y - o.size * 0.04, o.size * 0.5, o.size * 0.28); // where it is, for the page's mouse: the ship, and while the cover is off its place the cover and the light it hangs in
+    if (light > 0 || o.lift) guestBox(o.middle, (at.y + o.bottom) / 2, o.wide / 2, Math.max(0, o.bottom - at.y) / 2);
+    if (o.lift && o.lift.playState === "finished") o.lift = null; // (the cover is back down)
     g.translate(at.x, at.y);
     g.rotate(at.tilt + shrug);
     saucerBody(o, o.size);
   }
   function drawAbduct(o, part) { // a cow strolls along the top of the play bar, and a saucer comes for it
-    const { t } = sound, art = cowPicture(), hover = o.floor - o.high, at = flying(o, part, o.x, hover, [0.22, 0.36], 0.8, -o.side), walk = 1 - (1 - clamp(part / 0.24)) ** 2, start = o.side > 0 ? w + o.cow : -o.cow;
-    const light = clamp((part - 0.34) / 0.04) * clamp((0.66 - part) / 0.04), up = eased(clamp((part - 0.38) / 0.24)), gone = clamp((part - 0.6) / 0.05), wide = o.cow * (1 - 0.85 * gone), tall = (wide * art.height) / art.width, stand = o.floor - tall * 0.43;
-    const cowX = start + (o.x - start) * walk + (at.x - o.x) * up, cowY = stand + (at.y + o.size * 0.1 - stand) * up - (walk < 1 ? Math.abs(Math.sin(t * 10)) * o.cow * 0.06 : 0);
+    const { t } = sound, art = cowPicture(), going = o.away !== undefined, hover = o.floor - o.high, walk = 1 - (1 - clamp(part / 0.24)) ** 2, start = o.side > 0 ? w + o.cow : -o.cow;
+    let light = clamp((part - 0.34) / 0.04) * clamp((0.66 - part) / 0.04), up = eased(clamp((part - 0.38) / 0.24)), gone = clamp((part - 0.6) / 0.05);
+    if (going) { // told to go (see "things on top"): a cow well on its way up is taken the rest of the way at once, and the ship waits a fifth of a second for it; one still low is set down gently, and the ship goes without it
+      if (o.wasUp === undefined) { o.wasUp = up; o.wasGone = gone; o.wasLight = light; o.taken = up > 0.45 && gone < 1; o.hold = o.taken ? 0.2 : 0; }
+      const q = clamp(o.away / 0.2);
+      if (o.taken) { up = o.wasUp + (1 - o.wasUp) * q; gone = Math.max(o.wasGone, clamp((o.away - 0.1) / 0.1)); light = o.wasLight * clamp((0.26 - o.away) / 0.06); }
+      else { up = o.wasUp * (1 - eased(q)); gone = o.wasGone; light = o.wasLight * clamp(1 - o.away / 0.1); }
+    }
+    const at = flying(o, part, o.x, hover, [0.22, 0.36], 0.8, -o.side), shipX = going && o.awayX !== undefined ? o.awayX : at.x, shipY = going && o.awayY !== undefined ? o.awayY : at.y; // (told to go, the cow goes by where the ship was then, not after it as it flies off)
+    const wide = o.cow * (1 - 0.85 * gone), tall = (wide * art.height) / art.width, stand = o.floor - tall * 0.43;
+    const cowX = start + (o.x - start) * walk + (shipX - o.x) * up, cowY = stand + (shipY + o.size * 0.1 - stand) * up - (walk < 1 ? Math.abs(Math.sin(t * 10)) * o.cow * 0.06 : 0);
     if (light > 0) beam(at.x, at.y + o.size * 0.05, o.x, o.floor, o.size * 0.08, o.cow * 1.5, light, o.tone);
+    if (at.arrive > 0) guestBox(at.x, at.y - o.size * 0.04, o.size * 0.5, o.size * 0.28); // where they are, for the page's mouse: the ship, the cow, and the light between them
+    if (gone < 1) guestBox(cowX, cowY, wide * 0.55, tall * 0.55);
+    if (light > 0) guestBox(o.x, (at.y + o.floor) / 2, o.cow * 0.75, Math.max(0, o.floor - at.y) / 2);
     if (gone < 1) {
       g.save();
       g.globalCompositeOperation = "source-over";
@@ -15119,11 +15141,13 @@ window.Effects = (() => {
     saucerBody(o, o.size);
   }
   function drawDangle(o, part) { // let down on a thread from the top of the window: it swings, nods along, waves once, and is pulled back up
-    const { t, dt, kickHit } = sound, S = o.size, down = part < 0.18 ? 1 - (1 - part / 0.18) ** 3 : part > 0.84 ? 1 - ((part - 0.84) / 0.16) ** 2 : 1, long = o.reach * down, look = LOOKS[o.look] || LOOKS[""];
+    const { t, dt, kickHit } = sound, S = o.size, own = part < 0.18 ? 1 - (1 - part / 0.18) ** 3 : part > 0.84 ? 1 - ((part - 0.84) / 0.16) ** 2 : 1, climb = o.away === undefined ? 0 : guestGone(o) ** 2, down = climb ? (o.wasDown ?? (o.wasDown = own)) * (1 - climb) : own, long = o.reach * down - S * 1.7 * climb, look = LOOKS[o.look] || LOOKS[""]; // (told to go, it climbs its thread fast from wherever it hangs, right up out of sight: see "things on top")
     if (kickHit) { o.neckSpeed += 7 * kickHit * T.nod; o.swingSpeed += (o.swing >= 0 ? 1 : -1) * 0.3 * kickHit; }
     spring(o, "neck", "neckSpeed", 170, 5, dt);
     spring(o, "swing", "swingSpeed", 4, 0.5, dt);
     const hx = o.x + Math.sin(o.swing) * long, hy = Math.cos(o.swing) * long, waving = part > o.wave && part < o.wave + 0.18, skin = rgba(look.skin, 1), suit = rgba(mix(look.skin, [10, 30, 25], 0.55), 1);
+    guestBox(hx, hy + S * 0.7, S * 0.55, S * 0.9); // where it hangs, for the page's mouse: the little one, and the thread it hangs by
+    guestBox((o.x + hx) / 2, hy / 2, Math.abs(hx - o.x) / 2 + 2, hy / 2);
     const arm = (side, hand) => { g.beginPath(); g.moveTo(side * S * 0.12, S * 0.86); g.lineTo(side * S * 0.42, S * 0.48); g.lineTo(...hand); g.stroke(); };
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
@@ -15151,9 +15175,155 @@ window.Effects = (() => {
     g.rotate(o.neck * 0.5);
     g.drawImage(artOf(o.look).pilot, -S * 0.5, -S * 0.86, S, S);
   }
-  const GUESTS = { ...NIGHT_GUESTS, popup: drawWindow, borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
+  /* ==== things on top: begin ==== */
+  /* Things on top. What comes in front in the pictures may also come over the app itself, on the visitors' own layer: the app's own visitors, and a few of the pictures' own front things,
+     taken because they read well over a page of words: the season's falling things (a few leaves, snowflakes or petals drifting down the page, or a few fireflies), one turning glass shape,
+     and in nightcore sakura petals on the wind and a sparkle star floating up. The page decides when (rarely, minutes apart, by its Visitors setting, and never with "Things on top" off).
+     Here is how they behave once they are there:
+       one at a time   never two over the page together (visit() says no while somebody is there)
+       quick to go     each stays about half as long as it used to, a few seconds, still coming and going in its own way (guestQuick)
+       shy             when the mouse comes over one, or near it, or a finger taps it, it leaves within GUEST_GO seconds, each in its own way (guestGo): a saucer puts the cover back at once and
+                       zips off; a cow low in the beam is set down and one high in it is taken up at once; the one on a thread climbs it; a face ducks down; an eye shuts; a little window folds;
+                       a glass shape shrinks away; the astronaut, the jellyfish, the crane and the star dart off and fade; and falling things are blown away sideways.
+                       A mouse lying still counts as well: whoever comes to it, or drifts under it, goes (only the falling things drift past it: they go when it moves, or at a tap)
+       out of the way  the falling things and the glass shape keep to the page itself (o.pane): they are never drawn over the play bar or the side rail; and a little window or a glass shape
+                       does not open in the corner where the mouse lies (winSpot)
+     Their layer lets every click through to the page, so it cannot feel the mouse itself: the page tells Effects.hover() where the mouse is, and each visitor's place is kept as it is drawn
+     (guestBox: at most 24 boxes, in the page's own dots, made new on every frame). In Full view nobody is over the app: whoever was there is gone at once.
+     Nobody appears or vanishes all at once: the layer fades in under whoever comes and out over whoever is still in sight when its time is up (guestStep).
+     Nothing here grows, nothing is made on each frame, and nothing runs while nobody is there. Every time is by the clock. */
+  const GUEST_GO = 0.45, GUEST_NEAR = 24; // how long a visitor on the app takes to be gone once it is told to go, in seconds; and how near the mouse may come before it goes, in dots of the page
+  const GUEST_WAYS = { borrow: "own", abduct: "own", dangle: "own", peek: "duck", neko: "duck", eye: "shut", shape: "shrink", popup: "fold" }; // how each leaves early (anyone not named darts off and fades: "drift"). "own": its drawer does it, from o.away
+  const GUEST_MORE = new Set(["fall", "sakura", "kira", "shape"]); // the pictures' own front things that may come over the app
+  const GUEST_REACH = { eye: 0.6, shape: 0.35 }; // for whom the mouse's "near" is more, by this much of their own size: an eye's rays and a glass shape's corners reach further out than the place their drawers keep for a click in the pictures
+  const guestSpot = new Float32Array(4 * 24), guestWay = { part: 0, dx: 0, dy: 0, show: 1 }, onTop = { now: null, n: 0, shown: "", lastX: NaN, wind: 0 }; // where the one who is there was drawn last (the middle and half the size of each box), its numbers for this frame, and the little that is remembered: all kept, so nothing is made on each frame
+  const guestGone = (o) => clamp(o.away / GUEST_GO); // how far through leaving early it is, 0 to 1
+  const guestUp = (part) => (part < 0.14 ? 1 - (1 - part / 0.14) ** 3 : part > 0.86 ? 1 - ((part - 0.86) / 0.14) ** 2 : 1); // how far up the ones are that rise from behind the play bar (the face, the lucky cat), as their drawers have it
+  function guestBox(x, y, halfW, halfH, floor) { // a visitor says where it has just been drawn: a box round one part of it, in the page's dots (floor: nothing of it shows below this line, the top of the play bar)
+    if (!onTop.now || onTop.n >= 24) return;
+    const top = y - halfH, bottom = floor === undefined ? y + halfH : Math.min(y + halfH, floor);
+    if (bottom <= top) return;
+    const i = onTop.n++ * 4;
+    guestSpot[i] = x + guestWay.dx;
+    guestSpot[i + 1] = (top + bottom) / 2 + guestWay.dy;
+    guestSpot[i + 2] = halfW;
+    guestSpot[i + 3] = (bottom - top) / 2;
+  }
+  function guestSeen(x, y, halfW, halfH) { // the same, for the drawers the app's visitors share with the pictures' (seenAt() passes their place on while the app's layer is being drawn)
+    const o = onTop.now;
+    if (!o || GUEST_SPOTS[o.kind]) return; // (the ones made of many small things say where each is themselves, below)
+    guestBox(x, y, halfW, halfH, o.kind === "peek" ? o.floor : undefined);
+    if (o.kind === "jelly") guestBox(x, y + halfW * 1.3, halfW * 0.75, halfW * 0.9); // (and a jellyfish's tentacles, under its bell)
+  }
+  const guestIn = (o, x, y) => x >= o.pane[0] && x <= o.pane[0] + o.pane[2] && y >= o.pane[1] && y <= o.pane[1] + o.pane[3]; // whether a place is in the part of the page a visitor keeps to (what is outside it is not drawn, so the mouse cannot be on it)
+  const GUEST_SPOTS = { // and where the ones are whose drawers keep no place of their own
+    fall(o) { for (const b of o.bits) if (guestIn(o, b.x + (b.hx || 0), b.y + (b.hy || 0))) guestBox(b.x + (b.hx || 0), b.y + (b.hy || 0), b.size * 2, b.size * 2); },
+    sakura(o) { for (const b of o.bits) if (guestIn(o, b.x, b.y)) guestBox(b.x, b.y, b.size, b.size); },
+    kira(o) { guestBox(o.x, o.y, o.size * 0.55, o.size * 0.55); },
+    crane(o) { guestBox(o.x, o.y - o.size * 0.15, o.size * 0.6, o.size * 0.5); },
+    popup(o) { guestBox(o.x, o.y, o.ww / 2, o.wh / 2); },
+    neko(o, part) { const art = nightPaint("neko", nightNeko), tall = (o.size * art.height) / art.width; guestBox(o.x, o.floor + tall * 0.55 - guestUp(part) * tall * 0.98, o.size / 2, tall / 2, o.floor); },
+  };
+  function guestOver(x, y, near) { // whether a place on the page is on the visitor, or within near dots of it
+    for (let i = 0; i < onTop.n * 4; i += 4) if (Math.abs(x - guestSpot[i]) <= guestSpot[i + 2] + near && Math.abs(y - guestSpot[i + 1]) <= guestSpot[i + 3] + near) return true;
+    return false;
+  }
+  function guestHover(x, y, how, by) { // the page's mouse has moved ("move") or pressed ("down") at x, y, or lies where it was ("still": the page says so on every frame while somebody is there); by: "mouse", "pen" or "touch" (a finger only ever taps). Says who it sent away, or ""
+    const o = guest.list[0], finger = by === "touch";
+    if (!finger && x !== onTop.lastX) { if (Number.isFinite(onTop.lastX)) onTop.wind = x > onTop.lastX ? 1 : -1; onTop.lastX = x; } // which way it is moving across: falling things are blown that way
+    if (!o || o.away !== undefined || (finger && how !== "down") || (how === "still" && o.bits) || !guestOver(x, y, finger ? 10 : GUEST_NEAR + (GUEST_REACH[o.kind] || 0) * (o.size || 0))) return ""; // (falling things drift past a mouse that lies still, or they would be gone the moment one passed it)
+    guestGo(o, x, y);
+    return o.kind;
+  }
+  function guestGo(o, mx, my) { // a visitor on the app is told to go, now (mx, my: where the mouse is, if it was the mouse that did it): its own way of leaving starts from wherever it has got to
+    if (o.away !== undefined) return;
+    const part = clamp((guest.t - o.born) / o.life), way = GUEST_WAYS[o.kind] || "drift", W = innerWidth, H = innerHeight;
+    o.away = 0; // seconds since it was told, by the clock (guestStep counts them)
+    coverBack(o, true); // a cover in a saucer's light goes back where it was at once
+    if (way === "duck") o.goFrom = part >= 0.86 ? part : 0.86 + 0.14 * Math.sqrt(1 - guestUp(part)); // back down from as far up as it has come
+    else if (way === "shut") { o.goFrom = part >= 0.88 ? part : 1 - 0.12 * Math.min(1, part / 0.14); o.blink = Infinity; } // closing from as far open as it is (and it does not blink on the way, which would look like a snap shut)
+    else if (way === "shrink") o.goFrom = Math.max(part, 1 - part); // down from the size it has
+    else if (way === "fold") o.life = Math.min(o.life, guest.t - o.born + 0.36); // a little window folds shut, as it does when it is clicked in a picture
+    else if (way === "drift") { // off and away, fading: the falling things all one way across, as if blown; the others each their own way
+      const seen = onTop.n > 0 && Number.isFinite(mx);
+      let dx = seen ? guestSpot[0] - mx : 0, dy = seen ? guestSpot[1] - my - Math.abs(guestSpot[0] - mx) * 0.4 : -1, far = Math.max(200, Math.min(W, H) * 0.3); // (away from the mouse, and a little upward)
+      if (o.bits) { dx = onTop.wind || (seen && mx > W / 2 ? -1 : 1); dy = -0.08; far = W * 0.6; }
+      else if (o.kind === "jelly") { dx *= 0.3; dy = -(Math.abs(dx) * 3 + 1); o.pulse = 1.5; } // a strong stroke of its bell, and up (leaning a little away from the mouse)
+      else if (o.kind === "kira") { dx = 0; dy = -1; o.hopV = -10; } // one more hop, and up
+      else if (o.kind === "crane") { dx = o.side; dy = -0.5; o.beat = 2; } // on the way it was flying, wings beating fast
+      const long = Math.hypot(dx, dy) || 1;
+      o.goX = (dx / long) * far;
+      o.goY = (dy / long) * far;
+    }
+  }
+  function guestStep(o, real) { // one frame of a visitor on the app: how far through its visit it is and, once it has been told to go, how far it is moved aside and how much of it still shows
+    const way = guestWay;
+    way.part = Math.max(0, (guest.t - o.born) / o.life);
+    way.dx = way.dy = 0;
+    way.show = 1;
+    if (o.away === undefined) { way.show = Math.min(clamp(way.part / 0.04), clamp((1 - way.part) / 0.06)); return way; } // left alone it comes and goes in its own way; the layer fades in under it and out over it, so one still in sight when its time is up (a saucer on its way off, the one on a thread at the top) does not vanish all at once
+    o.away += real;
+    const e = guestGone(o), came = clamp(way.part / 0.04); // (came: one told to go the moment it came is still fading in, and goes on doing so)
+    if (o.goFrom !== undefined) way.part = o.goFrom + (1 - o.goFrom) * e; // its own way out, run quickly from where it was
+    if (o.goX !== undefined) { way.dx = o.goX * e * e; way.dy = o.goY * e * e; way.show = (1 - e ** 1.5) * came; } // slowly at first, then fast
+    else way.show = (1 - clamp((e - 0.6) / 0.4)) * came; // whatever is still in sight near the end fades with the layer, so nothing is cut off
+    if (e >= 1) o.done = true;
+    return way;
+  }
+  function guestShow(much) { // how much of the layer shows, 0 to 1. It is all one visitor's, so its fading is done on the layer itself, which costs nothing to draw
+    const next = much >= 0.995 ? "" : Math.max(0, much).toFixed(2);
+    if (next !== onTop.shown) { onTop.shown = next; guestCanvas.style.opacity = next; }
+  }
+  function guestsEnd() { // nobody is over the app any more, as of now: anything of the page's is put back where it was, and the layer is hidden and gives its memory back until somebody else comes
+    for (const o of guest.list) coverBack(o, false);
+    guest.list = [];
+    onTop.n = 0;
+    guestShow(1);
+    guestCanvas.hidden = true;
+    guestCanvas.width = guestCanvas.height = 1;
+  }
+  function guestQuick(o) { // as a visitor comes: on the app everyone is quicker to go than they used to be, about half as long (a little window, short already, about three quarters)
+    onTop.lastX = NaN; // (and the mouse's way across is learned afresh)
+    onTop.wind = 0;
+    if (GUEST_MORE.has(o.kind)) return; // (these were given their few seconds as they were made)
+    const k = o.kind === "popup" ? 0.72 : 0.5;
+    o.life *= k;
+    if (o.kind === "jelly") { o.rise *= 1.5; o.drift *= 1.5; } // (a jellyfish swims by the second, not by its visit, and every kick is a stroke: half as quick again, and with music playing it is up the page and gone in about four seconds)
+  }
+  function guestMore(o, place, W, H) { // how the pictures' own front things come to the app: a few of them, small, over the page and above the play bar, for a few seconds
+    const left = place.left ?? 0, right = place.right ?? W, top = place.top ?? 0, floor = place.floor ?? H, tall = Math.max(120, floor - top), s = Math.min(W, H), few = document.body.classList.contains("gentle") ? 0.6 : 1; // (fewer on a slow machine)
+    o.pane = [left, top, right - left, floor - top]; // the part of the page they keep to: guests() draws nothing of them outside it, so they pass behind the play bar and the side rail, never over them
+    if (o.kind === "fall") { // the season's: a few snowflakes, petals or leaves drifting down the page, or a few fireflies wandering
+      const style = ["snow", "petals", "leaves", "fireflies"].includes(place.style) ? place.style : "leaves", bugs = style === "fireflies", leaf = ["#d9822b", "#c4521f", "#e0b03a", "#8a5a2b"], least = style === "snow" ? 3.5 : 6; // (least: on a phone they would be specks, so none is smaller than this, in dots)
+      const pale = style === "snow" && document.documentElement.dataset.theme === "light"; // (on a light page a snowflake is blue-grey with a soft blue edge, or it could not be seen; and a firefly is given a glow of its own color round it, or it is too dim over a page)
+      Object.assign(o, { style, life: rnd(6, 7.5), ink: pale ? "rgba(120, 146, 192, .95)" : "", shade: pale ? "rgb(30, 55, 100)" : bugs ? "rgb(220, 255, 120)" : "",
+        bits: Array.from({ length: Math.round((bugs ? 9 : 14) * few) }, () => ({ x: rnd(left, right), y: top + tall * (bugs ? rnd(0.2, 0.8) : rnd(-0.12, 0.5)), v: bugs ? rnd(0.3, 0.9) : rnd(0.05, 0.1) * H, phase: rnd(0, TAU), size: Math.max(least * rnd(1, 1.3), s * (style === "snow" ? rnd(0.004, 0.007) : rnd(0.007, 0.011))), rot: rnd(0, TAU), spin: rnd(-1.5, 1.5), tone: leaf[Math.floor(rnd(0, leaf.length))] })) });
+    } else if (o.kind === "sakura") { // nightcore's petals on the wind
+      Object.assign(o, { life: rnd(6, 7.5), glints: Array.from({ length: 6 }, () => ({ x: 0, y: 0, age: 9 })), glintNext: 0,
+        bits: Array.from({ length: Math.round(10 * few) }, () => ({ x: rnd(left - 0.1 * W, right - 0.1 * W), y: top + tall * rnd(-0.12, 0.55), v: rnd(0.06, 0.11) * H, drift: rnd(0.03, 0.07) * W, size: Math.max(9, s * rnd(0.011, 0.018)), turn: rnd(0, TAU), spin: rnd(-2, 2), flip: rnd(0, TAU), flipSpeed: rnd(2, 4.5) })) });
+    } else if (o.kind === "kira") { // nightcore's sparkle star: one, floating up the page
+      const size = Math.max(52, Math.min(84, s * 0.075));
+      Object.assign(o, { life: rnd(4.5, 5.5), x: left + size + Math.max(0, right - left - size * 2) * Math.random(), y: top + tall * rnd(0.62, 0.82), vx: rnd(-0.012, 0.012) * W, vy: -tall * rnd(0.07, 0.1), size, tone: Math.floor(rnd(0, 4)), hop: 0, hopV: 0 });
+    } else { // a glass shape: one, turning slowly where it is: in the corner or by the edge where it covers the least of the page, as a little window is put (winSpot)
+      const forms = Object.keys(FORMS), size = Math.max(44, Math.min(84, s * 0.07)), [x, y] = winSpot(place, size * 4.4, size * 4.4, W, H); // (room for its corners as it turns and grows on a kick, so it stays clear of the play bar and the side rail)
+      Object.assign(o, { life: rnd(5, 6), x, y, size, form: forms[Math.floor(rnd(0, forms.length))], ax: rnd(0, TAU), ay: rnd(0, TAU), spin: [rnd(0.3, 0.9), rnd(0.3, 0.9)], drift: rnd(-0.004, 0.004) * W });
+    }
+  }
+  function coverBack(o, soft) { // a cover a saucer has borrowed goes back where it was, now: softly (it settles in a fifth of a second from wherever it has got to) or at once. Nothing of the page's is ever left half moved
+    const it = o.el, lift = o.lift;
+    if (!lift) return;
+    o.lift = null;
+    if (lift.playState === "finished" || lift.playState === "idle") return; // it is back already
+    const now = soft && it.isConnected ? getComputedStyle(it) : null, from = now && { translate: now.translate === "none" ? "0px 0px" : now.translate, rotate: now.rotate === "none" ? "0deg" : now.rotate, scale: now.scale === "none" ? "1" : now.scale };
+    lift.cancel();
+    if (from) it.animate([from, { translate: "0px 0px", rotate: "0deg", scale: "1" }], { duration: 200, easing: "ease-out" }); // (it ends by itself, at the cover's own place)
+  }
+  /* ==== things on top: end ==== */
+  const GUESTS = { ...NIGHT_GUESTS, popup: drawWindow, borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; },
+    fall: drawFall, sakura: drawNightSakura, kira: drawNightKira, shape: drawShape }; // (and the pictures' own front things that may come over the app: see "things on top")
   function guests(real) {
     if (!guest.list.length) return;
+    if (alone) { guestsEnd(); return; } // Full view is the picture's alone: whoever was over the app is gone at once, and anything of the page's is put back
     const W = innerWidth, H = innerHeight, k = document.body.classList.contains("gentle") ? 1 : Math.min(2, devicePixelRatio || 1), was = [g, w, h, sound.t, sound.dt];
     if (guestCanvas.width !== Math.round(W * k) || guestCanvas.height !== Math.round(H * k)) { guestCanvas.width = Math.round(W * k); guestCanvas.height = Math.round(H * k); }
     guestCanvas.hidden = false;
@@ -15166,16 +15336,23 @@ window.Effects = (() => {
       g.globalAlpha = 1;
       g.clearRect(0, 0, guestCanvas.width, guestCanvas.height);
       guest.list = guest.list.filter((o) => {
-        const part = (guest.t - o.born) / o.life;
-        if (part >= 1 || o.done) return false;
-        g.setTransform(k, 0, 0, k, 0, 0);
+        const way = guestStep(o, real), part = way.part; // how far through its visit it is; and once the mouse has sent it away, its quick way out (see "things on top")
+        if (part >= 1 || o.done) { coverBack(o, false); return false; }
+        onTop.now = o; // (its drawer says where it is, for the page's mouse: guestBox)
+        onTop.n = 0;
+        g.setTransform(k, 0, 0, k, k * way.dx, k * way.dy);
         g.save();
-        GUESTS[o.kind](o, Math.max(0, part));
+        if (o.pane) { g.beginPath(); g.rect(o.pane[0] - way.dx, o.pane[1] - way.dy, o.pane[2], o.pane[3]); g.clip(); } // (the falling things and the glass shape keep to the page itself: nothing of them is drawn over the play bar or the side rail)
+        if (o.shade) { g.shadowColor = o.shade; g.shadowBlur = (o.style === "fireflies" ? 10 : 4) * k; } // (snow on a light page, and fireflies: see guestMore)
+        GUESTS[o.kind](o, part);
         g.restore();
+        if (GUEST_SPOTS[o.kind]) GUEST_SPOTS[o.kind](o, part);
+        guestShow(way.show);
         return true;
       });
-    } finally { [g, w, h, sound.t, sound.dt] = was; guest.drawing = false; }
-    if (!guest.list.length) { guestCanvas.hidden = true; guestCanvas.width = guestCanvas.height = 1; } // and its memory goes until somebody else comes
+    } catch (e) { guestsEnd(); throw e; // (a drawer that fails ends the visit there and then, with anything of the page's put back, instead of failing again on every frame)
+    } finally { [g, w, h, sound.t, sound.dt] = was; guest.drawing = false; onTop.now = null; }
+    if (!guest.list.length) guestsEnd(); // and its memory goes until somebody else comes
   }
   addEventListener("resize", () => { if (name) fit(); });
   return {
@@ -15241,12 +15418,16 @@ window.Effects = (() => {
       else if (kind === "astronaut") Object.assign(o, { life: rnd(14, 18), y: rnd(0.15, 0.5) * H, size: Math.max(56, Math.min(96, Math.min(W, H) * 0.085)), beat: 0, arm: 0 });
       else if (kind === "popup") winGuest(o, place, W, H); // a little window, in any mood: see the windows block
       else if (NIGHT_GUESTS[kind]) nightGuest(o, place, W, H); // nightcore's: the lucky cat, a little window, a paper crane
+      else if (GUEST_MORE.has(kind)) guestMore(o, place, W, H); // the pictures' own front things: falling leaves, petals on the wind, a sparkle star, a glass shape (see "things on top")
       else { const tone = look === "psy" ? mix(rainbowTone(rnd(0, 3), 0), [255, 255, 255], 0.15) : mix(around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : [120, 210, 255], 0.35); Object.assign(o, { life: rnd(12, 16), x: rnd(0.15, 0.85) * W, y: H * 1.12, drift: side * rnd(0.004, 0.012) * W, rise: H * rnd(0.05, 0.065), size: Math.max(90, Math.min(160, Math.max(W, H) * 0.075)), art: paintJelly(tone), tone, pulse: 0 }); }
+      guestQuick(o); // over the app everyone is quicker to go than they used to be (see "things on top")
       guest.list.push(o);
       return true;
     },
     place(part) { winPlace(part); }, // how far through the playing song it is, 0 to 1: a little window's loading bar follows it
     visiting: () => guest.list.length > 0,
+    hover: (x, y, how, by) => (guest.list.length ? guestHover(x, y, how, by) : ""), // the page's own mouse, for whoever is over the app: where it is on the screen, "move", "down" or "still" (lying where it was: said on every frame while somebody is there), and what it is ("mouse", "pen" or "touch"). If it came on the visitor or near it, the visitor leaves quickly, and its kind is given back ("" if nobody went)
+    shoo() { for (const o of guest.list) guestGo(o); }, // whoever is over the app leaves quickly, each in its own way (the page's "Things on top" was turned off)
     knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "dream", "folk", "hand", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;

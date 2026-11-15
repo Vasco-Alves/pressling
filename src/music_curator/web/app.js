@@ -3033,7 +3033,7 @@ function setVibe(s) {
 const packSettingsNow = () => ({ surprises, tuning: fxTuning, accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName, morph: fxMorph });
 function usePackSettings(s) {
   if (s.surprises) {
-    store("curator-surprises", JSON.stringify(s.surprises));
+    store("curator-surprises", JSON.stringify({ ontop: surprises.ontop, ...s.surprises })); // (a pack does not say whether things may come over the app: that stays as it is on this device)
     surprises = readSurprises();
     danceAfter = performance.now() + waitFor("dance", true);
     bobAfter = performance.now() + waitFor("bob", true);
@@ -3121,7 +3121,7 @@ function surprisesSetting() {
       el("div", { class: "pills", role: "group", "aria-label": `How often: ${name}` }, [...OFTEN_WORDS, ...(key === "bob" ? [["always", "Always"]] : [])].map(([value, word]) => el("button", { class: `chip${how.often === value ? " on" : ""}`, type: "button", "aria-pressed": String(how.often === value), onclick: () => { how.often = value; soonest[key](); save(); startSound(); paint(); } }, word))),
       how.often === "off" || how.strength === undefined ? null : [slider("Strength", 0.3, 2, 0.05, how.strength, percent, (v) => { how.strength = v; }), how.often === "always" ? null : slider("Length", 2, 30, 0.5, how.secs, seconds, (v) => { how.secs = v; })]);
   };
-  const tick = (key, words) => el("label", { class: "filter-check surprise-tick" }, el("input", { type: "checkbox", checked: surprises[key], onchange: (e) => { surprises[key] = e.target.checked; save(); } }), words);
+  const tick = (key, words) => el("label", { class: "filter-check surprise-tick" }, el("input", { type: "checkbox", checked: surprises[key], onchange: (e) => { surprises[key] = e.target.checked; save(); if (key === "ontop") { if (e.target.checked) startSound(); else sendAway(); } } }), words); // (with "Things on top" turned off, whoever is over the app leaves at once; turned on again, the kick is listened for again, as when a how-often is pressed)
   function paint() {
     if (calm.matches) return box.replaceChildren(el("h2", {}, "Surprises"), el("p", { class: "note" }, "Your computer is set to show less motion, so none of these happen."));
     const changed = JSON.stringify(surprises) !== JSON.stringify(SURPRISE_DEFAULTS);
@@ -3130,6 +3130,7 @@ function surprisesSetting() {
       one("bob", "Bobbing", "Everything nods to the kick for a few seconds.", letsBob),
       one("logo", "The logo and name", "A spin, a scratch, a wave through the letters, a glint, a neon flicker, a shuffle.", logoTrick),
       one("visitors", "Visitors", "Somebody drops by the app itself: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top, an astronaut or a jellyfish floats past, a little window pops up in a corner for a moment. On nightcore a lucky cat waves over the play bar, a paper crane flies by.", tryVisit),
+      el("div", { class: "surprise-ontop" }, tick("ontop", "Things on top"), el("p", { class: "note" }, "What comes in front in the pictures may also come over the app, not only in Full view: the visitors above, and now and then a few falling leaves, snowflakes, petals or fireflies for the season, a glass shape, or on nightcore petals on the wind and a sparkle star. Over the app they are rare, one at a time and gone in a few seconds, and they leave at once when the mouse comes near or a finger taps them. With this off, nothing comes over the app at all, not even the smiley that typing acid rolls along the play bar: they stay in the pictures. Full view is the same either way.")),
       tick("clock", "Jokes on the clock: 303 at 3:03 on acid tracks, and 11 at full volume"),
       tick("notes", "Small notes: late at night, or the same song over and over"),
       tick("falling", "Small records falling when To check is cleared"),
@@ -3181,7 +3182,7 @@ const DANCERS = [ // who joins in, how far each moves, how long each waits for t
 ];
 const HOW_OFTEN = { dance: { rare: [25, 50], some: [10, 25], often: [4, 10] }, bob: { rare: [8, 15], some: [2, 6], often: [0.7, 2] }, logo: { rare: [8, 20], some: [2.5, 7], often: [0.7, 2] }, visitors: { rare: [12, 30], some: [4, 10], often: [1.5, 4] } }; // minutes between them, at random within the range
 const OFTEN_WORDS = [["off", "Never"], ["rare", "Rarely"], ["some", "Sometimes"], ["often", "Often"]];
-const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, logo: { often: "some" }, visitors: { often: "some" }, clock: true, notes: true, falling: true };
+const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, logo: { often: "some" }, visitors: { often: "some" }, clock: true, notes: true, falling: true, ontop: true }; // (ontop: "Things on top", whether anything may come over the app itself)
 function readSurprises() { // Settings, under Surprises. Anything missing or odd is the default
   let saved;
   try { saved = JSON.parse(store("curator-surprises") || "{}"); } catch { saved = {}; }
@@ -3194,7 +3195,7 @@ function readSurprises() { // Settings, under Surprises. Anything missing or odd
     if (Number.isFinite(one.strength)) out[key].strength = Math.min(2, Math.max(0.3, one.strength));
     if (Number.isFinite(one.secs)) out[key].secs = Math.min(30, Math.max(2, one.secs));
   }
-  for (const key of ["clock", "notes", "falling"]) if (typeof saved[key] === "boolean") out[key] = saved[key];
+  for (const key of ["clock", "notes", "falling", "ontop"]) if (typeof saved[key] === "boolean") out[key] = saved[key];
   return out;
 }
 let surprises = readSurprises();
@@ -3205,7 +3206,8 @@ function waitFor(key, first) { // the first one of a visit comes sooner
   return (low + Math.random() * (high - low)) * 60000;
 }
 let danceAfter = performance.now() + waitFor("dance", true), bobAfter = performance.now() + waitFor("bob", true), logoAfter = performance.now() + waitFor("logo", true), logoTurn = Math.floor(Math.random() * 6), bobUntil = 0, danceUntil = 0, danceBeat = 0, danceMoved = 0, danceTimer = 0;
-let visitAfter = performance.now() + waitFor("visitors", true), visitTurn = Math.floor(Math.random() * 6);
+let visitAfter = performance.now() + waitFor("visitors", true), visitTurn = Math.floor(Math.random() * 6), sentKind = "", rolling = null; // sentKind: whoever the mouse last sent away (not the next to come). rolling: acid's smiley, while it rolls along the play bar
+const mouseAt = { clientX: 0, clientY: 0, pointerType: "mouse", here: false }; // where the mouse lies on the page (here: it is over the window), so that a visitor who comes to a mouse lying still leaves too. One thing, kept: nothing is made as the mouse moves
 const onScreen = (n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
 function danceTitle(on) { // the song's name comes apart into letters for the dance, and goes back together after
   const h = $(".now-info h1");
@@ -3387,7 +3389,7 @@ function sparkle(now, strength) { // far too many of these for anything bigger: 
     glintOn($("#play"), 27 + Math.random() * 14, 18 + Math.random() * 8, 14 + 7 * strength);
   }
 }
-const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || surprises.logo.often !== "off" || surprises.visitors.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
+const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || surprises.logo.often !== "off" || (surprises.visitors.often !== "off" && surprises.ontop) || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
 /* The song's moment on the background: how euphoric (flow.lift) and how intense (flow.heat) this part of the song is, next to what is usual for it, and how open a 303's filter is
    (flow.acidKnob out of flow.acidOn, while a line plays), from the effects' ears. They are written onto the background box as --lift, --heat and --open, for hifi.css: a warm light from above
    in a euphoric part, deeper edges in an intense one (the hard mood's own vignette deepens instead), and the acid glow rising as the filter opens. At most four times a second (once in the
@@ -3431,6 +3433,7 @@ function soundFrame(now) {
   if (hit >= 0) logoNow(now, hit);
   if (hit >= 0) visitNow(now, hit);
   if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture, low, audio.currentTime); // where the song is, last: the effects keep the beat by the song's own time, so a pause or a seek does not throw it off
+  if ((guests || rolling) && mouseAt.here) shooAt(mouseAt, "still"); // a mouse lying still: whoever has come to it over the app leaves, as if it had just moved there (see "Things on top"); acid's smiley on the play bar too
 }
 async function startSound() {
   if (!glowing() && !fxShowing() && !visiting()) return;
@@ -3444,17 +3447,20 @@ function coverToBorrow() { // a cover that can be seen whole and isn't tiny, bes
   return from.length ? from[Math.floor(Math.random() * from.length)][0] : null;
 }
 function visitApp(kind) { // says whether somebody came
-  if (!FX || calm.matches || fxFull || document.hidden || S.setup || $("dialog[open]") || visiting()) return false;
+  if (!FX || !surprises.ontop || calm.matches || fxFull || document.hidden || S.setup || $("dialog[open]") || visiting() || rolling) return false; // (never with "Things on top" off, and only ever one at a time: not while a smiley is rolling either)
   const deck = $(".player").getBoundingClientRect(), page = view.getBoundingClientRect(), cover = coverToBorrow();
-  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260, neko: vibe === "nightcore" && deck.top > 260, popup: page.width > 320, crane: vibe === "nightcore" };
-  const order = vibe === "nightcore" ? ["neko", "popup", "crane", "borrow", "neko", "crane", "dangle", "popup", "astronaut"] : vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "popup", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "popup", "abduct", "astronaut"]
-    : vibe === "psy" ? ["eye", "jelly", "borrow", "eye", "dangle", "popup", "astronaut", "abduct"] : ["borrow", "peek", "dangle", "popup", "abduct", "astronaut", "jelly"]; // a little window once in a while in every mood (nightcore's come more often)
+  const light = document.documentElement.dataset.theme === "light", season = followTime ? { winter: "snow", spring: "petals", autumn: "leaves", summer: hourNow() === "night" && !light ? "fireflies" : "" }[seasonNow()] : ""; // the season's falling things (fireflies only on a summer night, and only on a dark page, where they can be seen)
+  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260, neko: vibe === "nightcore" && deck.top > 260, popup: page.width > 320, crane: vibe === "nightcore",
+    fall: !!season, shape: !light, sakura: vibe === "nightcore", kira: vibe === "nightcore" && deck.top > 260 }; // and the pictures' own front things: the season's falling things, a glass shape (lines of light, so only on a dark page), nightcore's petals on the wind and its sparkle star
+  if (sentKind) can[sentKind] = false; // whoever the mouse sent away last is not the next to come
+  const order = vibe === "nightcore" ? ["neko", "popup", "crane", "sakura", "borrow", "neko", "kira", "crane", "dangle", "popup", "fall", "astronaut"] : vibe === "euphoric" ? ["jelly", "borrow", "fall", "dangle", "jelly", "peek", "popup", "shape", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "fall", "smiley", "dangle", "popup", "abduct", "shape", "astronaut"]
+    : vibe === "psy" ? ["eye", "jelly", "borrow", "fall", "eye", "dangle", "popup", "shape", "astronaut", "abduct"] : ["borrow", "peek", "fall", "dangle", "popup", "abduct", "shape", "astronaut", "jelly"]; // a little window once in a while in every mood (nightcore's come more often), and the falling things and a glass shape once each time round
   let pick = kind && can[kind] ? kind : "";
   for (let i = 0; !pick && i < order.length; i++) { const k = order[(visitTurn + i) % order.length]; if (can[k]) { pick = k; visitTurn += i + 1; } }
   if (!pick) return false;
-  if (pick === "smiley") { rollSmiley(); return true; } // acid's own: it rolls along the play bar
-  const places = { borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, eye: { floor: deck.top, left: page.left, right: page.right }, neko: { floor: deck.top, left: page.left, right: page.right }, popup: { top: page.top, floor: deck.top, left: page.left, right: page.right }, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
-  if (came) startSound();
+  if (pick === "smiley") { rollSmiley(true); sentKind = ""; return true; } // acid's own: it rolls along the play bar
+  const over = { top: page.top, floor: deck.top, left: page.left, right: page.right, style: season, mouse: mouseAt.here ? [mouseAt.clientX, mouseAt.clientY] : null }, places = { fall: over, sakura: over, kira: over, shape: over, borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, eye: { floor: deck.top, left: page.left, right: page.right }, neko: { floor: deck.top, left: page.left, right: page.right }, popup: over, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
+  if (came) { sentKind = ""; startSound(); }
   return came;
 }
 function visitNow(now, hit) { // on a kick, once it's time
@@ -3464,8 +3470,36 @@ function visitNow(now, hit) { // on a kick, once it's time
 }
 function tryVisit() {
   if (calm.matches) return;
-  if (!visitApp()) toast(visiting() ? "Somebody's already here." : "Nobody can come just now.");
+  if (!visitApp()) toast(!surprises.ontop ? "Things on top is off, so nobody comes over the app." : visiting() || rolling ? "Somebody's already here." : "Nobody can come just now.");
 }
+/* Things on top: whoever is over the app leaves when the mouse comes over them or near, or when a finger taps them. Their layer lets every click through to the page, so it is the page
+   that says where the mouse is, and the effects know where they drew (FX.hover). A mouse lying still counts too: soundFrame() asks on every frame while somebody is there, so whoever comes
+   to it, or drifts under it, goes (falling things drift past it). Whoever was sent away is not the next to come, and nobody comes again for a good while. */
+function hurrySmiley() { // acid's smiley rolls off the end of the play bar in under half a second, however far it still had to go. Says whether it was there to hurry
+  const face = rolling;
+  if (!face || face.dataset.hurried) return false;
+  face.dataset.hurried = "1";
+  const all = face.getAnimations({ subtree: true }), left = Math.max(0, ...all.map((a) => a.effect.getComputedTiming().endTime - (a.currentTime || 0)));
+  for (const a of all) a.updatePlaybackRate(Math.max(1, left / 450)); // its roll, its turning and its trick all end together, and it is taken away as always when its roll ends
+  return true;
+}
+function shooAt(e, how) { // the mouse has moved ("move") or pressed ("down"), or lies where it was ("still"): if it is on a visitor or near one, the visitor goes. A finger only ever taps
+  const finger = e.pointerType === "touch", near = finger ? 10 : 24;
+  if (finger && how !== "down") return;
+  if (!finger && how !== "still") { mouseAt.clientX = e.clientX; mouseAt.clientY = e.clientY; mouseAt.pointerType = e.pointerType; mouseAt.here = true; } // where it lies now
+  let went = FX ? FX.hover(e.clientX, e.clientY, how, e.pointerType) : "";
+  if (!went && rolling && !rolling.dataset.hurried) { const box = rolling.getBoundingClientRect(); if (e.clientX >= box.left - near && e.clientX <= box.right + near && e.clientY >= box.top - near && e.clientY <= box.bottom + near && hurrySmiley()) went = "smiley"; }
+  if (!went) return;
+  sentKind = went;
+  visitAfter = Math.max(visitAfter, performance.now() + waitFor("visitors")); // a whole wait from now, never the short first one
+}
+function sendAway() { // "Things on top" was turned off, or somebody else is due: whoever is over the app leaves at once, in its own way
+  if (FX) FX.shoo();
+  hurrySmiley();
+}
+window.addEventListener("pointermove", (e) => shooAt(e, "move"), { passive: true });
+window.addEventListener("pointerdown", (e) => shooAt(e, "down"), { passive: true });
+document.addEventListener("mouseout", (e) => { if (!e.relatedTarget) mouseAt.here = false; }); // out of the window: it lies nowhere on the page
 function paintKick() {
   for (const [id, on, title] of [["#kick", kickOn, kickOn ? "The buttons glow on each kick" : "Make the buttons glow on each kick"], ["#flash", flashOn, flashOn ? "The background flashes on each kick" : "Make the background flash on each kick"], ["#sparkle", sparkleOn, sparkleOn ? "Small lights tick on the hi-hats" : "Make small lights tick on the hi-hats"]]) {
     const b = $(id);
@@ -3881,8 +3915,9 @@ $(".brand").prepend(logo());
 $(".logo").addEventListener("click", (e) => { if (!calm.matches) e.currentTarget.animate({ rotate: ["0deg", "1440deg"] }, { duration: 2300, easing: "cubic-bezier(.12,.7,.25,1)" }); }); // given a push, it spins and slows down
 /* Type the word "acid" anywhere that isn't a text box: a smiley rolls along the deck, hopping over the orb, and the app goes acid yellow until the song ends. */
 let typedLately = "";
-function rollSmiley() { // now and then it trips on the way: sticks its tongue out over the orb, runs through the rainbow, or stops and melts into a puddle
-  if (calm.matches) return;
+function rollSmiley(visitor, waited) { // now and then it trips on the way: sticks its tongue out over the orb, runs through the rainbow, or stops and melts into a puddle. visitor: it came by itself, as one of the app's visitors (then it is quicker across)
+  if (calm.matches || rolling || !surprises.ontop) return; // (one at a time; and with "Things on top" off nothing comes over the app, typed for or not: the word still turns the app acid yellow)
+  if (!visitor && !waited && visiting()) { FX.shoo(); setTimeout(() => rollSmiley(false, true), 480); return; } // typed for while somebody is over the app: they make way first, and it rolls half a second later
   const trick = Math.random() < 0.6 ? ["tongue", "rainbow", "melt"][Math.floor(Math.random() * 3)] : "";
   const dot = (cx) => svg("ellipse", { cx, cy: 26, rx: 4.2, ry: 8, fill: "#16140a" });
   const tongue = trick === "tongue" ? svg("path", { class: "smiley-tongue", d: "M32.5 50v6a4.5 4.5 0 0 0 9 0v-7.5", fill: "#ff5c8d", stroke: "#16140a", "stroke-width": 2 }) : null; // under the smile line, so it comes out of the mouth
@@ -3890,17 +3925,19 @@ function rollSmiley() { // now and then it trips on the way: sticks its tongue o
   const pic = svg("svg", { viewBox: "0 0 64 64", width: 38, height: 38 }, drips, svg("circle", { cx: 32, cy: 32, r: 30, fill: "#f7e11e", stroke: "#16140a", "stroke-width": 2.5 }), dot(22), dot(42), tongue, svg("path", { d: "M14 39a19 17 0 0 0 36 0", fill: "none", stroke: "#16140a", "stroke-width": 4, "stroke-linecap": "round" }));
   const face = el("div", { class: "smiley", "aria-hidden": "true" }, pic);
   $(".player").append(face);
+  rolling = face;
+  const gone = () => { face.remove(); if (rolling === face) rolling = null; };
   const across = $(".player").clientWidth, x = (part) => (-60 + (across + 120) * part).toFixed(0);
   const go = (part, up = 0) => ({ transform: `translate(${x(part)}px, ${up}px)` }), turn = (turns, sx = 1, sy = 1) => ({ transform: `translateY(19px) scale(${sx}, ${sy}) translateY(-19px) rotate(${turns * 360}deg)` }); // squashed from its bottom edge, so it melts onto the bar
-  const run = trick === "melt" ? 4600 : 3800, time = { duration: run, easing: "linear" };
+  const run = (trick === "melt" ? 4600 : 3800) * (visitor ? 0.7 : 1), time = { duration: run, easing: "linear" };
   if (trick === "melt") { // it rolls a little past the orb, stops upright, sags, drips and spreads into a puddle
-    face.animate([{ ...go(0), offset: 0 }, { ...go(0.43), offset: 0.34 }, { ...go(0.5, -26), offset: 0.4 }, { ...go(0.57), offset: 0.45 }, { ...go(0.7), offset: 0.56 }, { ...go(0.7), offset: 1, opacity: 1 }], time).finished.then(() => face.remove(), () => face.remove());
+    face.animate([{ ...go(0), offset: 0 }, { ...go(0.43), offset: 0.34 }, { ...go(0.5, -26), offset: 0.4 }, { ...go(0.57), offset: 0.45 }, { ...go(0.7), offset: 0.56 }, { ...go(0.7), offset: 1, opacity: 1 }], time).finished.then(gone, gone);
     pic.animate([{ ...turn(0), offset: 0 }, { ...turn(1.6), offset: 0.34 }, { ...turn(1.9), offset: 0.4 }, { ...turn(2.2), offset: 0.45 }, { ...turn(3), offset: 0.56 }, { ...turn(3, 1.12, 0.78), offset: 0.7 }, { ...turn(3, 1.5, 0.4), offset: 0.85 }, { ...turn(3, 1.9, 0.12), offset: 1 }], time);
     drips.forEach((d, i) => d.animate([{ transform: "scaleY(0)", offset: 0 }, { transform: "scaleY(0)", offset: 0.58 + i * 0.03 }, { transform: "scaleY(1)", offset: 0.82 }, { transform: "scaleY(0.4)", offset: 1 }], time));
     face.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: 0.86 }, { opacity: 0, offset: 1 }], time);
     return;
   }
-  face.animate([go(0), go(0.43), go(0.5, -26), go(0.57), go(1)].map((k, i) => ({ ...k, offset: [0, 0.43, 0.5, 0.57, 1][i] })), time).finished.then(() => face.remove(), () => face.remove());
+  face.animate([go(0), go(0.43), go(0.5, -26), go(0.57), go(1)].map((k, i) => ({ ...k, offset: [0, 0.43, 0.5, 0.57, 1][i] })), time).finished.then(gone, gone);
   pic.animate([turn(0), turn(1.6), turn(1.9), turn(2.2), turn(4)].map((k, i) => ({ ...k, offset: [0, 0.43, 0.5, 0.57, 1][i] })), time);
   if (tongue) tongue.animate([{ transform: "scaleY(0)", offset: 0 }, { transform: "scaleY(0)", offset: 0.4 }, { transform: "scaleY(1)", offset: 0.47 }, { transform: "scaleY(1.2)", offset: 0.55 }, { transform: "scaleY(0)", offset: 0.66 }, { transform: "scaleY(0)", offset: 1 }], time); // blep, over the orb
   if (trick === "rainbow") pic.animate([{ filter: "hue-rotate(0deg) saturate(1.5)" }, { filter: "hue-rotate(360deg) saturate(1.5)" }], { duration: 950, iterations: Math.ceil(run / 950) });
