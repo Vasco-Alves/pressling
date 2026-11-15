@@ -11287,6 +11287,7 @@ window.Effects = (() => {
       x.beginPath(); x.arc(bx - bar * 0.09, by - bar * 0.09, bar * 0.09, 0, TAU); x.fill();
     });
     const { left, y0, bw, bh } = at;
+    x.save(); nightPopupGlass(x, bar, left, y0, bw, bh); x.clip(); // (the screen keeps inside the frame's round corners)
     if (inside === "stars") { // a dark sky tiled with the same few stars, the way a page's background was a small picture repeated
       x.fillStyle = "#23204a";
       x.fillRect(left, y0, bw, bh);
@@ -11309,9 +11310,15 @@ window.Effects = (() => {
       nightRainbow(x, left, y0 + bh * 0.88, bw, Math.max(1, bh * 0.025));
       if (inside === "build") { x.fillStyle = "#efe6fb"; x.strokeStyle = NIGHT_INK_CSS; x.lineWidth = 1.5; x.beginPath(); x.roundRect(left + bw * 0.1, y0 + bh * 0.6, bw * 0.8, bh * 0.16, 3); x.fill(); x.stroke(); } // the trough the bar fills
     }
+    x.restore();
     return c;
   }
   const nightPopupBody = (W, H, k = 1) => { const bar = Math.max(12, Math.round(H * 0.15)), y0 = 5 + bar + 4; return { left: 7 * k, y0: y0 * k, bw: (W - 14) * k, bh: (H - y0 - 7) * k }; }; // where the inside of a window is, below its title bar (in the dots of a window painted k times as sharp)
+  const nightPopupGlass = (x, bar, left, y0, bw, bh, round = true) => { // the outline of a window's screen, as a path on x: in a round window its two lower corners go round with the frame's, so the frame keeps its width all the way round (a square screen laid its corners over the frame's round ones, the more the bigger the window); a hard window's is square. bar is the title bar's height, in the same dots as the rest
+    const r = round ? Math.max(0, bar * 0.45 - 6) : 0;
+    x.beginPath();
+    if (r > 0) x.roundRect(left, y0, bw, bh, [0, 0, r, r]); else x.rect(left, y0, bw, bh);
+  };
   function nightRainbow(x, left, y, wide, thick) { // a rainbow line across a page, six thin stripes of the pastels
     NIGHT_RAINBOW.forEach((tone, k) => { x.fillStyle = tone; x.fillRect(left, y + k * thick, wide, thick); });
   }
@@ -13247,13 +13254,14 @@ window.Effects = (() => {
     x.lineWidth = L.round ? 2 : 3; // a hard window has a heavier edge
     x.beginPath(); x.roundRect(1, 1, W - 2, H - 2, r); x.fill(); x.stroke();
     x.lineWidth = 2;
+    const turn = (cx, cy, tx, ty) => (L.round ? x.arcTo(cx, cy, tx, ty, Math.max(0, r - 3)) : x.lineTo(tx, ty)); // a round window's edge lines go round its corners with it; a hard one's turn sharply
     x.strokeStyle = css.edge; // light along the top and left, shade along the bottom and right
-    x.beginPath(); x.moveTo(4, H - e); x.lineTo(4, e); x.lineTo(e, 4); x.lineTo(W - e, 4); x.stroke();
+    x.beginPath(); x.moveTo(4, H - e); x.lineTo(4, e); turn(4, 4, e, 4); x.lineTo(W - e, 4); x.stroke();
     x.strokeStyle = css.shade;
-    x.beginPath(); x.moveTo(W - 4, e); x.lineTo(W - 4, H - e); x.lineTo(W - e, H - 4); x.lineTo(e, H - 4); x.stroke();
+    x.beginPath(); x.moveTo(W - 4, e); x.lineTo(W - 4, H - e); turn(W - 4, H - 4, W - e, H - 4); x.lineTo(e, H - 4); x.stroke();
     winTitle(x, L, css, W, bar);
     winTitleThings(x, L, css, W, bar);
-    x.save(); x.beginPath(); x.rect(left, y0, bw, bh); x.clip();
+    x.save(); nightPopupGlass(x, bar, left, y0, bw, bh, L.round); x.clip();
     x.fillStyle = css.screen;
     x.fillRect(left, y0, bw, bh);
     if (L.smiley) { x.globalAlpha = 0.26; smileyFace(x, left + bw * 0.5, y0 + bh * 0.5, bh * 0.38); x.globalAlpha = 1; } // acid: a smiley on every screen, faint behind what it shows
@@ -13353,12 +13361,20 @@ window.Effects = (() => {
   }
 
   /* ---- and how they are drawn ---- */
+  function winKeep(o, k) { // a window in the pictures stays inside the picture. The music pushes every visitor about and a drop throws them outward, which suits a saucer; a window thrown half over the edge only looks broken. So it stops at the edge with a small bounce, and one that finds itself outside (the picture changed shape since it came) is brought back in. k: how much bigger or smaller it is drawn than when it came. The push is already laid on the canvas when this is called, so the canvas is moved by what is taken back
+    const m = Math.max(4, Math.min(w, h) * 0.012), hw = Math.min(w / 2, (o.ww / 2) * k * 1.05 + m), hh = Math.min(h / 2, (o.wh / 2) * k * 1.05 + m); // half its size as drawn, and a little more: it sways, and it pops a little as it opens
+    const x = o.x * k, y = o.y * k, px = o.pushX || 0, py = o.pushY || 0, nx = Math.max(hw - x, Math.min(w - hw - x, px)), ny = Math.max(hh - y, Math.min(h - hh - y, py));
+    if (nx !== px) { o.pushX = nx; if ((px - nx) * (o.pushVX || 0) > 0) o.pushVX *= -0.3; } // stopped at the edge: what speed it had turns it back, most of it lost
+    if (ny !== py) { o.pushY = ny; if ((py - ny) * (o.pushVY || 0) > 0) o.pushVY *= -0.3; }
+    if (nx !== px || ny !== py) g.translate(nx - px, ny - py);
+  }
   function drawWindow(o, part) { // any little window, nightcore's or another mood's, in the pictures or on the app: the window itself, and over it its title bar lit by the mouse or by a drop
     const { dt } = sound, age = part * o.life, shut = clamp(1 - (o.life - age) / 0.35);
     if (flow.dropHit) o.lit = 1; // (set, not added: the drop can be seen twice in a frame)
     o.lit = Math.max(0, (o.lit || 0) - dt / 0.9);
     if (!o.onApp) { // in the pictures: if the picture has changed size since it came (a slow machine is given fewer dots), it is drawn to match, the same part of the picture as before
       const k = w / (o.madeW || (o.madeW = w));
+      winKeep(o, k); // (never over the picture's edge, whatever the music does to it)
       if (k !== 1) g.scale(k, k);
       o.hx = o.x * k + (o.pushX || 0); // and where it is, for the mouse: its middle as drawn this frame (with the push the music gives it) and half its size
       o.hy = o.y * k + (o.pushY || 0);
@@ -13407,7 +13423,7 @@ window.Effects = (() => {
     if (fold < 0.95) return; // folding shut: only the frame
     const ink = L.turns ? rgba(rainbowTone(t * 0.06 + o.seed, 0), 1) : css.lit; // on a psychedelic screen what is drawn turns slowly through the colors
     g.save();
-    g.beginPath(); g.rect(left, y0, bw, bh); g.clip();
+    nightPopupGlass(g, bar, left, y0, bw, bh, L.round); g.clip();
     WIN_SCREENS[o.inside](o, left, y0, bw, bh, ink, css, t, dt);
     g.restore();
   }
