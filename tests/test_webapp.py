@@ -669,7 +669,8 @@ class SecondStart(unittest.TestCase):
                     made[0].shutdown()
                 run.join(20)
         self.assertFalse(run.is_alive())
-        self.assertFalse(webapp._held(port))
+        webapp.Server(("127.0.0.1", port), webapp.Handler).server_close()  # and the next start can take the port at once. (On Linux and macOS the calls just made
+        # leave the port looking held for about a minute after it is let go; a start sees through that: nobody answers there, so it takes the port.)
 
     def test_while_the_library_is_read_the_network_gets_nothing_without_the_link(self):
         server = webapp.Server(("127.0.0.1", 0), webapp.Handler)
