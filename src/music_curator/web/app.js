@@ -2491,7 +2491,7 @@ function recipeEditor() {
     el("details", { class: "recipe-help" }, el("summary", {}, "How recipes are made"),
       el("p", {}, "A recipe has a name, how much of the last picture stays (fade, 0 to 0.98), and up to 8 layers. Leave out zoom and turn, or give them formulas, and the last picture comes back bigger or turned, so everything streams."),
       el("p", {}, `Each layer has a shape (${ref.shapes.join(", ")}) and any of ${ref.parts.join(", ")}. Each is a number or a formula. x and y go from 0 to 1 across and down, size is a part of the shorter side, hue goes round the colors, light is 0 to 1, width is in pixels, x2 and y2 are a line's other end and amount is how tall a wave is.`),
-      el("p", {}, `In a formula: ${ref.names.join(", ")}, pi and tau. t is the time in seconds, i is which one of the n in the layer, u goes from 0 to 1 along them, beat goes from 0 to 1 between kicks and aspect is the width over the height. And these: ${ref.functions.join(", ")}. band(x) is the sound from the bass at 0 to the highs at 1, and wave(x) the waveform. + - * / % ^ and < > work too.`)));
+      el("p", {}, `In a formula: ${ref.names.join(", ")}, pi and tau. t is the time in seconds, i is which one of the n in the layer, u goes from 0 to 1 along them, beat goes from 0 to 1 between kicks and aspect is the width over the height. mx and my are where the mouse is over the picture, from 0 to 1 across and down (a half when it is not there), and mnear is how much it is there, from 0 to 1. And these: ${ref.functions.join(", ")}. band(x) is the sound from the bass at 0 to the highs at 1, and wave(x) the waveform. + - * / % ^ and < > work too.`)));
   setTimeout(tried, 0);
   return body;
 }

@@ -834,11 +834,12 @@ window.Effects = (() => {
   };
   function ribbon() { // bundles of threads drifting across, like a waving cloth
     const { t, bass, mid, kick, hatHit } = sound, LINES = 14, step = Math.max(6, w / 150), N = countOf("bundles"), k = V.waves, ALL = Math.ceil(N - 1e-6); // (on its way from one count to another, every bundle moves over to its new place and the one coming or going fades in or out)
-    const yAt = (u, r, spread) => h * (0.5 + (r - (N - 1) / 2) * (0.32 / Math.max(1, N - 1))) + Math.sin(u * 3.4 * k + t * 0.55 + r * 2.1 + spread * 1.6) * h * (0.07 + 0.1 * bass + 0.08 * acidLook.open)
+    const yAt = (u, r, spread) => threadY(u * w, h * (0.5 + (r - (N - 1) / 2) * (0.32 / Math.max(1, N - 1))) + Math.sin(u * 3.4 * k + t * 0.55 + r * 2.1 + spread * 1.6) * h * (0.07 + 0.1 * bass + 0.08 * acidLook.open)
       + Math.sin(u * 8.2 * k - t * 0.9 + r * 2.1 + spread * 4) * h * (0.012 + 0.03 * mid)
       + spread * h * (0.09 + 0.16 * smooth(u * BANDS * 0.7 + r * 6)) * Math.sin(u * 2.6 * k + t * 0.4 + r)
-      + (acidLook.on ? h * (0.09 * acidLook.open + 0.05 * acidLook.note) * Math.sin(u * 15 * k - t * 2.6 + r * 1.7 + spread * 2) : 0); // a 303: a quicker, sharper wave runs along the threads as the filter opens, and kinks on each note
+      + (acidLook.on ? h * (0.09 * acidLook.open + 0.05 * acidLook.note) * Math.sin(u * 15 * k - t * 2.6 + r * 1.7 + spread * 2) : 0)); // a 303: a quicker, sharper wave runs along the threads as the filter opens, and kinks on each note. And the mouse: see the mouse styles block
     backdrop();
+    threadsHand(step, h * 0.11); // the mouse parts the threads, and a click plucks them
     g.globalCompositeOperation = "lighter";
     g.lineWidth = Math.max(1, h / 540);
     for (let r = 0; r < ALL; r++) {
@@ -860,6 +861,7 @@ window.Effects = (() => {
   function silk() { // broad sheets of light folding over each other, like the old glass desktop wallpapers
     const { t, bass, kick, hatHit } = sound, step = Math.max(8, w / 120), SHEETS = V.sheets, k = V.waves;
     backdrop();
+    threadsHand(step, h * 0.11); // the mouse parts the sheets, and a click plucks them
     g.globalCompositeOperation = "lighter";
     for (let r = 0; r < 3; r++) {
       const paint = g.createLinearGradient(0, 0, w, 0), a = colors[r], b = colors[(r + 1) % 3], phase = r * 2.3, base = h * (0.33 + r * 0.17);
@@ -870,7 +872,7 @@ window.Effects = (() => {
       for (let f = 0, N = countOf("sheets"); f < Math.ceil(N - 1e-6); f++) { // (a count on its way: see ribbon)
         const fold = f / (N - 1) - 0.5, sheet = new Path2D(), edge = new Path2D(), under = [], share = shareOf(f, N);
         for (let x = 0; x <= w + step; x += step) {
-          const u = x / w, y = base + fold * h * 0.05 + Math.sin(u * 2.4 * k + t * 0.32 + phase + fold) * h * (0.1 + 0.07 * bass) + Math.sin(u * 5.7 * k - t * 0.46 + phase * 2) * h * (0.024 + 0.07 * acidLook.soft), thick = h * (0.016 + 0.1 * smooth(u * BANDS * 0.7 + r * 7) + 0.035 * bass + 0.05 * acidLook.soft) * (1.15 + Math.sin(u * 3.3 + t * 0.26 + r + fold * 3));
+          const u = x / w, y = threadY(x, base + fold * h * 0.05 + Math.sin(u * 2.4 * k + t * 0.32 + phase + fold) * h * (0.1 + 0.07 * bass) + Math.sin(u * 5.7 * k - t * 0.46 + phase * 2) * h * (0.024 + 0.07 * acidLook.soft)), thick = h * (0.016 + 0.1 * smooth(u * BANDS * 0.7 + r * 7) + 0.035 * bass + 0.05 * acidLook.soft) * (1.15 + Math.sin(u * 3.3 + t * 0.26 + r + fold * 3));
           if (x) { sheet.lineTo(x, y - thick); edge.lineTo(x, y - thick); } else { sheet.moveTo(x, y - thick); edge.moveTo(x, y - thick); }
           under.push(x, y + thick * 0.4);
           if (hatHit && f === SHEETS >> 1 && Math.random() < 0.008) twinkle(x, y - thick, h * 0.06);
@@ -892,10 +894,11 @@ window.Effects = (() => {
   function helix() { // strands wound round each other, with the sound strung between them
     const { t, bass, kick, hatHit } = sound, n = 90, N = countOf("strands"), ALL = Math.ceil(N - 1e-6), WHOLE = Math.floor(N + 1e-6), PART = N - WHOLE, amp = h * (0.17 + 0.08 * bass + 0.1 * acidLook.open), lines = Array.from({ length: ALL }, () => new Path2D()), width = Math.max(1.6, h / 340) * (1 + kick);
     backdrop();
+    threadsHand(w / n, h * 0.11); // the mouse parts the strands, and a click plucks them
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
     for (let i = 0; i <= n; i++) {
-      const u = i / n, x = u * w, phase = u * TAU * (V.twists + 1.6 * acidLook.soft) + t * 0.8, y = h / 2 + Math.sin(u * 2.1 + t * 0.2) * h * 0.06, at = (k) => y + Math.sin(phase + (k * TAU) / N) * amp;
+      const u = i / n, x = u * w, phase = u * TAU * (V.twists + 1.6 * acidLook.soft) + t * 0.8, y = h / 2 + Math.sin(u * 2.1 + t * 0.2) * h * 0.06, at = (k) => threadY(x, y + Math.sin(phase + (k * TAU) / N) * amp);
       for (let k = 0; k < ALL; k++) { if (i) lines[k].lineTo(x, at(k)); else lines[k].moveTo(x, at(k)); }
       if (i % 2) continue;
       const v = smooth(u * BANDS * 0.85);
@@ -917,11 +920,12 @@ window.Effects = (() => {
   function strings() { // a row of strings, each plucked by its own part of the sound
     const { t, kick, hatHit } = sound, N = V.count, pad = h * 0.14, gapY = (h - pad * 2) / (N - 1), step = Math.max(6, w / 130), width = Math.max(1, h / 620);
     backdrop();
+    threadsHand(step, h * 0.11, pad - gapY * 1.5, h - pad + gapY * 1.5); // the mouse bends the strings, and a click plucks the few nearest it
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
     for (let s = 0, M = countOf("count"), gap = (h - pad * 2) / (M - 1); s < Math.ceil(M - 1e-6); s++) {
       const v = smooth(((M - 1 - s) / M) * BANDS * 0.9 + 1), y0 = pad + s * gap, shake = Math.sin(t * (13 + s * 1.9)) * gap * 3.4 * (v + (0.9 * acidLook.open + 0.4 * acidLook.note) * (1 - s / M)) * (24 / M) ** 0.5, on = shareOf(s, M), loops = (1 + (s % 3)) * V.loops, path = new Path2D();
-      for (let x = 0; x <= w + step; x += step) { const y = y0 + Math.sin((x / w) * Math.PI * loops) * shake; if (x) path.lineTo(x, y); else path.moveTo(x, y); }
+      for (let x = 0; x <= w + step; x += step) { const y = stringY(x, y0 + Math.sin((x / w) * Math.PI * loops) * shake, y0, gapY, v); if (x) path.lineTo(x, y); else path.moveTo(x, y); }
       neon(path, rgba(around(s / M + t * 0.02), 1), width * (1 + 1.6 * v), (0.3 + 0.7 * v + 0.2 * kick + 0.25 * acidLook.knob * (1 - s / M)) * on, 0.6);
     }
     if (hatHit) for (let i = 0; i < 3; i++) twinkle(rnd(0, w), pad + Math.floor(rnd(0, N * 0.4)) * gapY, h * 0.05);
@@ -930,7 +934,8 @@ window.Effects = (() => {
   const BAR_LAYOUTS = { floor: [0.8, 0.6, 0, 0, 1], middle: [0.5, 0.62, 1, 0, 0], split: [0.93, 0.4, 0, 1, 0] }; // for each way of standing in a row: where the floor is and how tall the bars stand (shares of the height), how much they stand out both ways from it (0 up only, 1 both ways), the copy hanging from the ceiling and the reflection under the floor
   const SLOTS = 160, slotOf = (i, n) => Math.min(SLOTS - 1, Math.floor(((i + 0.5) / n) * SLOTS)), capLift = new Float32Array(SLOTS); // the falling caps are kept by where they are along the spectrum, so that any number of bars reads and lifts the same ones (capLift: how high the bars under each cap have stood this frame, for mirror)
   function bars() { // the spectrum, with little caps that fall back slowly: standing on the floor, out both ways from the middle, up from the floor and down from the ceiling, or round in a ring
-    const n = V.count, layout = V.layout, level = (i) => acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92);
+    const n = V.count, layout = V.layout, level = (i) => barLift(i, n, acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92)), handSide = w * 0.05, handWide = (w - handSide * 2 - w * (n > 90 ? 0.0018 : 0.0035) * (n - 1)) / n;
+    barsHand(n, handSide + handWide / 2, handWide + w * (n > 90 ? 0.0018 : 0.0035), layout === "circle" ? Math.min(w, h) * 0.24 : 0, false, layout === "split"); // (the mouse's lift: see the mouse styles block)
     backdrop();
     const pc = overOf("count");
     for (let s = 0; s < SLOTS; s++) peaks[s] = Math.max(0, peaks[s] - sound.dt * 0.5); // (once a frame, however many bars are drawn: each set lifts its own caps as it is drawn)
@@ -1004,13 +1009,14 @@ window.Effects = (() => {
 
   function mirror() { // the spectrum folded about the middle and standing on black glass
     const { t, dt, hatHit } = sound, n = V.count, side = w * 0.03, gap = w * 0.003, wide = (w / 2 - side - gap * n) / n, floor = h * V.floor, tall = h * Math.min(0.52, V.floor * 0.78);
+    barsHand(n, w / 2 + gap / 2 + wide / 2, wide + gap, 0, true); // the mouse lifts the bars under it, on both sides (see the mouse styles block)
     backdrop();
     const p = overOf("count");
     for (let set = p < 1 ? 0 : 1; set < 2; set++) { // on the way from one number of bars to another, both sets show, the old going as the new one comes
       const n = set ? V.count : vary.was.count, share = set ? p : 1 - p, side = w * 0.03, gap = w * 0.003, wide = (w / 2 - side - gap * n) / n;
       g.globalAlpha = share;
       for (let i = 0; i < n; i++) {
-        const v = acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92), high = Math.max(2, v * tall), c = acidTinge(around((i / n) * 0.9 + t * 0.02), (i / n) * 0.92), out = i * (wide + gap) + gap / 2, s = slotOf(i, n), cap = floor - peaks[s] * tall - 5;
+        const v = barLift(i, n, acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92)), high = Math.max(2, v * tall), c = acidTinge(around((i / n) * 0.9 + t * 0.02), (i / n) * 0.92), out = i * (wide + gap) + gap / 2, s = slotOf(i, n), cap = floor - peaks[s] * tall - 5;
         if (capLift[s] < v) capLift[s] = v;
         for (const x of [w / 2 + out, w / 2 - out - wide]) {
           g.fillStyle = rgba(c, 0.86);
@@ -1037,9 +1043,10 @@ window.Effects = (() => {
     const { dt, hatHit } = sound, COLS = V.cols, ROWS = Math.round(COLS * 0.67), side = w * 0.09, floor = h * 0.86, tall = h * 0.7, stepX = (w - side * 2) / COLS, stepY = tall / ROWS, lamp = stepX * 0.8, thin = stepY * 0.64, lit = [new Path2D(), new Path2D(), new Path2D()], off = new Path2D(), caps = new Path2D();
     for (let s = 0; s < SLOTS; s++) peaks[s] = Math.max(0, peaks[s] - dt * 0.35); // (the caps by where they are along the spectrum: see bars)
     const round = Math.min(lamp, stepY) * 0.4, pl = overOf("lamp"), pc = overOf("cols"), put = pl < 1 && Path2D.prototype.roundRect ? ledBox(lamp, thin, round, pl) : V.lamp === "round" ? (p, x, y) => { p.moveTo(x + lamp / 2 + round, y + thin / 2); p.arc(x + lamp / 2, y + thin / 2, round, 0, TAU); } : V.lamp === "thin" ? (p, x, y) => p.rect(x, y + thin * 0.36, lamp, thin * 0.28) : (p, x, y) => p.rect(x, y, lamp, thin); // little square lamps, round ones, or thin bars of light
+    barsHand(COLS, side + lamp / 2, stepX, 0, false); // the mouse lights the lamps under it higher (see the mouse styles block)
     backdrop();
     for (let c = 0; c < COLS; c++) {
-      const v = acidAdd(sound.bands[Math.floor((c / COLS) * BANDS * 0.92)], (c / COLS) * 0.92), level = Math.round(v * ROWS), x = side + c * stepX;
+      const v = barLift(c, COLS, acidAdd(sound.bands[Math.floor((c / COLS) * BANDS * 0.92)], (c / COLS) * 0.92)), level = Math.round(v * ROWS), x = side + c * stepX;
       const slot = slotOf(c, COLS);
       peaks[slot] = Math.max(v, peaks[slot]);
       const cap = Math.min(ROWS - 1, Math.round(peaks[slot] * ROWS));
@@ -1085,10 +1092,11 @@ window.Effects = (() => {
   function terrain() { // the sound as a landscape: the newest line is the nearest, and it rolls away to the horizon
     const { t, dt, kick, hatHit } = sound, horizon = h * 0.4, WAIT = 0.05, pm = overOf("mesh"), meshOn = pm < 1 ? (V.mesh ? pm : 1 - pm) : V.mesh ? 1 : 0; // (the mesh fades in or out as it comes or goes)
     landClock += dt;
+    terrainTap(); // a click raises a hill there (see the mouse styles block)
     if (landClock >= WAIT) {
       landClock %= WAIT;
       landAt = (landAt + RIDGES - 1) % RIDGES;
-      for (let a = 0; a < ACROSS; a++) land[landAt * ACROSS + a] = smooth((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * BANDS * 0.7 + 0.5) + 1.5 * acidSpectrum((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * 0.7); // the bass up both sides, so it's a valley
+      for (let a = 0; a < ACROSS; a++) land[landAt * ACROSS + a] = smooth((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * BANDS * 0.7 + 0.5) + 1.5 * acidSpectrum((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * 0.7) + terrainLift(w / 2 + (a / (ACROSS - 1) - 0.5) * 1.4 * w); // the bass up both sides, so it's a valley. And a hill under the mouse, which rolls away with the land
     }
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
@@ -1153,7 +1161,7 @@ window.Effects = (() => {
       : kind === "ring" ? (p) => { const a = (p / POINTS) * TAU - Math.PI / 2, r = h * (0.22 + 0.11 * (wave[p % POINTS] + acidRing(p))); return [w / 2 + Math.cos(a) * r, mid + Math.sin(a) * r]; } // wrapped round into a circle
       : (p) => [left + (wide * Math.min(p, POINTS - 1)) / (POINTS - 1), mid + (wave[p % POINTS] + acidRing(p)) * h * 0.3], nowAt = traceOf(V.trace), pt = overOf("trace"), wasAt = pt < 1 ? traceOf(vary.was.trace) : null;
     const traceAt = wasAt ? (p) => { const [x0, y0] = wasAt(p), [x1, y1] = nowAt(p); return [x0 + (x1 - x0) * pt, y0 + (y1 - y0) * pt]; } : nowAt; // (while it goes over, each point between where the old way and the new one put it)
-    for (let p = 0, end = V.trace === "line" && (!wasAt || vary.was.trace === "line") ? POINTS - 1 : POINTS; p <= end; p++) { const [x, y] = traceAt(p); if (p) trace.lineTo(x, y); else trace.moveTo(x, y); }
+    for (let p = 0, end = V.trace === "line" && (!wasAt || vary.was.trace === "line") ? POINTS - 1 : POINTS; p <= end; p++) { const [x0, y0] = traceAt(p), [x, y] = scopeAt(p, x0, y0, V.trace === "line"); if (p) trace.lineTo(x, y); else trace.moveTo(x, y); } // (bent round the mouse, and a blip from a click: see the mouse styles block)
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
     neon(trace, rgba(tone, 1), Math.max(1.4, h / 460) * (1 + 0.6 * acidLook.soft), 0.8 + 0.2 * kick + 0.2 * acidLook.knob);
@@ -1223,7 +1231,7 @@ window.Effects = (() => {
   }
 
   function trails() { // the sound as a ring in the middle, streaming outward
-    const { t, bass, kick, dt } = sound, pace = dt * 60, spin = turned("trails", 0.15), cx = w / 2, cy = h / 2, r = Math.min(w, h) * (0.13 + 0.08 * bass);
+    const { t, bass, kick, dt } = sound, pace = dt * 60, spin = turned("trails", 0.15), { mx: cx, my: cy } = echoMiddle(w / 2, h / 2), r = Math.min(w, h) * (0.13 + 0.08 * bass);
     echo(1 + (0.012 + 0.02 * bass + 0.012 * kick) * pace, (0.0025 + 0.0045 * Math.sin(t * 0.23) + 0.02 * acidLook.soft) * pace * V.spin, 0.955 ** pace, Math.sin(t * 0.31) * w * 0.0012 * pace, Math.cos(t * 0.27) * h * 0.0016 * pace, undefined, 0.5);
     neon(soundLoop(cx, cy, r, r, spin, 0.42 + 0.9 * acidLook.open), sweep(cx, cy, spin * 1.4), Math.max(1.5, h / 360) * (1 + kick), 0.65 + 0.35 * kick, 0.55);
     spray(5, (u) => [cx + Math.cos(u * TAU) * r * 1.1, cy + Math.sin(u * TAU) * r * 1.1], h * 0.05);
@@ -1231,7 +1239,7 @@ window.Effects = (() => {
   }
 
   function tunnel() { // the other way: rings born at the edge sink away into the middle
-    const { t, bass, kick, dt } = sound, pace = dt * 60, spin = -turned("tunnel", 0.2), cx = w / 2, cy = h / 2, swell = 0.46 * (1 + 0.05 * bass);
+    const { t, bass, kick, dt } = sound, pace = dt * 60, spin = -turned("tunnel", 0.2), { mx: cx, my: cy } = echoMiddle(w / 2, h / 2), swell = 0.46 * (1 + 0.05 * bass);
     echo(1 - (0.014 + 0.028 * bass + 0.014 * kick) * pace, (0.004 + 0.007 * Math.sin(t * 0.19) + 0.014 * acidLook.soft) * pace * V.spin, 0.972 ** pace);
     neon(soundLoop(cx, cy, w * swell, h * swell, spin, 0.07 + 0.2 * acidLook.open, 2), sweep(cx, cy, spin), Math.max(2, h / 280) * (1 + 0.6 * kick), 0.6 + 0.4 * kick);
     spray(5, (u) => [cx + Math.cos(u * TAU) * w * swell, cy + Math.sin(u * TAU) * h * swell], h * 0.06);
@@ -1239,12 +1247,12 @@ window.Effects = (() => {
   }
 
   function vortex() { // arms of sound wound into a spiral
-    const { t, wave, bass, kick, dt } = sound, pace = dt * 60, reach = Math.hypot(w, h) * 0.5, ARMS = countOf("arms"), spin = turned("vortex", 0.3);
+    const { t, wave, bass, kick, dt } = sound, pace = dt * 60, reach = Math.hypot(w, h) * 0.5, ARMS = countOf("arms"), spin = turned("vortex", 0.3), { mx, my } = echoMiddle(w / 2, h / 2);
     echo(1 + (0.007 + 0.012 * bass) * pace, (0.03 + 0.03 * bass + 0.05 * acidLook.soft) * pace * V.spin, 0.955 ** pace);
     for (let arm = 0; arm < Math.ceil(ARMS - 1e-6); arm++) {
       const a = (arm / ARMS) * TAU + spin, path = new Path2D(), nx = -Math.sin(a), ny = Math.cos(a), share = shareOf(arm, ARMS);
       for (let p = 0; p < POINTS; p += 2) {
-        const part = p / POINTS, along = reach * (0.04 + 0.62 * part), off = wave[p] * reach * (0.06 + 0.14 * acidLook.open) * Math.sin(part * Math.PI), x = w / 2 + Math.cos(a) * along + nx * off, y = h / 2 + Math.sin(a) * along + ny * off;
+        const part = p / POINTS, along = reach * (0.04 + 0.62 * part), off = wave[p] * reach * (0.06 + 0.14 * acidLook.open) * Math.sin(part * Math.PI), x = mx + Math.cos(a) * along + nx * off, y = my + Math.sin(a) * along + ny * off;
         if (p) path.lineTo(x, y); else path.moveTo(x, y);
       }
       neon(path, rgba(around(arm / ARMS + t * 0.05), 1), Math.max(1.5, h / 400) * (1 + kick), (0.5 + 0.4 * kick) * share, 0.5);
@@ -1254,7 +1262,7 @@ window.Effects = (() => {
   }
 
   function prism() { // a ring wandering about, folded into four like a kaleidoscope
-    const { t, bass, kick, dt } = sound, pace = dt * 60, spin = turned("prism", 0.25), cx = w * (0.39 + 0.08 * Math.cos(t * 0.37)), cy = h * (0.37 + 0.1 * Math.sin(t * 0.29)), r = Math.min(w, h) * (0.13 + 0.07 * bass);
+    const { t, bass, kick, dt } = sound, pace = dt * 60, spin = turned("prism", 0.25), { mx: cx, my: cy } = echoMiddle(w * (0.39 + 0.08 * Math.cos(t * 0.37)), h * (0.37 + 0.1 * Math.sin(t * 0.29)), 0), r = Math.min(w, h) * (0.13 + 0.07 * bass);
     echo(1 + (0.01 + 0.016 * bass + 0.01 * kick) * pace, (0.006 + 0.006 * Math.sin(t * 0.17) + 0.02 * acidLook.soft) * pace * V.spin, 0.955 ** pace);
     neon(soundLoop(cx, cy, r, r, spin, 0.5 + 0.6 * acidLook.open), sweep(cx, cy, spin), Math.max(1.5, h / 380) * (1 + kick), 0.65 + 0.35 * kick, 0.55);
     spray(4, (u) => [cx + Math.cos(u * TAU) * r * 1.1, cy + Math.sin(u * TAU) * r * 1.1], h * 0.05);
@@ -1314,27 +1322,28 @@ window.Effects = (() => {
       cometWas[i * 2 + 1] = up;
       orbits[i] += dt * (0.3 + 1.6 * v + 1.2 * kick + 1.4 * acidLook.open * share);
       const turn = orbits[i] + share * TAU, x = w / 2 + Math.cos(turn * (1 + share) + cometOff[i * 2]) * w * (0.16 + 0.26 * share), y = h / 2 + Math.sin(turn * (1.6 - share * 0.4) * V.loop + cometOff[i * 2 + 1]) * h * (0.16 + 0.24 * share);
+      const at = cometPull(i, x, y, size), ax = at[0], ay = at[1]; // where it is drawn: toward the mouse, and scattered by a click (see the mouse styles block)
       if (!Number.isNaN(past[i * 2])) {
         const path = new Path2D();
         path.moveTo(past[i * 2], past[i * 2 + 1]);
-        path.lineTo(x, y);
+        path.lineTo(ax, ay);
         neon(path, rgba(around(share + t * 0.04), 1), size * (0.004 + 0.012 * v), (0.7 + 0.3 * v) * on);
-        const r = size * (0.018 + 0.03 * v + 0.012 * kick + 0.02 * acidLook.open), head = g.createRadialGradient(x, y, 0, x, y, r);
+        const r = size * (0.018 + 0.03 * v + 0.012 * kick + 0.02 * acidLook.open), head = g.createRadialGradient(ax, ay, 0, ax, ay, r);
         head.addColorStop(0, rgba(mix(around(share + t * 0.04), [255, 255, 255], 0.6), 0.5 * on));
         head.addColorStop(1, rgba(around(share + t * 0.04), 0));
         g.fillStyle = head;
-        g.fillRect(x - r, y - r, r * 2, r * 2);
-        if (sound.hatHit && Math.random() < 0.4 * on) glint(x, y, size * 0.09, 1);
+        g.fillRect(ax - r, ay - r, r * 2, r * 2);
+        if (sound.hatHit && Math.random() < 0.4 * on) glint(ax, ay, size * 0.09, 1);
       }
-      past[i * 2] = x;
-      past[i * 2 + 1] = y;
+      past[i * 2] = ax;
+      past[i * 2 + 1] = ay;
     }
     remember();
   }
 
   function starfield() { // flying through stars, faster when the music is busier
-    const { t, dt, level, kick } = sound, cx = w / 2 + Math.sin(t * 0.13) * w * 0.16 * V.drift, cy = h / 2 + Math.sin(t * 0.09 + 1) * h * 0.13 * V.drift, speed = (0.1 + 0.8 * level + 0.7 * kick + 0.8 * acidLook.open) * dt, GROUPS = colors.length * 3, paths = Array.from({ length: GROUPS }, () => new Path2D());
-    const roll = turned("stars", 1, V.roll), c = Math.cos(roll), s = Math.sin(roll), sx = w * 0.275, sy = h * 0.275, at = (x, y) => [cx + (x * c - y * s) * sx, cy + (x * s + y * c) * sy]; // the way we're going wanders, and the stars can roll round it
+    const { t, dt, level, kick } = sound, { mx: cx, my: cy } = starsMiddle(Math.sin(t * 0.13) * w * 0.16 * V.drift, Math.sin(t * 0.09 + 1) * h * 0.13 * V.drift, true), starReach = Math.min(w, h) * 0.09, speed = (0.1 + 0.8 * level + 0.7 * kick + 0.8 * acidLook.open) * dt, GROUPS = colors.length * 3, paths = Array.from({ length: GROUPS }, () => new Path2D());
+    const roll = turned("stars", 1, V.roll), c = Math.cos(roll), s = Math.sin(roll), sx = w * 0.275, sy = h * 0.275, at = (x, y) => starAt(cx + (x * c - y * s) * sx, cy + (x * s + y * c) * sy, starReach), from = (x, y) => starAt(cx - handKept.starDX + (x * c - y * s) * sx, cy - handKept.starDY + (x * s + y * c) * sy, starReach); // the way we're going wanders, and the stars can roll round it (and part round the mouse; from: where a star was drawn last frame, before the mouse's lean moved on)
     g.globalCompositeOperation = "source-over";
     g.fillStyle = `rgba(5,6,10,${(0.32 / T.drag).toFixed(3)})`;
     g.fillRect(0, 0, w, h);
@@ -1343,7 +1352,7 @@ window.Effects = (() => {
       if (next <= 0.03) { stars[i * 3] = Math.random() * 2 - 1; stars[i * 3 + 1] = Math.random() * 2 - 1; stars[i * 3 + 2] = 1 - Math.random() * Math.min(0.97, Math.max(0, speed)); continue; } // back at the far end, somewhere in the stretch this frame covered: all put at the very end, the ones that came back together stayed together for good, and after a few fast moments the stars were a few flat sheets
       stars[i * 3 + 2] = next;
       const near = Math.min(2, Math.floor((1 - next) * 3)), path = paths[(i % colors.length) * 3 + near], to = at(x / next, y / next);
-      path.moveTo(...at(x / z, y / z));
+      path.moveTo(...from(x / z, y / z));
       path.lineTo(...to);
       if (sound.hatHit && i % 90 === 0) twinkle(...to, h * 0.05);
     }
@@ -1358,7 +1367,7 @@ window.Effects = (() => {
   }
 
   function whirl() { // a whirlpool of stars, thrown outward by the kicks
-    const { dt, level, kick, hatHit } = sound, cx = w / 2, cy = h / 2, reach = Math.hypot(w, h) * 0.52, flat = V.flat, GROUPS = colors.length * 3, paths = Array.from({ length: GROUPS }, () => new Path2D());
+    const { dt, level, kick, hatHit } = sound, { mx: cx, my: cy } = starsMiddle(0, 0), reach = Math.hypot(w, h) * 0.52, flat = V.flat, GROUPS = colors.length * 3, paths = Array.from({ length: GROUPS }, () => new Path2D());
     g.globalCompositeOperation = "source-over";
     g.fillStyle = `rgba(5,6,10,${(0.26 / T.drag).toFixed(3)})`;
     g.fillRect(0, 0, w, h);
@@ -1380,7 +1389,8 @@ window.Effects = (() => {
   }
 
   function dust() { // specks floating up through the light
-    const { t, dt, level, kick, hat, hatHit } = sound, cx = w / 2, cy = h / 2, rise = (0.03 + 0.2 * level + 0.25 * kick + 0.5 * acidLook.open) * dt, groups = colors.map(() => [new Path2D(), new Path2D(), new Path2D()]);
+    const { t, dt, level, kick, hat, hatHit } = sound, cx = w / 2, cy = h / 2, rise = (0.03 + 0.2 * level + 0.25 * kick + 0.5 * acidLook.open) * dt, groups = colors.map(() => [new Path2D(), new Path2D(), new Path2D()]), handOn = pointer.near > 0.01 || pointer.pokes.length > 0, reach = Math.min(w, h) * 0.2;
+    if (pointer.fresh) pointer.taken = true; // a puff of dust from where it landed is the answer: no ring
     backdrop();
     const pw = overOf("way"), wasWay = pw < 1 ? vary.was.way : V.way, outward = (V.way === "out" ? pw : 0) + (wasWay === "out" ? 1 - pw : 0); // (how far one way of floating has got on its way to another, and how much of it is "out")
     g.globalCompositeOperation = "lighter";
@@ -1402,8 +1412,10 @@ window.Effects = (() => {
       stars[i * 3] = x;
       stars[i * 3 + 1] = y;
       const px = cx + (x + Math.sin(t * 0.21 + i) * 0.03) * cx * 1.05 * grow, py = cy + y * cy * 1.05 * grow, r = (0.7 + layer * 0.9) * Math.max(1, h / 720) * V.size * (1 + (Math.hypot(x, y) - 0.4) * outward) * (1 + 1.4 * acidLook.open * z), path = groups[i % colors.length][layer];
-      path.moveTo(px + r, py);
-      path.arc(px, py, r, 0, TAU);
+      if (handOn) { const s = shove(px, py, reach, 0.7), u = puffAt(px, py, reach * 1.6, reach * 0.9); handKept.mx = px + s[0] + u[0]; handKept.my = py + s[1] + u[1]; } // (pushed aside by the mouse, and blown away by a click: see the mouse styles block)
+      const qx = handOn ? handKept.mx : px, qy = handOn ? handKept.my : py;
+      path.moveTo(qx + r, qy);
+      path.arc(qx, qy, r, 0, TAU);
       if (hatHit && i % 60 === 0) twinkle(px, py, h * (0.03 + 0.05 * z));
       if (acidLook.hit && i % 90 === 7) twinkle(px, py, h * (0.02 + 0.05 * z) * (0.6 + flow.acidFilter)); // and a few on each note of a 303, bigger the more open its filter
     }
@@ -1420,6 +1432,7 @@ window.Effects = (() => {
       stars[i * 3 + 1] = wrap(stars[i * 3 + 1] + Math.sin(way) * pace);
       linkX[i] = w / 2 + stars[i * 3] * w * 0.54 * grow;
       linkY[i] = h / 2 + stars[i * 3 + 1] * h * 0.54 * grow;
+      if (pointer.pokes.length) { const u = puffAt(linkX[i], linkY[i], close * 0.8, close * 0.6); linkX[i] += u[0]; linkY[i] += u[1]; } // (blown apart by a click: see the mouse styles block)
     }
     for (let i = 0; i < ALL; i++) for (let j = i + 1; j < ALL; j++) {
       const apart = Math.hypot(linkX[i] - linkX[j], linkY[i] - linkY[j]);
@@ -1428,6 +1441,8 @@ window.Effects = (() => {
       path.moveTo(linkX[i], linkY[i]);
       path.lineTo(linkX[j], linkY[j]);
     }
+    if (pointer.fresh) pointer.taken = true; // (the points blown apart where it landed are the answer: no ring)
+    if (pointer.near > 0.3 && !guest.drawing) for (let i = 0; i < LINKS; i++) { const apart = Math.hypot(linkX[i] - pointer.sx, linkY[i] - pointer.sy); if (apart < close * 0.55 * pointer.near) { bright.moveTo(linkX[i], linkY[i]); bright.lineTo(pointer.sx, pointer.sy); } } // the mouse is one of the points: the ones near it join up with it
     g.globalCompositeOperation = "lighter";
     g.lineWidth = Math.max(1, h / 800);
     g.strokeStyle = rgba(colors[1], 0.14 + 0.3 * kick);
@@ -1467,6 +1482,7 @@ window.Effects = (() => {
     }
     if (hatHit && lastShell) shell(lastShell[0] + rnd(-0.14, 0.14) * size, lastShell[1] + rnd(-0.14, 0.14) * size, 6, [255, 240, 210], size * 0.14, 0.45);
     if (acidLook.hit && lastShell) { const f = flow.acidFilter / Math.max(0.01, flow.acidOn); shell(lastShell[0] + (f - 0.5) * size * 0.5, lastShell[1] - f * size * 0.25, 12, acidHot(f), size * (0.12 + 0.2 * f) * Math.min(1.5, acidLook.hit), 0.4, "ring"); } // a 303 note: a small ring of sparks, higher and wider the more open the filter
+    sparkTrail(size); // the mouse's sparks, and a click's shell (see the mouse styles block)
     if (shells.length > 22) shells.shift();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
@@ -1508,7 +1524,7 @@ window.Effects = (() => {
       const n = side ? V.count : vary.was.count, share = side ? p : 1 - p;
       g.lineWidth = Math.max(2, ((TAU * r) / (n * 2)) * 0.55);
       for (let i = 0; i < n * 2; i++) {
-        const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82), a = (i / (n * 2)) * TAU - Math.PI / 2 + spin, from = r * 1.05, to = from + size * (0.012 + 0.24 * v) * V.reach + (acidLook.on ? size * 0.035 * acidLook.open * (1 + Math.sin(a * 10 - sound.t * 7)) : 0);
+        const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82), a = (i / (n * 2)) * TAU - Math.PI / 2 + spin, from = r * 1.05, to = from + size * (0.012 + 0.24 * v) * V.reach + size * (0.1 * reachOut(a, cx, cy, size) + 0.14 * reachClick(a, cx, cy)) + (acidLook.on ? size * 0.035 * acidLook.open * (1 + Math.sin(a * 10 - sound.t * 7)) : 0);
         g.strokeStyle = rgba(around((b / n) * 0.9 + sound.t * 0.02), share * (0.55 + 0.4 * v));
         g.beginPath();
         g.moveTo(cx + Math.cos(a) * from, cy + Math.sin(a) * from);
@@ -1521,13 +1537,13 @@ window.Effects = (() => {
   }
 
   function sun() { // a soft corona round the record. Its outline is drawn several times, shrinking inward, so the light dies away along the shape and never stops at an edge
-    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), n = 96, CONTOURS = 14;
+    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), n = 96, CONTOURS = 14, scratch = scratched(cx); // (turned by hand: see the mouse styles block)
     const pp = overOf("petals"), wasPetals = pp < 1 ? vary.was.petals : V.petals; // (how far a number of petals has got on its way to another)
     backdrop();
     g.globalCompositeOperation = "lighter";
     for (let layer = 1; layer >= 0; layer--) {
-      const lift = size * (0.06 + 0.05 * layer) * (1 + 0.6 * kick + 0.9 * acidLook.soft), swing = size * (0.17 + 0.1 * layer), turn = t * (0.07 + 0.05 * layer) * (layer ? -1 : 1), out = new Float32Array(n + 1);
-      for (let i = 0; i <= n; i++) out[i] = lift + swing * smooth(Math.abs((i / n) * 2 - 1) * BANDS * 0.62 + 1) + (pp < 1 ? size * (0.012 + 0.08 * acidLook.open) * (1 - pp) * Math.sin((i / n) * TAU * wasPetals + t * 1.3 + layer) : 0) + size * (0.012 + 0.08 * acidLook.open) * pp * Math.sin((i / n) * TAU * V.petals + t * 1.3 + layer);
+      const lift = size * (0.06 + 0.05 * layer) * (1 + 0.6 * kick + 0.9 * acidLook.soft), swing = size * (0.17 + 0.1 * layer), turn = t * (0.07 + 0.05 * layer) * (layer ? -1 : 1) + scratch, out = new Float32Array(n + 1);
+      for (let i = 0; i <= n; i++) out[i] = lift + swing * smooth(Math.abs((i / n) * 2 - 1) * BANDS * 0.62 + 1) + (pp < 1 ? size * (0.012 + 0.08 * acidLook.open) * (1 - pp) * Math.sin((i / n) * TAU * wasPetals + t * 1.3 + layer) : 0) + size * (0.012 + 0.08 * acidLook.open) * pp * Math.sin((i / n) * TAU * V.petals + t * 1.3 + layer) + size * 0.12 * reachOut((i / n) * TAU + turn, cx, cy, size); // (and out toward the mouse)
       g.fillStyle = rgba(around(layer * 0.4 + t * 0.02), 0.05);
       for (let c = CONTOURS; c >= 1; c--) {
         const part = (c / CONTOURS) ** 1.4, edge = new Path2D();
@@ -1541,13 +1557,13 @@ window.Effects = (() => {
   }
 
   function rings() { // tracks round the record, one for each part of the sound, each turning at its own speed
-    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), N = V.count, gap = size * 0.021 * Math.min(1, 15 / N), arcs = V.arcs;
+    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), N = V.count, gap = size * 0.021 * Math.min(1, 15 / N), arcs = V.arcs, scratch = scratched(cx); // (turned by hand: see the mouse styles block)
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
     g.lineWidth = size * 0.021 * Math.min(1, 15 / countOf("count")) * 0.46; // (as wide as the tracks are spaced: by the count on its way)
     for (let i = 0, M = countOf("count"), gp = size * 0.021 * Math.min(1, 15 / M), ar = countOf("arcs"), AR = Math.ceil(ar - 1e-6); i < Math.ceil(M - 1e-6); i++) {
-      const share = shareOf(i, M), v = smooth(((i + 0.5) / M) * BANDS * 0.9), at = r + gp * (i + 1), spin = (t * (0.25 + i * 0.06) + 1.6 * acidLook.soft) * (i % 2 ? -1 : 1), long = 0.08 + 1.9 * v + 0.8 * acidLook.open + 1.5 * acidSpectrum(((i + 0.5) / N) * 0.9);
+      const share = shareOf(i, M), v = smooth(((i + 0.5) / M) * BANDS * 0.9), at = r + gp * (i + 1), spin = (t * (0.25 + i * 0.06) + 1.6 * acidLook.soft) * (i % 2 ? -1 : 1) + scratch, long = 0.08 + 1.9 * v + 0.8 * acidLook.open + 1.5 * acidSpectrum(((i + 0.5) / N) * 0.9);
       g.strokeStyle = rgba(colors[i % 3], 0.07 * share);
       g.beginPath();
       g.arc(cx, cy, at, 0, TAU);
@@ -1566,7 +1582,7 @@ window.Effects = (() => {
   }
 
   function mandala() { // the sound folded into a flower round the record, like stained glass
-    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), FOLDS = V.folds, STEPS = 20, span = Math.PI / FOLDS, soft = (at) => (smooth(at - 2.5) + smooth(at) + smooth(at + 2.5)) / 3;
+    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), FOLDS = V.folds, STEPS = 20, span = Math.PI / FOLDS, scratch = scratched(cx), soft = (at) => (smooth(at - 2.5) + smooth(at) + smooth(at + 2.5)) / 3;
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
@@ -1574,7 +1590,7 @@ window.Effects = (() => {
     for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old number of folds while it goes over, then the new one
       const FOLDS = side ? V.folds : vary.was.folds, span = Math.PI / FOLDS, share = side ? p : 1 - p;
       for (let layer = 0; layer < 3; layer++) {
-        const line = new Path2D(), lift = size * (0.05 + layer * 0.07), swing = size * (0.24 - layer * 0.02 + 0.15 * acidLook.soft), tone = around(layer * 0.33 + t * 0.03), spin = (t * (0.07 + layer * 0.03) + 0.35 * acidLook.soft) * (layer % 2 ? -1 : 1);
+        const line = new Path2D(), lift = size * (0.05 + layer * 0.07), swing = size * (0.24 - layer * 0.02 + 0.15 * acidLook.soft), tone = around(layer * 0.33 + t * 0.03), spin = (t * (0.07 + layer * 0.03) + 0.35 * acidLook.soft) * (layer % 2 ? -1 : 1) + scratch; // (and turned by hand: see the mouse styles block)
         for (let i = 0; i <= STEPS; i++) { const u = i / STEPS, a = u * span, far = r + lift + swing * soft(u * BANDS * 0.7 + layer * 8 + 3) + acidPetal(u, layer, size), x = Math.cos(a) * far, y = Math.sin(a) * far; if (i) line.lineTo(x, y); else line.moveTo(x, y); }
         const pane = new Path2D(line);
         pane.lineTo(Math.cos(span) * r, Math.sin(span) * r);
@@ -1602,7 +1618,7 @@ window.Effects = (() => {
     for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old count while it goes over, then the new one
       const n = side ? V.count : vary.was.count, share = side ? p : 1 - p;
       for (let i = 0; i < n * 2; i++) {
-        const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82, true), a = (i / (n * 2)) * TAU + spin, wide = (TAU / (n * 2)) * (0.14 + 0.3 * v + 0.25 * acidBump((b / n) * 0.82, acidLook.glide)), end = r + (reach - r) * (0.14 + 0.86 * v), tone = acidTinge(around((b / n) * 0.9 + t * 0.02), (b / n) * 0.82, true), fade = g.createRadialGradient(cx, cy, r, cx, cy, end);
+        const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82, true), a = (i / (n * 2)) * TAU + spin, wide = (TAU / (n * 2)) * (0.14 + 0.3 * v + 0.25 * acidBump((b / n) * 0.82, acidLook.glide)), end = r + (reach - r) * (0.14 + 0.86 * v + 0.25 * reachOut(a, cx, cy, size) + 0.3 * reachClick(a, cx, cy)), tone = acidTinge(around((b / n) * 0.9 + t * 0.02), (b / n) * 0.82, true), fade = g.createRadialGradient(cx, cy, r, cx, cy, end);
         fade.addColorStop(0, rgba(mix(tone, [255, 255, 255], 0.25), (0.8 + 0.2 * kick) * share));
         fade.addColorStop(0.5, rgba(tone, 0.28 * share));
         fade.addColorStop(1, rgba(tone, 0));
@@ -1894,6 +1910,7 @@ window.Effects = (() => {
     if (seen <= 0 || Math.abs(x) - size > reach || Math.abs(y) - size > reach) return;
     g.save();
     g.translate(x, y);
+    thingHand(o, x, y, size, seen); // where it is, for a click, and its glow when clicked (see the mouse styles block)
     if (o.kind === "hole" || o.kind === "gas") {
       g.rotate(o.lean + sky.bob * o.nod * 0.25);
       const disc = (from) => {
@@ -1933,10 +1950,10 @@ window.Effects = (() => {
   }
 
   /* The ship: every so often it changes course, on a kick, and leans into the turn. When the beat comes back after a break, everything goes. */
-  function newCourse(trip) {
-    sky.course = (sky.course + 1 + Math.floor(rnd(0, HEADINGS.length - 1))) % HEADINGS.length;
-    sky.aimX = HEADINGS[sky.course][0] * trip.steer;
-    sky.aimY = HEADINGS[sky.course][1] * trip.steer;
+  function newCourse(trip, ax, ay) { // ax, ay: a heading asked for (a click: see the mouse styles block), or none for one of its own
+    if (ax === undefined) sky.course = (sky.course + 1 + Math.floor(rnd(0, HEADINGS.length - 1))) % HEADINGS.length;
+    sky.aimX = (ax === undefined ? HEADINGS[sky.course][0] : ax) * trip.steer;
+    sky.aimY = (ay === undefined ? HEADINGS[sky.course][1] : ay) * trip.steer;
     sky.turnAt = sound.t + rnd(12, 32) / Math.max(T.turns, 0.05);
   }
   function steer(trip) {
@@ -1944,8 +1961,8 @@ window.Effects = (() => {
     if (flow.dropHit) { sky.surge = 1; if (T.turns) newCourse(trip); for (let i = 0, n = Math.round(7 * T.shots); i < n; i++) launch(); } // the drop: off it goes, on a new heading
     if (T.turns && ((t > sky.turnAt && kickHit) || t > sky.turnAt + 5)) newCourse(trip);
     const ease = 1 - Math.exp(-dt / 1.5);
-    sky.vx += (sky.aimX - sky.vx) * ease;
-    sky.vy += (sky.aimY - sky.vy) * ease;
+    sky.vx += (sky.aimX + spaceLook(0) - sky.vx) * ease; // (and a look toward the mouse: see the mouse styles block)
+    sky.vy += (sky.aimY + spaceLook(1) - sky.vy) * ease;
     sky.bank += (-sky.vx * 0.5 - sky.bank) * (1 - Math.exp(-dt / 1.1));
     sky.surge *= Math.exp(-dt / 0.7);
     nodAlong();
@@ -3470,6 +3487,7 @@ window.Effects = (() => {
     const trip = TRIPS[name], { t, dt, level, kick, hatHit } = sound;
     steer(trip);
     moves(trip);
+    spaceTap(trip); // a click: a thing out there glows, or the ship turns toward it (see the mouse styles block)
     const f = trip.falls ? falling(trip) : null, speed = (0.9 + 4.2 * level + 5 * kick + 15 * sky.surge) * trip.pace * sky.speedNow, focal = Math.max(w, h) * 0.62, reach = Math.hypot(w, h) * 0.6, size = Math.hypot(w, h) * 1.2;
     sky.x += sky.vx * speed * dt;
     sky.y += sky.vy * speed * dt;
@@ -3508,6 +3526,7 @@ window.Effects = (() => {
     }
     g.setTransform(1, 0, 0, 1, w / 2, h / 2);
     g.rotate(roll);
+    handKept.roll = roll; // (so a click can find the things as they are drawn, turned)
     if (sky.clear > 0) for (const o of sky.things) drawThing(o, focal, camX, camY, reach);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
@@ -3525,8 +3544,8 @@ window.Effects = (() => {
     steer(trip);
     const tone = colors[0];
     if (!sky.pit || Math.abs(sky.pit.tone[0] - tone[0]) + Math.abs(sky.pit.tone[1] - tone[1]) + Math.abs(sky.pit.tone[2] - tone[2]) > 60) sky.pit = { tone: [...tone], art: paintHole(tone), disc: paintDisc(tone) }; // painted again when the colour has really changed (the next record, another version), not for the slow drift: it used to keep the first record's colour for as long as the trip went on
-    const pit = sky.pit, lean = -0.2 + Math.sin(t * 0.06) * 0.06 + sky.bob * 0.1;
-    sky.whirl += dt * (0.5 + 3 * level + 3 * kick + 6 * sky.surge + 6 * acidLook.soft);
+    const pit = sky.pit, lean = -0.2 + Math.sin(t * 0.06) * 0.06 + sky.bob * 0.1 + 0.6 * leanAt(0.5, 0)[0]; // (tilted a little toward the mouse's side)
+    sky.whirl += dt * (0.5 + 3 * level + 3 * kick + 6 * sky.surge + 6 * acidLook.soft) + wellHand(); // (and faster for a moment after a click: see the mouse styles block)
     g.setTransform(1, 0, 0, 1, w / 2, h / 2 + sky.bob * S * 0.015);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
@@ -3638,7 +3657,8 @@ window.Effects = (() => {
     kal.turn += dt * (0.12 + 0.3 * flow.intensity + 1.5 * acidLook.soft) * V.spin;
     const zoom = 1 + 0.12 * kick + 0.15 * flow.build, reach = Math.hypot(w, h) * 0.6, p = eased(kal.over);
     g.save();
-    g.translate(w / 2, h / 2);
+    const { mx, my } = kaleidoHand(); // (leaned toward the mouse: see the mouse styles block)
+    g.translate(mx, my);
     g.scale(zoom, zoom);
     g.globalCompositeOperation = "lighter";
     for (let side = p < 1 ? 0 : 1; side < 2; side++) { // the old number of wedges while the new one comes in, then the new one
@@ -3666,7 +3686,7 @@ window.Effects = (() => {
     const tones = moodColors(3), d = plasmaArt.img.data, warp = (1 + 0.9 * bass + 0.7 * acidLook.soft) * V.scale, tt = t * 0.55, light = 0.6 + 0.5 * kick + 0.2 * flow.drop + 0.12 * acidLook.knob, sw = V.swirl, mid = 3 * warp, bands = V.stripes * Math.PI;
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const u = (i / W) * 6 * warp, v = (j / H) * 6 * warp, round = sw > 0.01 ? sw * Math.sin(Math.atan2(v - mid, u - mid) * 3 + Math.hypot(u - mid, v - mid) * 0.8 - tt * 1.5) : 0; // the swirl winds it round the middle
-      const k = (Math.sin(u + tt) + Math.sin((v + tt) * 0.7) + Math.sin((u + v + tt * 1.3) * 0.5) + Math.sin(Math.hypot(u - 3 - Math.sin(tt * 0.4) * 2, v - 3) + tt) + round + 4 + sw) / (8 + 2 * sw);
+      const k = (plasmaHand(i, j, W, H, tt) + Math.sin(u + tt) + Math.sin((v + tt) * 0.7) + Math.sin((u + v + tt * 1.3) * 0.5) + Math.sin(Math.hypot(u - 3 - Math.sin(tt * 0.4) * 2, v - 3) + tt) + round + 4 + sw) / (8 + 2 * sw);
       const pos = (k * 3 + t * 0.04) % 3, a = Math.floor(pos), f = pos - a, c1 = tones[a % 3], c2 = tones[(a + 1) % 3], shade = light * (0.25 + 0.75 * Math.abs(Math.sin(k * bands)));
       const o = (j * W + i) * 4;
       d[o] = (c1[0] + (c2[0] - c1[0]) * f) * shade;
@@ -3674,6 +3694,7 @@ window.Effects = (() => {
       d[o + 2] = (c1[2] + (c2[2] - c1[2]) * f) * shade;
       d[o + 3] = 255;
     }
+    if (pointer.fresh) pointer.taken = true; // (the ripple runs out from where the click landed: no ring)
     plasmaArt.x.putImageData(plasmaArt.img, 0, 0);
     g.globalCompositeOperation = "source-over";
     g.imageSmoothingEnabled = true;
@@ -3681,7 +3702,7 @@ window.Effects = (() => {
   }
   let deeper = 0;
   function fractal() { // an endless fall into turning shapes, each with smaller ones on its corners; quicker through a build
-    const { t, dt, kick, bass } = sound, tones = moodColors(3), moodSides = mood === "hard" ? 3 : mood === "acid" ? 4 : mood === "euphoric" ? 6 : 5, sides = V.sides || moodSides, pf = overOf("sides"), wasSides = pf < 1 ? vary.was.sides || moodSides : sides, R = Math.hypot(w, h) * 0.62, spin = turned("fractal", 0.18);
+    const { t, dt, kick, bass } = sound, tones = moodColors(3), moodSides = mood === "hard" ? 3 : mood === "acid" ? 4 : mood === "euphoric" ? 6 : 5, sides = V.sides || moodSides, pf = overOf("sides"), wasSides = pf < 1 ? vary.was.sides || moodSides : sides, R = Math.hypot(w, h) * 0.62, spin = turned("fractal", 0.18), { mx: fx, my: fy } = echoMiddle(w / 2, h / 2); // (leaned toward the mouse: see the mouse styles block)
     deeper = (deeper + dt * (0.25 + 0.45 * flow.intensity) * (1 + flow.build)) % 1;
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(2,2,6,0.38)";
@@ -3698,20 +3719,20 @@ window.Effects = (() => {
     for (let k = 0; k < 16; k++) {
       corners = wasSides !== sides ? -1 : sides; // (the ring itself: on its way between the two shapes while they go over)
       const depth = (k + deeper) / 16, r = R * depth ** 2.3 * (1 + 0.06 * kick + 0.08 * acidLook.soft * depth), turn = spin + depth * (4.2 + 2.5 * acidLook.soft) + Math.sin(t * 0.3) * 0.5, tone = tones[k % 3], alpha = 0.2 + 0.55 * depth;
-      shape(w / 2, h / 2, r, turn);
+      shape(fx, fy, r, turn);
       g.strokeStyle = rgba(tone, alpha);
       g.lineWidth = Math.max(1, r * 0.01 * (1 + bass + 1.2 * acidLook.soft));
       g.stroke();
       if (r > R * 0.05) for (let i = 0, n = sides + (wasSides !== sides ? wasSides : 0); i < n; i++) { // the same shape again on each corner, smaller (on the way from one shape to another, on the corners of both)
         const old = i >= sides, a = turn + ((old ? i - sides : i) / (old ? wasSides : sides)) * TAU;
         corners = old ? wasSides : sides;
-        shape(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r, r * V.child, -turn * 1.5);
+        shape(fx + Math.cos(a) * r, fy + Math.sin(a) * r, r * V.child, -turn * 1.5);
         g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.3), alpha * 0.6 * (wasSides === sides ? 1 : old ? 1 - pf : pf));
         g.lineWidth = Math.max(1, r * 0.005);
         g.stroke();
       }
     }
-    softBlob(g, w / 2, h / 2, R * 0.08 * (1 + kick), mix(tones[0], [255, 255, 255], 0.5), 0.6);
+    softBlob(g, fx, fy, R * 0.08 * (1 + kick), mix(tones[0], [255, 255, 255], 0.5), 0.6);
   }
 
   /* ---------- Fractals proper: a Julia set, Newton's method and the Mandelbrot set. Each is a sum worked out for every dot of the picture, so the graphics card does it
@@ -4070,7 +4091,8 @@ window.Effects = (() => {
           if (touchy(spare, p.k) > 3 * p.k + 15) continue; // thrown about by the least change of c
           if (size >= 6 && size <= 45) good.push(p); else if (size >= 3 && size <= 150) fair.push(p);
         }
-        const from = good.length ? good : fair;
+        const from = good.length ? good : fair, want = steerWant();
+        if (want && from.length) { let best = from[0], most = 1e9; for (const p of from) { const [sx, sy] = over(p.x - cx, p.y - cy, vx, vy), d = Math.hypot(sx - want[0], sy - want[1]); if (d < most) { most = d; best = p; } } steerUsed(); return best; } // a place clicked: the spiral nearest it is the next one (see the mouse styles block)
         if (from.length) return from[Math.floor(Math.random() * from.length)];
         return { x: q.zx, y: q.zy, k: Math.min(JULIA_REACH, Math.round(Math.log(12) / Math.log(q.r))) }; // none: straight down the middle of this spiral, which comes round the same every step
       }
@@ -4103,7 +4125,7 @@ window.Effects = (() => {
         J.anchor = 0; J.k = 0; J.jx = 1; J.jy = 0; J.a = 0; J.pen = 0; J.soft = 0; J.fl = null;
       }
 
-      function step(sound, flow, aspect, byHand, spin) {
+      function step(sound, flow, aspect, byHand, spin, lean = LEAN_NONE) { // lean: how far the view is drawn toward the mouse (see the mouse styles block)
         const dt = Math.min(Math.max(sound.dt, 0), 0.1), kick = sound.kick, calm = flow.calm, wideSpan = U.wide[n] * Math.min(1.6, Math.max(1, 0.9 / aspect));
         if (!J.clock) J.ls = Math.log(wideSpan);
         J.clock += dt;
@@ -4159,7 +4181,7 @@ window.Effects = (() => {
 
         // ---- the numbers for this frame ----
         J.pulse += (kick - J.pulse) * (1 - Math.exp(-dt / 0.05));
-        const s = Math.exp(J.ls) * (1 - U.breath * J.pulse), drift = [0.1 * Math.sin(J.clock * 0.11), 0.08 * Math.sin(J.clock * 0.17 + 1)];
+        const s = Math.exp(J.ls) * (1 - U.breath * J.pulse), drift = [0.1 * Math.sin(J.clock * 0.11) + lean[0], 0.08 * Math.sin(J.clock * 0.17 + 1) + lean[1]];
         const Vx = s * Math.cos(J.turn), Vy = s * Math.sin(J.turn), [vx, vy] = over(Vx, Vy, J.jx, J.jy), [sx, sy] = over(J.ox + drift[0] * Vx - drift[1] * Vy, J.oy + drift[0] * Vy + drift[1] * Vx, J.jx, J.jy);
         const orbit = J.sent; // what the view is measured from: a target's own path, or the resting place, or the middle of the whole set
         if (J.anchor === 2) orbit.set(J.orbit.subarray(0, J.k * 2 + 2)); else { orbit[0] = J.anchor ? q.zx : 0; orbit[1] = J.anchor ? q.zy : 0; }
@@ -4221,7 +4243,7 @@ window.Effects = (() => {
     trippyOn();
     if (!juliaTrip || juliaTrip.n !== n) { juliaWas = was !== n && juliaTrip && juliaTrip.n === was ? juliaTrip : null; juliaTrip = juliaWays.travel(n); } // another power is another set: its journey starts from the whole of it (and the old one's goes on under it while it goes over)
     if (was === n) juliaWas = null;
-    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1), O = juliaWas ? juliaWas.step(sound, flow, w / h, hand, V.spin ?? 1) : null, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" || mood === "nightcore" ? 0.5 : 1; // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
+    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1, steerTap(w / h)), O = juliaWas ? juliaWas.step(sound, flow, w / h, hand, V.spin ?? 1) : null, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" || mood === "nightcore" ? 0.5 : 1; // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
     let pale = 0; // how much of the picture lies right on the set's edge, from forty dots worked out here. Where that is most of it (a shape that is a dust of fine branches) the edge glows less, or the whole picture goes pale
     for (let i = 0; i < 40; i++) { probe((((i % 8) - 3.5) / 4) * Math.min(w / h, 1.6), ((Math.floor(i / 8) - 2) / 2.5) * 0.9, juliaSeen); pale += juliaSeen.edge / 40; }
     juliaPale += (pale - juliaPale) * (1 - Math.exp(-Math.min(0.1, Math.max(0, sound.dt)) / 0.7));
@@ -4345,7 +4367,7 @@ window.Effects = (() => {
               T.held += move;
               if (T.held >= (A.i > 4 ? 0.55 * STAY : STAY) && flow.build < 0.3 && !T.fade) { // (the two spirals are thin lines on black: a shorter stay) // time to go: one of this place's two copies, turn about. From here L is the true depth again, which a round or more of "the same picture a size up" had left behind
                 const s = (T.L - wrapL) / A.level;
-                T.B = copyPath(A.i, (T.laps + A.i) % 2); T.ahead = Math.floor(s) * A.per; T.L = wrapL + (s - Math.floor(s)) * A.level; T.phase = "back"; T.dir = 1;
+                T.B = mandelSide(copyPath(A.i, 0), copyPath(A.i, 1), (T.laps + A.i) % 2); T.ahead = Math.floor(s) * A.per; T.L = wrapL + (s - Math.floor(s)) * A.level; T.phase = "back"; T.dir = 1;
                 T.Lturn = Math.log(1.5 / ((1.3 * T.B.far) / Math.min(1, aspect))); // back out until the copy is in the picture
               }
             }
@@ -4436,6 +4458,8 @@ window.Effects = (() => {
     if (!mandelTrip) mandelTrip = mandelWays.makeTrip(Math.floor(rnd(0, DIVES.length)));
     const draws = mandelTrip.step(sound, flow, w / h, turned("mandel", 0.04), hand), old = draws.find((d) => d.old);
     if (old && old.fresh) mandelWas = copyOf(mandelWas, g.canvas); // the picture as it stands, taken before the new one is drawn over it
+    steerTap(w / h);
+    for (const d of draws) if (!d.old) leanDraw(d); // slid toward the mouse (see the mouse styles block)
     for (const d of draws) {
       if (d.old) { g.globalAlpha = d.alpha; g.drawImage(mandelWas, 0, 0, w, h); g.globalAlpha = 1; }
       else if (!onCard("mandel", MANDEL_SUM, mandelWays.told(d, light), d.alpha)) byHand(mandelWays.sumOf(d), light, undefined, d.alpha);
@@ -4584,7 +4608,7 @@ window.Effects = (() => {
       let best = null;
       for (let ray = 0; ray < arms; ray++) {
         const b0 = bead(P, cam, ray, 6), depth = Math.max(4, Math.min(160, 6 + Math.round(Math.log(abs(b0) / (want * size)) / per)));
-        const b = bead(P, cam, ray, depth), at = add(div(b, J.S), J.off), edge = Math.max(Math.abs(at[0]) / (0.8 * aspect), Math.abs(at[1]) / 0.8), fit = edge + Math.random() * 0.25; // edge: how near the picture's edge it is: under 1 is well inside. A little chance, so it is not always the same arm
+        const b = bead(P, cam, ray, depth), at = add(div(b, J.S), J.off), edge = Math.max(Math.abs(at[0]) / (0.8 * aspect), Math.abs(at[1]) / 0.8), fit = steerFit(at, edge); // edge: how near the picture's edge it is: under 1 is well inside. A little chance, so it is not always the same arm
         if (!best || fit < best.fit) best = { ray, depth, fit, edge, at };
       }
       return best;
@@ -4641,9 +4665,10 @@ window.Effects = (() => {
         const m = J.world ? P.mu1 : P.mu, edge = T0 * abs(m);
         for (let i = 0; i < 400 && abs(J.S) < edge; i++) { J.S = div(J.S, m); J.q = mul(J.q, m); J.k = mul(J.k, mul(m, m)); J.ahead = (J.ahead + 1) % 32; } // the wrap: a step's worth further in is the same picture, so it never runs out of numbers (after a long sleep it wraps many times at once)
         const fade = Math.exp(-dt / 1.5); J.q = scale(J.q, fade); J.k = scale(J.k, fade); // the last of the bend eases out
-        J.wait -= dt * (quiet ? 0.3 : 1);
+        J.wait = steerSoon(J.wait - dt * (quiet ? 0.3 : 1)); // (a place clicked: it sets off for it as soon as it can, see the mouse styles block)
         if ((J.wait < 0 || (flow.part === "build" && flow.build < 0.6)) && abs(J.S) < T0 * 1.3 && abs(J.extra) < 0.02 && J.plunge < 0.05) { // time to go somewhere: at once when a build begins, so the bead is reached as it ends
           const aim = pickAim(J, P, aspect);
+          if (aim.edge < 1.1) steerUsed(); // (gone for: a place clicked is used once)
           if (aim.edge < 1.1) { const to = bead(P, cam, aim.ray, aim.depth), far = inside(P, cam, to, beadSteps(J.world, aim.depth)); J.aim = { ray: aim.ray, depth: aim.depth, v: to.v, first: to.slice(0, 2), drift: [0, 0], slope: null, tied: Math.log(T0 / abs(J.S)) / P.rate, from: aim.at, gone: 0, pan: 0.45 * Math.log((abs(far.d1) * abs(J.S)) / SWAP) }; J.off = aim.at; J.extra = [0, 0]; b = to; }
           else J.wait = 1;
         }
@@ -4669,14 +4694,15 @@ window.Effects = (() => {
   function newton() { // Newton's method hunting the roots of z^n = 1: down a well of rings with a color for each root, over to the chains of beads where their lands meet, into a bead, and on from inside it, for as long as the song lasts
     trippyOn();
     if (!newtonTrip) newtonTrip = newtonWays.newJourney(V.roots || 3);
+    steerTap(w / h); // a click: where to go next (see the mouse styles block)
     const R = newtonWays.frame(newtonTrip, sound.dt, sound, { twist: V.twist || 0, spin: V.spin ?? 1, roots: V.roots || 3 }, w / h), hand = card.off || card.lost || card.made.newton === null;
     const light = Math.min(0.9, 0.6 + 0.2 * sound.kick * trippy.kickLight + 0.2 * flow.drop); // (as the journey has it, with the kick's share turned down to pay for the trip)
     const world = (F) => { // one world over the whole picture, or over as much of it as the canvas is clipped to
       const n = F.P.n, glow = (V.glow ?? 1) * (F.world ? 2 / (n - 1) : 1), wide = (R.inner ? 900 : 1280) * (n > 4 ? 0.75 : n > 3 ? 0.875 : 1); // a bead world with more roots is all fine lines: less glow, or it goes pale, and fewer dots, which it has no use for and which cost the most there. Two pictures at once, while a ring opens, are drawn smaller too
-      if (onCard("newton", NEWTON_SUM, { light: [1, [light]], glow: [1, [glow]], view: [2, F.view], mid: [2, F.mid], lean: [2, F.P.lean], bendQ: [2, F.q], bendK: [2, F.k], roots: [1, [n]], rate: [1, [F.P.rate]], turn: [1, [F.P.bend]], ahead: [1, [F.ahead]], world: [1, [F.world]] }, 1, wide)) return;
+      if (onCard("newton", NEWTON_SUM, { light: [1, [light]], glow: [1, [glow]], view: [2, F.view], mid: [2, leanView(F.mid[0], F.mid[1], F.view[0], F.view[1])], lean: [2, F.P.lean], bendQ: [2, F.q], bendK: [2, F.k], roots: [1, [n]], rate: [1, [F.P.rate]], turn: [1, [F.P.bend]], ahead: [1, [F.ahead]], world: [1, [F.world]] }, 1, wide)) return;
       const cam = { world: F.world, q: F.q, k: F.k, tall: Math.hypot(F.view[0], F.view[1]) }, out = {};
       byHand((u, v, dot) => {
-        newtonWays.trace(F.P, cam, F.mid[0] + u * F.view[0] - v * F.view[1], F.mid[1] + u * F.view[1] + v * F.view[0], out, 48);
+        newtonWays.trace(F.P, cam, leanMid[0] + u * F.view[0] - v * F.view[1], leanMid[1] + u * F.view[1] + v * F.view[0], out, 48); // (the middle as slid toward the mouse, worked out for the card just above)
         newtonWays.shadeOf(out.nu, out.ok ? Math.min(1, (out.grad * 0.45) / dot.half) : 1, glow, out); // (its dots are big and are smoothed when the small picture is drawn large, so bands half as wide still read)
         dot.x = out.root / F.P.n + (out.nu + F.ahead) * 0.03125 + dot.t * 0.03; dot.shade = out.shade; dot.edge = out.edge;
       }, light);
@@ -4729,6 +4755,7 @@ window.Effects = (() => {
       g.fill();
     }
     if (acidLook.hit && bubbles.length < 70) { const f = flow.acidFilter / Math.max(0.01, flow.acidOn), x = w * (0.08 + 0.84 * f); for (let k = 0; k < 2; k++) bubbles.push({ x: x + rnd(-0.02, 0.02) * w, y: h * 0.86, r: rnd(0.006, 0.014) * Math.min(w, h) * (0.8 + 0.8 * f), v: rnd(0.16, 0.3) * h, phase: rnd(0, TAU) }); } // a 303: each note puffs bubbles from the seabed, further along the more open its filter
+    oceanTap(bubbles); // a click lets a dozen bubbles go from where it landed
     if (bubbles.length < 90) for (let n = (0.5 + 2 * flow.intensity) * dt * 30 + (flow.dropHit ? 45 : 0); n > Math.random(); n--) bubbles.push({ x: rnd(0, w), y: h + 10, r: rnd(0.003, 0.012) * Math.min(w, h), v: rnd(0.08, 0.2) * h, phase: rnd(0, TAU) });
     g.globalCompositeOperation = "lighter";
     for (let i = bubbles.length - 1; i >= 0; i--) {
@@ -4740,7 +4767,8 @@ window.Effects = (() => {
       const br = b.r * (1 + 0.9 * acidLook.open); // (a 303: the bubbles swell as its filter opens)
       g.lineWidth = Math.max(1, br * 0.18);
       g.beginPath();
-      g.arc(b.x, b.y, br, 0, TAU);
+      const at = oceanAt(b.x, b.y); // (aside from the mouse: see the mouse styles block)
+      g.arc(at[0], at[1], br, 0, TAU);
       g.stroke();
     }
     if (hatHit) for (let i = 0; i < 3; i++) glint(rnd(0, w), rnd(0.2, 0.8) * h, Math.min(w, h) * 0.02, 0.7); // plankton catching the light
@@ -4866,10 +4894,10 @@ window.Effects = (() => {
     g.fillRect(0, horizon, w, h - horizon);
     roadAt = (roadAt + dt * (0.7 + 0.9 * flow.intensity)) % 1;
     g.globalCompositeOperation = "lighter";
-    const grid = mix(tones[2], [255, 60, 200], 0.4), lit = 0.4 + 0.6 * kick + 0.3 * acidLook.soft, bend = V.curve * w * 0.16 * Math.sin(turned("road", 0.12, 1)); // where the road goes off to, far ahead
+    const grid = mix(tones[2], [255, 60, 200], 0.4), lit = 0.4 + 0.6 * kick + 0.3 * acidLook.soft, bend = V.curve * w * 0.16 * Math.sin(turned("road", 0.12, 1)) + roadHand(); // where the road goes off to, far ahead
     for (let k = 0; k < 16; k++) { const z = (k + roadAt) / 16, y = horizon + (h - horizon) * z ** 2.5; g.strokeStyle = rgba(grid, lit * z); g.lineWidth = Math.max(1, 3 * z); g.beginPath(); g.moveTo(0, y + acidWave(0, z, k)); if (acidLook.on > 0.01) for (let x = w / 32; x < w + 1; x += w / 32) g.lineTo(x, y + acidWave(x, z, k)); else g.lineTo(w, y); g.stroke(); } // (a 303: the grid's lines roll in waves, tighter as its filter opens: see acidWave)
     g.lineWidth = Math.max(1, h / 700);
-    for (let i = -12; i <= 12; i++) { const far = w / 2 + i * w * 0.02 + bend, near = w / 2 + i * w * 0.25; g.strokeStyle = rgba(grid, lit * 0.7); g.beginPath(); g.moveTo(near, h); g.quadraticCurveTo((near + far) / 2 + bend * 0.1, (h + horizon) / 2, far, horizon); g.stroke(); }
+    for (let i = -12; i <= 12; i++) { const far = w / 2 + i * w * 0.02 + bend, near = w / 2 + i * w * 0.25 + handKept.lane; g.strokeStyle = rgba(grid, lit * 0.7); g.beginPath(); g.moveTo(near, h); g.quadraticCurveTo((near + far) / 2 + bend * 0.1, (h + horizon) / 2, far, horizon); g.stroke(); }
   }
   function aurora() { // the northern lights over dark mountains, their curtains rising with the bass and lit by the bands
     const { t, kick, bass, bands } = sound, tones = mood ? moodColors(3) : [[60, 255, 160], [120, 140, 255], [255, 90, 200]];
@@ -4880,10 +4908,11 @@ window.Effects = (() => {
     g.fillStyle = sky;
     g.fillRect(0, 0, w, h);
     skyStars(120, h * 0.75, 5);
+    if (pointer.fresh) pointer.taken = true; // a click's ripple runs along the curtains from where it landed (see the mouse styles block): no ring
     g.globalCompositeOperation = "lighter";
     const pl = overOf("lake"), lake = pl < 1 ? (V.lake ? pl : 1 - pl) : V.lake ? 1 : 0, N = countOf("curtains"); // (how much lake there is, and how many curtains, while they go over)
     for (let band = 0; band < Math.ceil(N - 1e-6); band++) {
-      const tone = tones[band % 3], share = shareOf(band, N), base = h * (0.34 + band * (0.24 / N) - 0.05 * lake), top = (u) => base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
+      const tone = tones[band % 3], share = shareOf(band, N), base = h * (0.34 + band * (0.24 / N) - 0.05 * lake), top = (u) => auroraLift(u) + base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
       const red = clamp((tone[0] / (tone[0] + tone[1] + tone[2] + 1) - 0.5) / 0.3); // how much this curtain is a saturated red (the hard mood's): such a curtain hardly brightens on the kick, as a big red area flashing on every kick is a red flash, the kind that can hurt
       const curtain = g.createLinearGradient(0, base - h * 0.3, 0, base + h * 0.2);
       curtain.addColorStop(0, rgba(tone, 0));
@@ -4958,7 +4987,7 @@ window.Effects = (() => {
   }
   const tubeCorner = (n, j) => { const side = TAU / n, at = ((j / 24) * TAU) % side; return Math.cos(Math.PI / n) / Math.cos(at - side / 2); }; // how far out the j-th of 24 points round comes on a shape of n sides (1 at its corners)
   function tubeFx() { // falling down a tube of light that never ends: it bends one way and another and we lean into the bends, its rings swell with the sound from the bass by us to the highs far down, and every kick sends a ring of light on ahead
-    const { t, dt, kick, kickHit, hatHit, bass } = sound, tones = moodColors(3), pm = overOf("sides"), wasM = pm < 1 ? vary.was.sides : V.sides, shaping = wasM !== V.sides, MP = shaping ? 24 : V.sides, M = V.sides, N = TUBE_RINGS, f = Math.min(w, h) * 0.95, cx = w / 2, cy = h / 2;
+    const { t, dt, kick, kickHit, hatHit, bass } = sound, tones = moodColors(3), pm = overOf("sides"), wasM = pm < 1 ? vary.was.sides : V.sides, shaping = wasM !== V.sides, MP = shaping ? 24 : V.sides, M = V.sides, N = TUBE_RINGS, f = Math.min(w, h) * 0.95, cx = worldMiddle(w / 2, h / 2).mx, cy = handKept.my; // (leaned toward the mouse: see the mouse styles block)
     tube.s += dt * (2.2 + 3.4 * flow.intensity + 2.6 * kick + 3 * flow.drop);
     tubeAt(tube.s, tubeHere);
     tubeAt(tube.s + 5, tubeAhead);
@@ -5171,6 +5200,7 @@ window.Effects = (() => {
       : layout === "ring" ? Array.from({ length: 5 }, (_, k) => { const a = HEAD.ring + (k * TAU) / 5; return { x: Math.sin(a) * 2.6, y: -0.3, z: 6.4 - Math.cos(a) * 2.6, yaw: -a }; }) // round and round, each looking out
       : [{ x: 0, y: -0.42, z: 3.5, yaw: 0.42 }]; // turned a little, so the face shows in the slices
     const heads = placed(V.layout), pl = overOf("layout");
+    headsHand();
     heads.forEach((one, n) => (one.n = n)); // each keeps its own number, so its colors, its sway and its glasses stay its own as they pass one another
     if (pl < 1 && vary.was.layout !== V.layout) { // on the way from one way of standing to another, each head from its old place to its new one; one more grows in, or one fewer shrinks away
       const was = placed(vary.was.layout);
@@ -5185,7 +5215,7 @@ window.Effects = (() => {
     g.lineCap = g.lineJoin = "round";
     const tips = [], over = vary.over.glasses, wearing = (kind, n) => (kind === "mixed" ? WORN[n % WORN.length] : kind) || "";
     heads.forEach((one) => {
-      const k = one.n, s = one.s ?? 1, sway = sways * (0.55 * Math.sin(t * 0.23 + k * 1.7) + 0.18 * Math.sin(t * 0.57 + k)), m = turner(one.yaw + sway + HEAD.turn, -(0.06 + sky.bob * 0.55 * T.nod) * (1 + flow.drop * 0.8) + 0.05 * Math.sin(t * 0.3 + k), 0.07 * Math.sin(t * 0.17 + k * 2));
+      const k = one.n, s = one.s ?? 1, sway = sways * (0.55 * Math.sin(t * 0.23 + k * 1.7) + 0.18 * Math.sin(t * 0.57 + k)), m = turner(one.yaw + sway + HEAD.turn + headLook(one, f, 0), -(0.06 + sky.bob * 0.55 * T.nod) * (1 + flow.drop * 0.8) + 0.05 * Math.sin(t * 0.3 + k) + headLook(one, f, 1), 0.07 * Math.sin(t * 0.17 + k * 2)); // (and toward the mouse, and a nod to a click: see the mouse styles block)
       const look = (p, drop) => { // a point of the head as seen, and whether that side of the head faces us
         const x = p.at[0] * s, y = (p.at[1] - drop) * s, z = p.at[2] * s, X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z;
         return [cx + (X / Z) * f, cy - (Y / Z) * f, Z, (m[0] * p.out[0] + m[2] * p.out[1]) * X + (m[3] * p.out[0] + m[5] * p.out[1]) * Y + (m[6] * p.out[0] + m[8] * p.out[1]) * Z < 0];
@@ -5256,8 +5286,8 @@ window.Effects = (() => {
   const SPHERE = { lat: 22, lon: 40, yaw: 0 }, spherePts = new Float32Array(22 * 40 * 6);
   function sphereFx() { // a ball of points that the sound pushes out: the bass round its middle and the highs at its poles. It wobbles, turns, and grows on every kick
     const { t, dt, kick, bass, hatHit } = sound, tones = moodColors(3), pk = overOf("look"), LAT = SPHERE.lat, LON = SPHERE.lon, f = Math.min(w, h) * 1.05, Z = 3.6, cx = w / 2, cy = h / 2, grow = 1 + 0.1 * kick + 0.08 * flow.drop;
-    SPHERE.yaw += dt * (0.25 + 0.5 * flow.intensity) * V.spin;
-    const m = turner(SPHERE.yaw, 0.4 + 0.25 * Math.sin(t * 0.1), 0.12 * Math.sin(t * 0.13)), P = spherePts;
+    SPHERE.yaw += dt * (0.25 + 0.5 * flow.intensity) * V.spin + sphereHand(); // (and a spin from a click: see the mouse styles block)
+    const m = turner(SPHERE.yaw + 2.4 * leanAt(0.5, 0)[0], 0.4 + 0.25 * Math.sin(t * 0.1) + 1.4 * leanAt(0.5, 0)[1], 0.12 * Math.sin(t * 0.13)), P = spherePts; // (it turns its face a little toward the mouse)
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(3,3,10,0.5)";
     g.fillRect(0, 0, w, h);
@@ -5313,7 +5343,7 @@ window.Effects = (() => {
   const field = [];
   const newSolid = (z, kinds) => ({ x: rnd(-7, 7), y: rnd(-4.2, 4.2), z, ax: rnd(0, TAU), ay: rnd(0, TAU), sx: rnd(-1.2, 1.2), sy: rnd(-1.2, 1.2), size: rnd(0.35, 0.85), kind: kinds[Math.floor(rnd(0, kinds.length))], tone: Math.floor(rnd(0, 3)), band: Math.floor(rnd(0, BANDS * 0.85)) });
   function solidsFx() { // shapes floating through space towards us, turning, each as big as its part of the sound; or one great nest of them, one inside another; or a few going round like the parts of an atom
-    const { t, dt, kick, hatHit } = sound, tones = moodColors(3), all = solids(), kinds = all[V.forms] ? [V.forms] : Object.keys(all), f = Math.min(w, h), cx = w / 2, cy = h / 2, near = [];
+    const { t, dt, kick, hatHit } = sound, tones = moodColors(3), all = solids(), kinds = all[V.forms] ? [V.forms] : Object.keys(all), f = Math.min(w, h), { mx: cx, my: cy } = worldMiddle(w / 2, h / 2), near = []; // (leaned toward the mouse: see the mouse styles block)
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(3,3,10,0.45)";
     g.fillRect(0, 0, w, h);
@@ -5363,7 +5393,7 @@ window.Effects = (() => {
   function cityFx() { // flying low down an avenue of towers made of light, each as tall as its part of the sound: the bass along the road and the highs further out, and a moon at the end of it
     const { t, dt, kick, hatHit, bass } = sound, tones = moodColors(3), f = Math.min(w, h) * 0.95, cx = w / 2, cy = h * 0.46, pg = overOf("look"), glass = pg < 1 ? (V.look === "glass" ? pg : vary.was.look === "glass" ? 1 - pg : 0) : V.look === "glass" ? 1 : 0, tops = []; // (how much glass, while it goes over)
     CITY.z += dt * (3 + 5 * flow.intensity + 4 * kick + 5 * flow.drop);
-    const camX = Math.sin(t * 0.11) * Math.min(1.3, 0.9 * V.weave), camY = 1.9 + 0.45 * Math.sin(t * 0.17) + 0.8 * flow.build, roll = -Math.cos(t * 0.11) * 0.1 * V.weave, cr = Math.cos(roll), sr = Math.sin(roll);
+    const camX = Math.sin(t * 0.11) * Math.min(1.3, 0.9 * V.weave) + cityLean(), camY = 1.9 + 0.45 * Math.sin(t * 0.17) + 0.8 * flow.build, roll = -Math.cos(t * 0.11) * 0.1 * V.weave, cr = Math.cos(roll), sr = Math.sin(roll);
     const see = (x, y, z) => { const X = x - camX, Y = y - camY; return [cx + ((X * cr + Y * sr) / z) * f, cy - ((Y * cr - X * sr) / z) * f]; };
     const sky = g.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, "#04020c");
@@ -5454,7 +5484,7 @@ window.Effects = (() => {
   /* ---------- Recipes: effects anyone can write, as data. A recipe is a few layers, each drawing some number of shapes, and where each one goes, how big it is, which way it turns
      and what color it is are little formulas over the time, the sound and which one it is. They're read by this file's own small reader, which knows numbers, the names and
      functions below, + - * / % ^, < and >, and brackets, and nothing else: a recipe can't run anything. ---------- */
-  const RECIPE_VARS = new Set(["t", "i", "n", "u", "bass", "mid", "treble", "kick", "hat", "level", "intensity", "build", "drop", "calm", "lead", "tune", "beat", "bpm", "aspect"]);
+  const RECIPE_VARS = new Set(["t", "i", "n", "u", "bass", "mid", "treble", "kick", "hat", "level", "intensity", "build", "drop", "calm", "lead", "tune", "beat", "bpm", "aspect", "mx", "my", "mnear"]);
   const hashOf = (k) => { const s = Math.sin(k * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
   const RECIPE_FUNCS = {
     sin: Math.sin, cos: Math.cos, tan: Math.tan, abs: Math.abs, sqrt: (x) => Math.sqrt(Math.max(0, x)), floor: Math.floor, ceil: Math.ceil, round: Math.round, sign: Math.sign, exp: (x) => Math.exp(Math.min(50, x)), log: (x) => Math.log(Math.max(1e-9, x)),
@@ -5554,6 +5584,7 @@ window.Effects = (() => {
     const r = recipeBook.get(name), { t, dt } = sound, env = recipeEnv, pace = dt * 60, size = Math.min(w, h);
     if (!r) return backdrop();
     Object.assign(env, { t, bass: sound.bass, mid: sound.mid, treble: sound.treble, kick: sound.kick, hat: sound.hat, level: sound.level, intensity: flow.intensity, build: flow.build, drop: flow.drop, calm: flow.calm, lead: flow.lead, tune: flow.tune, bpm: flow.bpm || 120, aspect: w / h, beat: clamp(((flow.clock - flow.kickAt) * (flow.bpm || 120)) / 60), i: 0, n: 1, u: 0 });
+    recipeHand(env); // where the mouse is (see the mouse styles block)
     if (r.echo) echo(1 + num(r.zoom(env), 0) * pace, num(r.turn(env), 0) * pace, r.fade ** pace, 0, 0, undefined, 0.4);
     else {
       g.globalCompositeOperation = "source-over";
@@ -6051,7 +6082,7 @@ window.Effects = (() => {
       if (c > opens + 0.03) b.open = 1; else if (c < opens - 0.03) b.open = 0;
       const peek = c > 0.1 && Math.sin(F.peek + k * 2.1) > 0.88; // in the quiet one peeks now and then: about two and a half seconds in every sixteen
       let lid = (b.open || peek ? 1 + 0.12 * F.lit : 0) * awake;
-      b.blink -= dt; // a blink takes a third of a second and comes every few seconds, each being in its own time
+      b.blink -= dt; if (facesBlink(b, age)) b.blink = -0.001; // a blink takes a third of a second and comes every few seconds, each being in its own time
       if (flow.dropHit) b.blink = rnd(1.5, 4); // nobody blinks as the drop lands
       if (b.blink < -0.34) b.blink = rnd(2.5, 7); else if (b.blink < 0) lid *= 1 - Math.sin((Math.PI * -b.blink) / 0.34) ** 2;
       b.lid += (lid - b.lid) * towards(lid > b.lid ? 5 : 10);
@@ -6067,7 +6098,7 @@ window.Effects = (() => {
       D[o] = b.round; D[o + 1] = b.browLid; D[o + 2] = b.wingLid; D[o + 3] = (0.5 * b.tilt + 0.2) * Math.min(1, b.browLid) - 0.16 * (1 - Math.min(1, b.browLid)); // (the brow pair's own tilt: it droops as it shuts, like the first pair)
     }
     for (let l = 0; l < 2; l++) { const f = (F.z + l * 0.5) % 1; told.flowIs[1][l * 2] = 0.55 * Math.exp(FACES_LEVEL * (f - 0.5)); told.flowIs[1][l * 2 + 1] = Math.sin(Math.PI * f) ** 2; } // two layers of the stuff, one fading in small as the other fades out big, so the travel has no seam
-    told.gaze[1][0] = F.gx; told.gaze[1][1] = F.gy; told.gaze[1][2] = 0.42 + 0.16 * F.lit - 0.1 * F.swell; // the dark middle: wide on the drop, a little smaller on each kick
+    told.gaze[1][0] = facesGaze(F.gx, 0); told.gaze[1][1] = facesGaze(F.gy, 1); told.gaze[1][2] = 0.42 + 0.16 * F.lit - 0.1 * F.swell; // the dark middle: wide on the drop, a little smaller on each kick
     told.clear[1][0] = c; told.melt[1][0] = 0.03 + 0.4 * (1 - ramp(0, 0.55, c)); told.mid[1][0] = mid; told.flowAt[1][0] = F.flowAt; told.swell[1][0] = F.swell * narrow; told.bandsN[1][0] = V.bands ?? 5; told.crawl[1][0] = F.crawl;
     told.rush[1][0] = 0.6 * Math.max(F.lit * F.lit, Math.min(1, 6.75 * plunge));
     told.light[1][0] = 0.78 + 0.1 * F.swell * narrow + 0.14 * F.lit; // the kick through the same soft follower as the iris: a breath of light on the beat, a twentieth or so, not a flash; and less of it in an upright picture, where a face fills more of what there is
@@ -6187,6 +6218,7 @@ window.Effects = (() => {
     uniform vec4 grow;            // how bent, the bend's two clocks, and the kick's push outwards
     uniform vec3 hue;             // where the colors are, how fast they go round with depth, and how much with the pattern
     uniform vec4 veil;            // a second layer over the first: how strong, how many times finer, its own drift, its turn
+    uniform vec2 hand;            // how far the pattern's middle is drawn toward the mouse and a place clicked (see the mouse styles block)
     const float U0 = -1.0;        // the rings stretch and tighten about this depth, a third of the way out, so a change of spacing doesn't sweep the whole picture
     vec3 form(vec2 p, vec2 bendBy, float scale, float drift) {   // one layer: x is the lines' glow, y the cells' light, z how far round the colors
       float r = max(length(p), 1e-5), px = 2.0 / (size.y * r);
@@ -6214,7 +6246,7 @@ window.Effects = (() => {
       return vec3(edge, cell, hue.x + hue.y * u + hue.z * s / whole);
     }
     void main() {
-      vec2 p0 = spot(), p = mul(p0, turn);
+      vec2 p0 = spot() - hand, p = mul(p0, turn);
       vec2 bendBy = grow.x * vec2(sin(1.9 * p0.x + 1.3 * p0.y + grow.y) + 0.6 * sin(2.3 * p0.y - 1.1 * p0.x + 1.7 * grow.z + 2.0) + 0.4 * sin(2.9 * p0.x - 0.7 * p0.y - 0.6 * grow.y + 4.0),
                                   sin(1.6 * p0.y - 1.4 * p0.x + grow.z + 1.0) + 0.6 * sin(2.6 * p0.x + 0.9 * p0.y - 1.3 * grow.y + 3.0) + 0.4 * sin(3.1 * p0.y + 0.5 * p0.x + 0.7 * grow.z + 5.0));   // bent a little, slowly, by where the dot is in the picture, so it looks grown and not ruled
       vec3 one = form(p, bendBy, 1.0, 0.0);
@@ -6236,7 +6268,7 @@ window.Effects = (() => {
   const formsKept = { started: false, stepped: -1, pattern: "tunnel", before: "", dial: "", since: 0, sinceDrop: 9, tight: 0, loose: 0, burst: 0, // what it keeps between frames: which pattern, the one before it, what the version's dial last said, how long this pattern has been showing, and how wound up the song has it
     rings: [10, 0], arms: [0, 6], fine: 10, fine4: [10, 6, 12, 12], lit: [1, 0, 0, 0], level: 0, line: 0.3, cell: 0.55, roll: 0, way: 1, bend: 0.5, veil: 0, spin: 0, hue: 0, swell: 0, lift: 0, clockA: 0, clockB: 0, // the two waves as they are now, how fine the pattern is (and each of the four waves), and everything that glides
     fronts: [{ side: 0, adds: 0, gone: 0, takes: 2.6 }, { side: 0, adds: 0, gone: 0, takes: 2.6 }] }; // a front for each wave: which side of it is new (0: none on its way), how many arms it adds, how far through the picture it has got (0..1) and how long it takes
-  const formsNow = { light: [0.64], turn: [1, 0], wave: [10, 0, 0, 0], arms: [0, 6], frontA: [0, 0, 0, FORM_SHARP], frontB: [0, 0, 0, FORM_SHARP], lit4: [1, 0, 0, 0], look: [0, 0, 0.03, 0.55], grow: [0, 0, 0, 0], hue: [0, 0.26, 0.12], veil: [0, 3, 0, 0] }; // what the sum is given this frame: the card's values, as FORMS_SUM names them
+  const formsNow = { light: [0.64], turn: [1, 0], wave: [10, 0, 0, 0], arms: [0, 6], frontA: [0, 0, 0, FORM_SHARP], frontB: [0, 0, 0, FORM_SHARP], lit4: [1, 0, 0, 0], look: [0, 0, 0.03, 0.55], grow: [0, 0, 0, 0], hue: [0, 0.26, 0.12], veil: [0, 3, 0, 0], hand: [0, 0] }; // what the sum is given this frame: the card's values, as FORMS_SUM names them
   const FORMS_STILL = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, 0, 0, 0]], thump: [4, [0, 0, 0, 0]], snap: [4, [0, 0, 0, 0]] }; // what the fractals' shared top is told so that it leaves this picture alone: no travelling colors, no breath, no fold and no ring from a hard kick. The pattern drifts, bends and breathes by itself
   const formsGive = { ...FORMS_STILL, ...Object.fromEntries(Object.entries(formsNow).map(([key, value]) => [key, [value.length, value]])) }; // the same lists as onCard wants them, and those zeros with them
   const formsToward = (now, aim, dt, takes) => now + (aim - now) * (1 - Math.exp(-dt / takes)); // gliding by the clock: a late frame only arrives, it never overshoots
@@ -6313,10 +6345,12 @@ window.Effects = (() => {
     N.grow[0] = 0.2 * S.bend * (1 + 0.3 * flow.calm + 3 * acidLook.soft) * cells; N.grow[1] = S.clockA; N.grow[2] = S.clockB; N.grow[3] = 0.035 * S.swell * cells;
     N.hue[0] = S.hue; N.veil[0] = S.veil; N.veil[3] = -2 * S.spin + 0.3;
     N.light[0] = 0.64 + 0.1 * S.swell + 0.12 * S.lift - 0.08 * flow.calm; // the pattern fills the picture, so the kick lights it far less than it does the Julia set, and by the softened kick
+    formsHand(N, cells); // the mouse: the middle drawn toward it, and a click's push (see the mouse styles block)
   }
   const formsLong = (x, y) => Math.sqrt(x * x + y * y); // (not Math.hypot, which is many times slower and is wanted for every dot)
   const formsFlat = (lit, fine) => { if (lit < 0.002) return 0; const k = clamp((fine - 0.5) / 1.1); return lit * (1 - k * k * (3 - 2 * k)); }; // how much of a wave is left where it is this fine (in dots); a wave that isn't lit costs nothing
   function formsDot(x, y, dot) { // the same sum by hand, for byHand: fills in how far round the colors the dot is, how bright its cell and how much of a line's glow it has. One layer only: the second would double the cost
+    x -= formsNow.hand[0]; y -= formsNow.hand[1]; // (the middle drawn toward the mouse, as on the card)
     const N = formsNow, G = N.grow, L = N.lit4, K = formsKept.fine4, px0 = x * N.turn[0] - y * N.turn[1], py0 = x * N.turn[1] + y * N.turn[0];
     const bx = G[0] * (Math.sin(1.9 * x + 1.3 * y + G[1]) + 0.6 * Math.sin(2.3 * y - 1.1 * x + 1.7 * G[2] + 2) + 0.4 * Math.sin(2.9 * x - 0.7 * y - 0.6 * G[1] + 4));
     const by = G[0] * (Math.sin(1.6 * y - 1.4 * x + G[2] + 1) + 0.6 * Math.sin(2.6 * x + 0.9 * y - 1.3 * G[1] + 3) + 0.4 * Math.sin(3.1 * y + 0.5 * x + 0.7 * G[2] + 5));
@@ -6856,7 +6890,7 @@ window.Effects = (() => {
     if (!open && flow.build > 0.45) for (let y = top + 13; y < DN; y++) if (runnerGrain(gx, y) < flow.build) R("b", gx - ((y >> 1) & 1 ? 0 : 1), y, 1, 1); // light through the crack as the build tops out
   }
   function runnerFigure(S, L, k, gone, beatIn) { // the figure: its body is one small picture, turned over in a somersault; its two feet, its scarf and what carries it over a break are drawn dot by dot
-    const st = runner, { K, W, css } = L, { HX, HS } = K, X = S.x, t = sound.t, rd = Math.round, floatish = gone > 0.35, feet = runnerFeet(st.beat, K) - (st.skip > 0 ? rd(Math.sin((st.skip / 0.18) * Math.PI) * 5) : 0);
+    const st = runner, { K, W, css } = L, { HX, HS } = K, X = S.x, t = sound.t, rd = Math.round, floatish = gone > 0.35, feet = runnerFeet(st.beat, K) - (st.skip > 0 ? rd(Math.sin((st.skip / 0.18) * Math.PI) * 5) : 0) - runnerHop();
     const R = (tone, px, py, wide, tall) => { X.fillStyle = css[tone]; X.fillRect(rd(px), rd(py), rd(wide), rd(tall)); };
     const body = st.body || (st.body = pixelSprite(...RUNNER_BODY));
     if (st.drawn !== st.seen) { st.drawn = st.seen; st.scarf += (clamp((st.feetWas - feet) / Math.max(sound.dt, 1e-3) / 90 + 0.5) * 2 - 1 - st.scarf) * Math.min(1, sound.dt / 0.08); st.feetWas = feet; } // the scarf lifts as it falls and hangs as it rises (worked out once a frame, though this may be drawn twice)
@@ -6889,6 +6923,7 @@ window.Effects = (() => {
       runnerStep(L.K, real, wanted);
       if (L.W !== RUNNER_WORLDS[st.world]) L = runnerLook(st.world, S);
     }
+    runnerTap(st, L.K); // a click: it hops (see the mouse styles block)
     if (st.fade) { runnerDraw(S, runnerLook(st.was, S)); S.show(); runnerDraw(S, L); S.show(eased(st.fade)); } // going over to another world: the old one, and the new one over it more and more
     else { runnerDraw(S, L); S.show(); }
     if (!L.skies[1 - st.zone] && L.made !== realNow) L.skies[1 - st.zone] = L.sky(1 - st.zone); // the other sky is drawn a frame after the rest, well before a drop can want it, so that starting is spread over two frames
@@ -7239,9 +7274,15 @@ window.Effects = (() => {
       else if (G.mode === "calm") { wantY = DN * 0.62 + Math.sin(t * 1.3) * 3; wantX = ribbonAt(wantY) ?? wantX; quick = 9; }
       else if (G.mode === "boss") { if (b.in > 0.2) wantX = b.x + made.pts[G.beat % 3][0] * (tall ? 0.7 : 1); }
       else if (target) wantX = where(target)[0];
+      if (loop < 0) wantX = arcadeHand(wantX, AX, RAIL); // (and toward the mouse: see the mouse styles block)
       const was = G.x;
       G.ax += (wantX - G.ax) * ease(quick); G.x += (G.ax - G.x) * ease(quick); G.ay += (wantY - G.ay) * ease(quick); G.y += (G.ay - G.y) * ease(quick);
       G.lean += (clamp((G.x - was) / dt / 60 + 0.5) * 2 - 1 - G.lean) * ease(20);
+      if (pointer.fresh && loop < 0 && t - G.fired > 0.05 && (G.mode === "boss" ? b.in > 0.5 : G.mode === "wave" && !!target)) { // a click: the ship fires now, at the foe it is after or at the great foe (the beat's own bolts go on as they were; a foe already gone takes no second hit)
+        G.fired = t;
+        G.shots.push({ t0: t - 0.02, t1: t + 0.06, x0: G.x, y0: G.y - SH / 2, f: G.mode === "wave" ? target : null, pt: G.beat % 3, fast: true });
+        pointer.taken = true; // (the bolt is the answer: no ring. With nothing to fire at, the ring goes out instead)
+      }
       // firing: on the hi-hat if it comes in the middle of a beat, else at the half beat by the clock; twice and then four times a beat as a build grows. Each bolt is timed to land on the beat, or a clean part of it
       const per = G.mode === "boss" ? (build < 0.45 ? 1 : build < 0.75 ? 2 : 4) : 1, ph = (t - G.lastBeat) / B, slot = Math.floor(ph * per + 0.5), canHit = G.mode === "boss" ? b.in > 0.5 : G.mode === "wave" && !!target && loop < 0;
       if (canHit && ((slot > G.slot && slot <= per) || (per === 1 && sound.hatHit && !G.slot && ph > 0.25 && ph < 0.75))) {
@@ -7434,7 +7475,7 @@ window.Effects = (() => {
     // Things every place uses: the hour, the sky, stars, a moon, a layer of land, things standing along a layer, water, birds, clouds, rain.
     const phase = () => { const p = day * 4, i = Math.floor(p) % 4; return [i, (i + 1) % 4, eased(clamp((p - Math.floor(p) - 0.3) / 0.7))]; }; // each hour of the sky is held for a while, then blends into the next
     const hour = (table) => { const [a, b, f] = phase(); return typeof table[a] === "number" ? lerp(table[a], table[b], f) : table[a].map((c, k) => mixc(c, table[b][k], f)); };
-    const band = (x) => st.eq[Math.max(0, Math.min(15, Math.floor((x / W) * 16)))]; // the spectrum laid across the picture, low on the left
+    const band = (x) => placeLift(st.eq[Math.max(0, Math.min(15, Math.floor((x / W) * 16)))], x / W); // the spectrum laid across the picture, low on the left (and lifted under the mouse: see the mouse styles block)
     function paintSky(cols, to) { // bands of the sky's colors from the top to row "to", dithered into each other
       const n = cols.length - 1;
       for (let y = 0; y < Math.min(H, to); y++) { const f = (y / to) * n, i = Math.min(n - 1, Math.floor(f)), l = clamp((f - i - 0.2) / 0.6) * 16, a = cols[i], b = cols[i + 1], row = y * W, my = (y & 3) << 2; for (let x = 0; x < W; x++) B[row + x] = M[(x & 3) | my] < l ? b : a; }
@@ -8460,7 +8501,19 @@ window.Effects = (() => {
       if (K.pulse >= 0) K.pulse *= reach / o.reach;
     }
     const kept = () => ({ cols, rows, reach, sym, st, ink, fuel, age, lum, tgt, front, ants, K });
-    return { cols, rows, world: worldName, rule: ruleName, img, K, tones, dials, frame, adopt, kept };
+    function touch(X, Y, click) { // the mouse over the grid, in cells: a click plants there about half what a big kick plants, at every mirror image of the spot; a moving mouse leaves a crumb now and then.
+      // Nothing while a drop's ring is out. Says whether it planted (see the mouse styles block)
+      if (K.ring >= 0) return false;
+      X = Math.max(2, Math.min(cols - 3, X)); Y = Math.max(2, Math.min(rows - 3, Y));
+      const k = click ? 1 : 2;
+      if (kind === "cells") stamp(click ? (ruleName === "maze" ? LIFE_SHAPES.seed : R.states === 3 ? ragged() : R.fuel ? LIFE_SHAPES.burst : LIFE_SHAPES.bloom) : ruleName === "classic" ? LIFE_SHAPES.glider : ruleName === "maze" ? LIFE_SHAPES.seed : LIFE_SHAPES.one, X, Y, k, click ? Math.round((ruleName === "maze" ? 4 : R.states === 3 ? 9 : R.fuel ? 5 : 0) * lean) : ruleName === "maze" ? 2 : R.fuel ? 3 : 0);
+      else if (kind === "bloom") seedBloom(X, Y, k, click ? (coral ? 13 : 5) : 2);
+      else if (kind === "ants") images(X, Y, (x, y) => { for (let d = click ? 1 : 0; d >= 0; d--) for (const [ax, ay] of [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d]]) { const i = (y + ay) * cols + x + ax; if (i > 0 && i < N && !st[i]) { st[i] = 1; ink[i] = k; age[i] = 0; tgt[i] = 0.75; lum[i] = 1; } } });
+      else if (sands) images(X, Y, (x, y) => { const r = click ? 2 : 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + 1) { const xx = x + dx, yy = y + dy, i = yy * cols + xx; if (xx > 0 && xx < cols - 1 && yy > 0 && yy < rows - 1 && !st[i]) { st[i] = 1; ink[i] = (K.planted >> 2) % inkCount; age[i] = 0; tgt[i] = 1; } } });
+      else return false;
+      return true;
+    }
+    return { cols, rows, world: worldName, rule: ruleName, img, K, tones, dials, frame, adopt, kept, touch };
   }
   const lifeNow = { grid: null, seen: -1, screen: null, soft: null, old: null, fade: 0 }; // the grid showing, the moment it was last moved on, the small screen it was last drawn on, the small smoothed copy for the glow, and the last picture going away over a new world or a grid of another size
   function livingGrid() {
@@ -8485,6 +8538,7 @@ window.Effects = (() => {
     const s = Math.round(V.sym || 0);
     L.dials(s >= 6 ? 8 : s >= 3 ? 4 : s >= 1 ? 2 : 0, V.trail || 1, V.pace || 1, V.bead === undefined ? 1 : clamp(countOf("bead"))); // (the beads come or go by shades as the dial goes over)
     L.tones((V.hue || 0) * world.turns);
+    lifeHand(L, cols, rows, dt, again); // a click plants, a moving mouse leaves crumbs (see the mouse styles block)
     L.frame(dt, again);
     S.x.putImageData(L.img, 0, 0);
     if (now.fade > 0) {
@@ -8604,7 +8658,7 @@ window.Effects = (() => {
         }
         if (!Number.isFinite(b.lid + b.lidV + b.reach + b.reachV)) b.lid = b.lidV = b.reach = b.reachV = 0;
         const wander = 1 - 0.8 * (n ? 1 : S.lock);
-        b.look = [Math.sin(t * 0.53 + b.seed) * 0.6 * wander, Math.sin(t * 0.37 + b.seed * 2) * 0.3 * wander];
+        b.look = beingLook(b, n, Math.sin(t * 0.53 + b.seed) * 0.6 * wander, Math.sin(t * 0.37 + b.seed * 2) * 0.3 * wander); // (and toward the mouse: see the mouse styles block)
         if (b.to) { b.u = Math.min(1, b.u + dt / b.takes); b.G = between(b.from, b.to, eased(b.u)); if (b.u >= 1) { b.G = { ...b.to, dip: 1 }; b.to = null; } }
       });
       // now and then, while it's here, the being glides into another one, or the view falls into its eye. Never both at once, and not in a quiet part or a build unless it's one of the slow visits
@@ -9038,6 +9092,7 @@ window.Effects = (() => {
     S.peak = Math.max(S.peak, S.sq);
     const accent = S.show > 0.3 && S.since < 0.15 && S.sq > S.peaks + 0.3 * Math.max(0.05, S.peaks - S.lo), sinceHit = S.t - S.hitAt; // this note leaps clearly higher than the last few
     if (accent && S.t - S.lickAt > 1.6) S.lickAt = S.t;
+    if (singerLick(S)) S.lickAt = S.t; // a click on its face: a lick (see the mouse styles block)
     const licking = S.t - S.lickAt < 0.2;
     S.tongue += ((licking ? 1 : 0) - S.tongue) * acidPart(dt, licking ? 0.04 : 0.08);
     S.punch = sinceHit < 0.034 ? Math.max(S.punch, sinceHit / 0.034) : Math.exp(-(sinceHit - 0.034) / 0.09); // two frames up, then away
@@ -9170,9 +9225,12 @@ window.Effects = (() => {
     g.lineWidth = 0.07;
     g.stroke();
     g.fillStyle = ACID_INK;
+    const eye = singerEyes(cx, cy, r); // (where its face is, for a click, and its eyes a little toward the mouse: see the mouse styles block)
+    g.translate(eye[0], eye[1]);
     g.beginPath();
     if (!acidEyes(look, eyeY, squint)) for (let side = -1; side <= 1; side += 2) { g.moveTo(side * 0.34 + 0.13, eyeY); g.ellipse(side * 0.34, eyeY, 0.13, 0.27 * (1 - 0.72 * squint), 0, 0, TAU); }
     g.fill();
+    g.translate(-eye[0], -eye[1]);
     if (open < 0.06) { // shut: the smile, one line
       g.lineWidth = 0.12;
       g.beginPath();
@@ -10189,7 +10247,7 @@ window.Effects = (() => {
       const p = bandFolk[i], J = p.J;
       if (!p.posed || p.came <= 0) continue;
       const U = P.U * p.who.size, rim = Math.max(1.2, U * 0.075), arm = Math.max(2.5, U * 0.34), tone = p.who.tone, X = p.xf * w;
-      bandOx = X; bandOy = P.floor + 0.55 * U + (1 - p.came) * 5.4 * U; bandOu = U; // the hips rest a little under the floor, so the picture shows them from the waist up
+      bandOx = X; bandOy = P.floor + 0.55 * U + (1 - p.came) * 5.4 * U - bandHop(p, U, X); bandOu = U; // the hips rest a little under the floor, so the picture shows them from the waist up
       bandHu = J[0]; bandHv = J[1]; bandC = Math.cos(J[2]); bandS = Math.sin(J[2]); bandRo = J[3] * 0.7; bandKu = J[4]; bandKv = J[5]; bandKc = Math.cos(J[6]); bandKs = Math.sin(J[6]);
       g.setTransform(J[22], 0, 0, 1, X * (1 - J[22]), 0); // turning round: drawn narrower, then the other way round
       g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.16; g.strokeStyle = A.rim[tone]; // a soft light round them
@@ -10257,7 +10315,7 @@ window.Effects = (() => {
     bandLeg(0, J[0], J[1]); bandLeg(7, J[2], J[3]);
     const L = bandLegs, lean = J[8], hipY = (bandHipY = -(Math.max(L[6], L[13]) + J[9])), nx = 0.27 * Math.sin(lean), ny = hipY - 0.27 * Math.cos(lean), hx = nx + 0.02 + 0.039 * Math.sin(lean), hy = ny - 0.078 * 1.12;
     bandArm(0, J[4], J[5], nx, ny); bandArm(4, J[6], J[7], nx, ny);
-    g.translate(P.dx, top); g.scale(P.dH * S.face, P.dH); g.lineCap = g.lineJoin = "round";
+    g.translate(P.dx, top - dancerHop(P, top)); g.scale(P.dH * S.face, P.dH); g.lineCap = g.lineJoin = "round";
     g.globalCompositeOperation = "lighter"; g.globalAlpha = a; g.fillStyle = A.halo; g.translate(0, hipY - 0.1); g.fillRect(-0.62, -0.62, 1.24, 1.24); g.translate(0, 0.1 - hipY); // a soft light round it, steady
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 0.7 * a; g.strokeStyle = "#000"; g.lineWidth = 0.115; g.beginPath(); bandLegPath(0); bandLegPath(7); bandArmPath(0, nx, ny); bandArmPath(4, nx, ny); bandShoePath(0); bandShoePath(7); g.stroke(); // its own shadow under it
@@ -10281,7 +10339,7 @@ window.Effects = (() => {
   function bandRocket() {
     const S = company, P = bandAt, A = bandArt, R = S.rocket, m = P.m, t = S.t, s = m * 0.04 * P.size, floor = P.floor, K = bandKept;
     if (R.on) {
-      const x = P.rx + S.sx * m, y = floor * (1 - S.alt), a = clamp(R.ramp * 5), lean = Math.max(-0.35, Math.min(0.35, (S.sx - K.x[(S.at - 6 + BAND_KEEP) % BAND_KEEP]) * 14));
+      const x = P.rx + S.sx * m, y = floor * (1 - S.alt), a = clamp(R.ramp * 5), lean = Math.max(-0.35, Math.min(0.35, (S.sx - K.x[(S.at - 6 + BAND_KEEP) % BAND_KEEP]) * 14)) + rocketHand(x, y, s);
       g.save();
       g.beginPath(); g.rect(0, 0, w, floor); g.clip();
       let n = 0; // the trail: where it has been for the last second and a half, streaming down behind it so a rocket that hangs at the top of a riser still has one, thick at the rocket and nothing at its end
@@ -10553,11 +10611,11 @@ window.Effects = (() => {
     const hy = h * (V.tide ?? 0.64) + h * 0.012 * Math.sin(t * 0.045) - h * (0.004 + 0.018 * bassS), shine = clamp(0.5 + 0.18 * bassS + 0.28 * lift + 0.1 * drop - 0.24 * calm); // where the water starts (the bass lifts it a little), and how bright the sun is
     const sx = w * ((V.sunx ?? 0.8) + 0.07 * Math.cos(awSky.day)), sy = hy * (0.2 - 0.07 * day), fishes = awFishSet(tv); // the sun wanders a little along its corner as the light changes
     // the mouse: a soft light follows it, as if through glass, and fades when it has rested a while or gone
-    const rest = realNow - pointer.at, aimGlow = pointer.on ? (rest < 4000 ? 1 : rest < 12000 ? 0.4 : 0) : 0; // (a mouse left lying on the picture, or a phone after a tap, lets go after a while: the light fades and the bubbles pass through again)
+    const rest = realNow - pointer.at, aimGlow = aeroNear(pointer.on ? (rest < 4000 ? 1 : rest < 12000 ? 0.4 : 0) : 0); // (a mouse left lying on the picture, or a phone after a tap, lets go after a while: the light fades and the bubbles pass through again)
     if (pointer.on && awSky.glow < 0.02) { awSky.gx = pointer.x; awSky.gy = pointer.y; }
     awSky.glow += (aimGlow - awSky.glow) * Math.min(1, dt * 3);
     if (pointer.on) { awSky.gx += (pointer.x - awSky.gx) * Math.min(1, dt * 7); awSky.gy += (pointer.y - awSky.gy) * Math.min(1, dt * 7); }
-    const tap = pointer.tapped;
+    const tap = aeroTap(); // (see the mouse styles block)
     if (tap && tap !== awSky.tap) { awSky.tap = tap; if (awSkyTap(tap, S)) pointer.taken = true; } // (when the click made nothing, the usual ring answers it instead)
 
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10855,9 +10913,9 @@ window.Effects = (() => {
     awTank.bassS += (sound.bass - awTank.bassS) * Math.min(1, dt * 5); // the bass, eased: it brightens the light in the water
     awTank.day = (awTank.day + (dt * TAU) / 280) % TAU; // and the water itself turns a little greener and back over a few minutes
     const day = 0.5 + 0.5 * Math.sin(awTank.day), shine = (V.shine ?? 1) * (0.75 + 0.5 * awTank.bassS + 0.2 * lift + 0.15 * drop) * (1 - 0.3 * calm), fishes = awFishSet(tv);
-    const tap = pointer.tapped;
+    const tap = aeroTap(); // (see the mouse styles block)
     if (tap && tap !== awTank.tap) { awTank.tap = tap; if (awTankTap(tap, S)) pointer.taken = true; } // (with the tank full of food, the usual ring answers instead)
-    awTank.away += ((pointer.on && realNow - pointer.at < 1500 ? 1 : 0) - awTank.away) * Math.min(1, dt * (pointer.on && realNow - pointer.at < 1500 ? 6 : 1)); // the fish keep away from a moving mouse, and come back once it rests
+    awTank.away += (aeroNear(pointer.on && realNow - pointer.at < 1500 ? 1 : 0) - awTank.away) * Math.min(1, dt * (pointer.on && realNow - pointer.at < 1500 ? 6 : 1)); // the fish keep away from a moving mouse, and come back once it rests
 
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
@@ -11615,7 +11673,7 @@ window.Effects = (() => {
     M.vy += ((ny - M.y) / dt - M.vy) * ease;
     M.x = nx;
     M.y = ny;
-    M.near += ((here ? 1 - rest : 0) - M.near) * (1 - Math.exp(-dt * 4));
+    M.near += (aeroNear(here ? 1 - rest : 0) - M.near) * (1 - Math.exp(-dt * 4)); // (with the slider on, as the other effects feel it: see the mouse styles block)
   }
   const asLift = () => (flow.part === "build" ? Math.max(0.4, flow.build) : clamp((flow.build - 0.35) / 0.4)); // how much of a build is on (with no kick at all the build creeps up to a quarter and sits there, which is no build)
   FOLK_OF.dorfic = ["shapes", "astronaut", "shapes", "saucer"]; // glass shapes and a spaceman suit a sunny future; nothing from the deep sea
@@ -11747,7 +11805,7 @@ window.Effects = (() => {
     D.swell += (sound.bass - D.swell) * (1 - Math.exp(-dt * 9));
     const dusk = clamp((V.dusk ?? 0) + 0.22 * Math.sin(t * 0.021)), tones = moodColors(3), P = asDorfTones(tones, dusk, night), lift = D.lift;
     const way = V.sunway ?? 0.64, roam = 0.1 * Math.sin(t * 0.019) + 0.05 * Math.sin(t * 0.047 + 2), sx = tall ? w * (0.5 + (way - 0.5) * 0.8 + 1.2 * roam) : w * (way + roam), sy = h * (tall ? 0.3 + 0.06 * Math.sin(t * 0.023 + 1) : 0.44 + 0.1 * Math.sin(t * 0.023 + 1.3)), R = m * 0.15 * (1 + 0.08 * D.swell); // the sun: where the version puts it, wandering a good way from there over a few minutes, and a little bigger with the bass
-    const tap = pointer.tapped; // a click: a small sun of its own, and no ring
+    const tap = aeroTap(); // a click: a small sun of its own, and no ring
     if (tap && tap !== D.tap) { D.tap = tap; asBloom(tap.x, tap.y, m); }
     if (tap && tap === D.tap) pointer.taken = true;
     if (dt && kickHit) { if (D.ripples.length >= 5) D.ripples.shift(); D.ripples.push({ age: 0, a: kickHit }); for (const S of D.swooshes) S.flexV += kickHit * (2.6 + 2.4 * lift) * (S.i % 2 ? 1 : -1); }
@@ -12123,7 +12181,7 @@ window.Effects = (() => {
     const sunX = w * (0.5 + 0.36 * Math.sin(t * 0.0075 + 0.6)), sunY = h * (tall ? 0.05 : 0.07);
 
     const seedsOut = 10 + 12 * flow.calm; // how many dandelion seeds are out: more in a calm part
-    const tap = pointer.tapped; // a click: on a dewdrop it splashes, on the land a shoot comes up, in the sky a puff of seeds blows out from it; either way no ring
+    const tap = aeroTap(); // a click: on a dewdrop it splashes, on the land a shoot comes up, in the sky a puff of seeds blows out from it; either way no ring
     if (tap && tap !== E.tap) {
       E.tap = tap;
       const near = Math.max(14, m * 0.045);
@@ -12431,7 +12489,7 @@ window.Effects = (() => {
     return real;
   }
   function agFollow(st, real) { // how much the mouse counts just now, eased: all of it while it moves over the picture, letting go when it has rested a few seconds or gone
-    const aim = pointer.on ? clamp(1 - (realNow - pointer.at - 5000) / 4000) : 0, k = Math.min(1, real * 6);
+    const aim = aeroNear(pointer.on ? clamp(1 - (realNow - pointer.at - 5000) / 4000) : 0), k = Math.min(1, real * 6); // (with the slider on, as the other effects feel it: see the mouse styles block)
     if (pointer.on && st.hover < 0.02) { st.px = pointer.x; st.py = pointer.y; } // (from nothing it starts where the mouse is, not from where it was last time)
     else if (pointer.on) { st.px += (pointer.x - st.px) * k; st.py += (pointer.y - st.py) * k; }
     st.hover += (aim - st.hover) * Math.min(1, real * 3);
@@ -12692,7 +12750,7 @@ window.Effects = (() => {
       for (let i = st.ripples.length - 1; i >= 0; i--) if ((st.ripples[i].age += real) > 2.6) st.ripples.splice(i, 1);
       for (let i = st.flares.length - 1; i >= 0; i--) if ((st.flares[i].age += real) > 1.4) st.flares.splice(i, 1);
     }
-    const tap = pointer.tapped; // (a click is taken once, and looked for on every call: the frame it lands in may already have moved on in an earlier call)
+    const tap = aeroTap(); // (a click is taken once, and looked for on every call: the frame it lands in may already have moved on in an earlier call)
     if (tap && tap !== st.tap) { // a click: a ripple on the floor under it, and the nearest ball rings with light
       st.tap = tap;
       if (st.ripples.length >= 8) st.ripples.shift();
@@ -13010,7 +13068,7 @@ window.Effects = (() => {
         else if (p.x < -0.08 * w || p.x > 1.08 * w || p.y > h + 20 || p.y < -0.3 * h) st.petals.splice(i, 1);
       }
     }
-    const tap = pointer.tapped; // (taken once, and looked for on every call, as in Dark Aero)
+    const tap = aeroTap(); // (taken once, and looked for on every call, as in Dark Aero)
     if (tap && tap !== st.tap) { // a click drops a pebble in: from where it was clicked down into the water
       st.tap = tap;
       const u = tap.y > Y + 2 ? (tap.y - Y) / F : 0.08;
@@ -14402,6 +14460,7 @@ window.Effects = (() => {
     v = clearing; clearing = A.clearing; A.clearing = v;
     v = sound.dt; sound.dt = A.dt; A.dt = v; // each moves at its own Speed (the song's clock, sound.t, is the same for both)
     v = pointer.tapped; pointer.tapped = A.tapped; A.tapped = v; // a click is for the one coming in
+    handTrade(); // (and so is everything a click starts: see the mouse styles block)
     swapIn(vary, A.vary);
     swapIn(T, A.T);
     for (let i = 0; i < OWN.length; i++) if (A.mine[i]) { v = OWN[i][0](); OWN[i][1](A.own[i]); A.own[i] = v; }
@@ -14692,7 +14751,7 @@ window.Effects = (() => {
   function handTap() { // from the top of drawFrame(), once the little windows have had their say (a click on one of them is already gone): who a click is for
     const P = pointer, p = P.tapped;
     if (!p || P.taken || !handing()) return;
-    if (folkTap(p)) { P.taken = true; P.tapped = null; return; } // a visitor's: it answers, and nothing else sees the click (no ring, and no answer from the picture under it)
+    if (frontTap(p) || folkTap(p)) { P.taken = true; P.tapped = null; return; } // the band's or the singer's, which stand in front (see the mouse styles block), or a visitor's: it answers, and nothing else sees the click (no ring, and no answer from the picture under it)
     if (P.since < 0.45) return; // too soon after the last one: only its ring (a little under half a second, so clicking along to a beat at two a second is answered every time)
     if (P.pokes.length >= 4) P.pokes.shift();
     P.fresh = { x: p.x, y: p.y, age: 0, k: Math.min(2, T.hand) }; // (one small thing for each click the picture answers, never one a frame)
@@ -14796,6 +14855,7 @@ window.Effects = (() => {
     P.aimTill = -1;
     P.since = 99;
     P.touch = false;
+    handStylesHide(); // (and what the effects' answers keep: see the mouse styles block)
   }
   function handFit(across, down) { // from fit(), before the picture changes size: the mouse's places are moved to the same spots in the new dots
     const P = pointer;
@@ -15011,6 +15071,516 @@ window.Effects = (() => {
     b.y += (v[1] + v[0] * 0.7) * k;
   }
   /* ==== mouse: end ==== */
+  /* ==== mouse styles: begin ==== */
+  /* What the effects share for their own answers to the mouse. Each effect answers in its own drawing, with the numbers of the mouse block above (near, sx, sy, lx, ly, cx, cy, fresh
+     and pokes), and only through these and the helpers there (shove, handClose, pokeWave, leanAt, leanOf), so with no mouse every effect is drawn exactly as before.
+     Hovering moves things a little (they part, lift, lean, turn or reach out); a few light a little more under it (Links, Fireworks, LEDs, Places), never much and never
+     all of the picture. A click is answered at most twice a second (fresh), by something that
+     happens where it landed: then the effect says it took the click (pointer.taken) and no ring goes out. Where the answer is not at the place clicked (the whole picture leaning
+     or turning, a scratch of the record, a change of course), the ring still goes out, to say the click was heard. Everything here moves by the clock (pointer.dt), never by the
+     song's pace, and nothing grows: each effect keeps a few numbers, or one small list made once.
+     While one effect changes into another, two are drawn in one frame (see the live change). Both go on answering the mouse where it is: they share the picture, so they part round it
+     and lean toward it together, and nothing jumps when a change starts or ends. But a click made during a change is the new effect's alone: the going one starts nothing new, and only
+     finishes the waves of the clicks made before the change began (handTrade). And the ring always goes out then, as the groundwork has it. */
+  const handKept = { pluck: new Float32Array(420), step: 1, row: -1, rowOn: false, plucked: false, apart: false, reach: 0, lo: 0, hi: 0, bar: null, starX: 0, starY: 0, starDX: 0, starDY: 0, starN: -9, mx: 0, my: 0, sparkAt: 0, lane: 0, headK: 0, headX: 0, headY: 0, nod: 0, sphereSpin: 0, roll: 0, courseAt: -1e9, wellSpin: 0, want: [0, 0], wantAt: -1, mvx: 1, mvy: 0, faceK: 0, beingK: 0, crumb: 0, hopAt: -1e9, hopHigh: 0, singK: 0, lick: false, crowdAt: -1e9, danceAt: -1e9, danceX: 0, danceY: 0, danceH: 0, danceN: undefined, rocketAt: -1e9, rocketX: 0, rocketY: 0, rocketR: 0, rocketN: undefined, going: false, changeOf: null, oldPokes: [], heldPokes: null, heldFresh: null }; // what the effects' answers keep from frame to frame, all in one place (each effect's own few numbers: none is kept from frame to frame by two effects that can be drawn in one frame; mx and my are only somewhere to hand back a place, read at once)
+  function handStylesHide() { // from handHide(), when the picture is hidden: what a click set going is let go of too, so nothing carries on from it when the picture is shown again
+    const K = handKept;
+    terrainHand.bump = 0;
+    handTurn.speed = 0;
+    K.sphereSpin = K.wellSpin = K.nod = 0;
+    K.wantAt = -1;
+    K.lick = false;
+  }
+  function handTrade() { // from trade(), just before the going effect is drawn and again just after it: while it is drawn there is no new click for it, and the only waves it knows are those of the clicks
+    // made before the change began. Afterwards the new effect has its own back. Nothing is made: the going one's few clicks are kept in one small list
+    const P = pointer, K = handKept;
+    if (K.going) { P.fresh = K.heldFresh; P.pokes = K.heldPokes; K.heldFresh = K.heldPokes = null; K.going = false; return; }
+    if (K.changeOf !== morph) { // a change has just begun: the clicks so far (but not one made this very frame, which is already the new effect's)
+      K.changeOf = morph;
+      K.oldPokes.length = 0;
+      for (const p of P.pokes) if (p !== P.fresh) K.oldPokes.push(p);
+    }
+    for (let i = K.oldPokes.length - 1; i >= 0; i--) if (!P.pokes.includes(K.oldPokes[i])) K.oldPokes.splice(i, 1); // (one that has run its three seconds, or made way for a newer one, is gone for both)
+    K.heldFresh = P.fresh;
+    K.heldPokes = P.pokes;
+    P.fresh = null;
+    P.pokes = K.oldPokes;
+    K.going = true;
+  }
+  function threadsHand(step, reach, top, bottom) { // before the threads of Classic, Silk, Helix or Strings are drawn: the pluck at every step across (it is the same for every thread there), and where the
+    // mouse parts them. Strings plucks its own way, only near the click: top and bottom are how far up and down its strings reach, a click beyond them plucks none, and the ring answers it
+    const P = pointer, K = handKept, off = guest.drawing, own = top !== undefined;
+    K.row = -1; // (Strings: no string looked at yet this frame)
+    K.step = step;
+    K.reach = reach;
+    K.plucked = P.pokes.length > 0 && !off;
+    K.apart = P.near > 0.01 && !off;
+    K.lo = P.sx - reach * 2.5; // (beyond about two and a half reaches the push is next to nothing, so it is not worked out at all there)
+    K.hi = P.sx + reach * 2.5;
+    if (K.plucked && !own) for (let i = 0, n = Math.min(419, Math.ceil(w / step) + 2); i <= n; i++) K.pluck[i] = Math.min(w, h) * 0.08 * pokeWave(i * step, 0, w * 0.5, Math.max(w * 0.045, Math.min(w, h) * 0.07), true); // (it runs out both ways along the threads from the click)
+    if (P.fresh && (!own || (P.fresh.y > top && P.fresh.y < bottom))) P.taken = true; // the pluck goes through the place clicked: it is the answer, and no ring goes out
+  }
+  function threadY(x, y) { // a thread's height at x, plucked by the clicks and parted round the mouse: the ones above it go up and the ones below go down, like a lens
+    const K = handKept;
+    if (K.plucked) y += K.pluck[Math.max(0, Math.min(419, Math.round(x / K.step)))];
+    if (K.apart && x > K.lo && x < K.hi) y += shove(x, y, K.reach, 0.85)[1];
+    return y;
+  }
+  function stringPluck(x, y0, gap) { // Strings: a click plucks only the few strings nearest it, the pluck running out both ways along them
+    let sum = 0;
+    if (guest.drawing) return 0;
+    for (const p of pointer.pokes) { const near = (y0 - p.y) / (gap * 1.5), d = (Math.abs(x - p.x) - w * 0.5 * p.age) / (w * 0.045); if (near * near < 9 && d > -3 && d < 3) sum += p.k * Math.exp(-near * near - d * d) * Math.cos(d * 2.4) * Math.exp(-p.age * 1.6) * clamp(p.age / 0.05); }
+    return gap * 1.5 * Math.max(-1.2, Math.min(1.2, sum));
+  }
+
+  function stringY(x, y, y0, gap, v) { // a string's height at x: plucked near a click, and bent away from the mouse, a lit string more than a quiet one. Asked for every point of every string, so
+    // whether any click is near enough to pluck this string at all is found once, at its first point (K.row: the string, at y0; K.rowOn: whether one is)
+    const K = handKept;
+    if (K.plucked) {
+      if (K.row !== y0) { K.row = y0; K.rowOn = false; for (const p of pointer.pokes) if (Math.abs(y0 - p.y) < gap * 4.5) K.rowOn = true; } // (stringPluck's own reach: three times its width, gap * 1.5)
+      if (K.rowOn) y += stringPluck(x, y0, gap);
+    }
+    if (K.apart && x > K.lo && x < K.hi && Math.abs(y - pointer.sy) < K.reach * 2.5) y += shove(x, y, K.reach, 0.85)[1] * (0.45 + 0.55 * Math.min(1, v * 2)); // (further off, shove gives nothing)
+    return y;
+  }
+
+  const barUps = {}; // how far the mouse has lifted each bar, as a share of the room left above it (so it shows as well on a loud song as on a quiet one): one set for each of Bars, Mirror and LEDs,
+  // made the first time it is needed, so two of them drawn in one frame (one changing into the other) never share one
+  function barsHand(n, x0, each, ring, two, split) { // once a frame, before the bars are drawn: in a row, bar i of n stands at x0 + i * each (two: and its mirror image about the middle; split: the same
+    // bars hang from the ceiling the other way round, so up there the mouse means the bar across from it); round in a ring (ring: its radius), bar i is shown twice, the left the mirror of the right.
+    // The bars under the mouse jump as it passes and fall back; a click throws them up there. The lifts are kept by where they are along the row (160 places), not by bar, so they stay put when the number of bars changes
+    const P = pointer, f = P.fresh, dt = Math.min(0.1, P.dt), quick = clamp(Math.hypot(P.vx, P.vy) / (w * 0.6)), size = Math.min(w, h), reach = ring ? size * 0.14 : w * 0.035;
+    const B = (handKept.bar = barUps[name] || (barUps[name] = { up: new Float32Array(160), any: false, seen: -9 })), barUp = B.up, over = split && P.sy < h * 0.42, overTap = split && f && f.y < h * 0.42;
+    if (B.any && P.frames - B.seen > 1) { barUp.fill(0); B.any = false; } // (it was not drawn last frame: an effect that was away comes back with its lifts down)
+    B.seen = P.frames;
+    if (P.near < 0.01 && !f && !B.any) return; // (nothing to do: the lifts are all down)
+    B.any = false;
+    let hit = 0; // how near the click is to the bar nearest it (1: right on it)
+    for (let s = 0; s < 160; s++) {
+      const i = ((s + 0.5) / 160) * n - 0.5; // (the bar this place is in, as a number that need not be whole)
+      let x = x0 + i * each, y = P.sy, x2 = two ? w - x : x, y2 = y;
+      if (ring) { const a = (i / (n * 2)) * TAU - Math.PI / 2, b = ((n * 2 - 1 - i) / (n * 2)) * TAU - Math.PI / 2; x = w / 2 + Math.cos(a) * ring; y = h / 2 + Math.sin(a) * ring; x2 = w / 2 + Math.cos(b) * ring; y2 = h / 2 + Math.sin(b) * ring; }
+      const near = over ? handClose(w - x, y, reach) : Math.max(handClose(x, y, reach), handClose(x2, y2, reach));
+      let up = Math.max(near * (0.12 + 0.3 * quick), barUp[s] - dt * 0.9);
+      if (f) { const fx = overTap ? w - f.x : f.x, d = ring ? Math.min(Math.hypot(x - fx, y - f.y), Math.hypot(x2 - fx, y2 - f.y)) / (size * 0.2) : Math.min(Math.abs(x - fx), Math.abs(x2 - fx)) / (w * 0.07), e = Math.exp(-d * d); up = Math.max(up, 0.45 * Math.min(1, f.k) * e); hit = Math.max(hit, e); }
+      barUp[s] = up < 0.002 ? 0 : up;
+      if (barUp[s]) B.any = true;
+    }
+    if (f && hit > 0.25) P.taken = true; // the bars and their caps flying up there are the answer: no ring. (A click far from every bar, as in a corner beside the ring, lifts next to nothing: the ring answers it)
+  }
+  const barLift = (i, n, v) => { const up = handKept.bar.any ? handKept.bar.up[Math.min(159, Math.floor(((i + 0.5) / n) * 160))] : 0; return up ? v + Math.max(0, 1 - v) * up : v; }; // the height of bar i of n with the mouse's lift (as a share of the room left above it)
+
+  const terrainHand = { bump: 0, x: 0 }; // Landscape: a click raises a hill in the nearest ridges for a moment, and it rolls away to the horizon with the land
+  function terrainLift(x) { // how much higher the ridge being written now is at x: a soft hill under the mouse's place across, and a bigger one where a click landed
+    const P = pointer, T_ = terrainHand;
+    let up = P.near > 0.01 ? 0.35 * handClose(x, P.sy, w * 0.06) : 0;
+    if (T_.bump > 0.01) { const d = (x - T_.x) / (w * 0.07); up += 0.9 * T_.bump * Math.exp(-d * d); }
+    return up;
+  }
+  function terrainTap() { // once a frame
+    const P = pointer, T_ = terrainHand;
+    if (P.fresh) { T_.bump = Math.min(1, P.fresh.k); T_.x = P.fresh.x; P.taken = true; } // (the hill rises where the click landed: no ring)
+    T_.bump *= Math.exp(-Math.min(0.1, P.dt) / 0.25);
+  }
+
+  function echoMiddle(x, y, click = 0.3) { // the Trails family's middle, leaned toward the mouse (a little) and toward the last place clicked (more: click, of the way there), so the streams bend toward the hand; and the ring still goes out.
+    // (Less than the 3D worlds lean: a tunnel held over in a corner by quick clicks made the picture's brightness swing more than it does by itself)
+    const at = leanAt(0.3, click);
+    handKept.mx = x + at[0] * w;
+    handKept.my = y + at[1] * h;
+    return handKept;
+  }
+
+  const pulled = [0, 0];
+  function cometPull(i, x, y, size) { // Comets: a head near the mouse is drawn toward it, as into a well; a click scatters the heads near it, out and back again. Gives back where to draw it (kept, nothing made)
+    const P = pointer, k = handClose(x, y, size * 0.2) * 0.3;
+    pulled[0] = x + (P.sx - x) * k;
+    pulled[1] = y + (P.sy - y) * k;
+    if (P.fresh && Math.hypot(x - P.fresh.x, y - P.fresh.y) < size * 0.3) P.taken = true; // (a click among them: the scatter is the answer, and no ring goes out)
+    const s = puffAt(pulled[0], pulled[1], size * 0.3, size * 0.25);
+    pulled[0] += s[0];
+    pulled[1] += s[1];
+    return pulled;
+  }
+  const puffed = [0, 0];
+  function puffAt(x, y, reach, far) { // a puff from each recent click: things within about reach of it are blown out from it, up to far dots, and drift back over a second or two. Nothing jumps:
+    // the push grows from nothing in a tenth of a second and dies away by itself
+    puffed[0] = puffed[1] = 0;
+    if (guest.drawing) return puffed;
+    for (const p of pointer.pokes) {
+      if (p.age > 2.4) continue;
+      const dx = x - p.x, dy = y - p.y, q = (dx * dx + dy * dy) / (reach * reach);
+      if (q > 4) continue;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1, f = far * p.k * Math.exp(-q) * (1 - Math.exp(-p.age / 0.08)) * Math.exp(-p.age * 1.4);
+      puffed[0] += (dx / d) * f;
+      puffed[1] += (dy / d) * f;
+    }
+    return puffed;
+  }
+  function starsMiddle(dx, dy, carry) { // where Stars and Whirl fly toward: their own wander (dx, dy from the middle), leaned toward the mouse a little and toward a place clicked more. The wander
+    // and the lean together are never more than 0.3 of the picture from the middle, so the point stays well inside it. The ring goes out: the answer is the whole picture.
+    // carry (Stars only): also keep how far the lean has moved the point since last frame (starDX, starDY), so that Stars can start each streak where its star was drawn last frame, and a
+    // turn bends the streaks instead of breaking them. Whirl leaves these alone: while one changes into the other both are drawn in one frame, and Whirl's lean must not spoil Stars' count
+    const P = pointer, K = handKept, at = leanAt(0.3, 0.8);
+    const lx = at[0] ? Math.max(Math.min(0, -0.3 * w - dx), Math.min(Math.max(0, 0.3 * w - dx), at[0] * w)) : 0, ly = at[1] ? Math.max(Math.min(0, -0.3 * h - dy), Math.min(Math.max(0, 0.3 * h - dy), at[1] * h)) : 0;
+    if (carry) {
+      const next = P.frames - K.starN === 1; // (drawn last frame too: otherwise there is nothing to carry on from)
+      K.starDX = next ? lx - K.starX : 0;
+      K.starDY = next ? ly - K.starY : 0;
+      K.starX = lx;
+      K.starY = ly;
+      K.starN = P.frames;
+    }
+    K.mx = w / 2 + dx + lx;
+    K.my = h / 2 + dy + ly;
+    return K;
+  }
+  function starAt(x, y, reach) { // one end of a star's streak, parted round the mouse itself (a new pair, as before)
+    if (pointer.near < 0.01) return [x, y];
+    const s = shove(x, y, reach, 0.8);
+    return [x + s[0], y + s[1]];
+  }
+  function scopeAt(p, x, y, line) { // Scope: a point of the trace, bent round the mouse, and a blip running out along it from a click (line: the trace runs across, so only how far along counts)
+    const P = pointer;
+    if (!p && P.fresh) P.taken = true; // (the blip starts where the click landed: no ring)
+    pulled[0] = x;
+    pulled[1] = y;
+    if (P.near > 0.01) { const s = shove(x, y, h * 0.09, 0.3); pulled[0] += s[0]; pulled[1] += s[1]; }
+    if (P.pokes.length) pulled[1] -= h * 0.1 * pokeWave(x, y, w * 0.4, w * 0.04, line);
+    return pulled;
+  }
+  function sparkTrail(size) { // Fireworks: a moving mouse leaves a soft trail of a few sparks, one little burst every sixth of a second at most; a click lets off a shell where it landed
+    const P = pointer, K = handKept;
+    if (P.fresh) { shell(P.fresh.x, P.fresh.y, 36, around(Math.random()), size * 0.3 * Math.min(1, P.fresh.k), 1.1, V.burst); P.taken = true; } // (the shell is the answer: no ring)
+    K.sparkAt = Math.min(1, K.sparkAt + Math.min(0.1, P.dt));
+    if (P.near > 0.5 && Math.hypot(P.vx, P.vy) > w * 0.08 && K.sparkAt > 0.16) { K.sparkAt = 0; shell(P.sx, P.sy, 4, around(Math.random()), size * 0.05, 0.45); }
+  }
+
+  const handTurn = { turn: 0, speed: 0, frame: -1 }; // a click on the round effects gives the record a turn by hand, as a DJ does, and it runs back to its own speed
+  function scratched(cx) { // the record's extra turn, moved on by the clock: a click to the right of the middle turns it on, to the left back. The ring goes out (the answer is the whole record)
+    const f = pointer.fresh, dt = Math.min(0.1, pointer.dt);
+    if (f && !guest.drawing) handTurn.speed = (f.x >= cx ? 1 : -1) * 1.4 * Math.min(1, f.k); // (about a sixth of a turn in all, over a second or two: quick enough to feel like a hand, slow enough to bring no flicker)
+    if ((!handTurn.speed && !handTurn.turn) || handTurn.frame === pointer.frames) return handTurn.turn; // (moved on once a frame, also when two round effects are drawn in it)
+    handTurn.frame = pointer.frames;
+    handTurn.turn = (handTurn.turn + handTurn.speed * dt) % TAU;
+    handTurn.speed *= Math.exp(-dt / 0.8);
+    if (Math.abs(handTurn.speed) < 0.001) handTurn.speed = 0;
+    return handTurn.turn;
+  }
+  function reachOut(a, cx, cy, size) { // 0 to 1: how much a spoke or ray at angle a faces the mouse, and the mouse is out beyond the record, so that part of it reaches out toward it
+    const P = pointer;
+    if (P.near < 0.01 || guest.drawing) return 0;
+    const facing = Math.cos(a - Math.atan2(P.sy - cy, P.sx - cx));
+    return facing <= 0 ? 0 : P.near * facing ** 16 * clamp(Math.hypot(P.sx - cx, P.sy - cy) / (size * 0.45));
+  }
+  function reachClick(a, cx, cy) { // Classic halo: the spokes facing a place clicked leap out toward it and fall back within a second (it does not turn: its long spokes reach past the picture's edge,
+    // and turning them in and out of it would make the whole picture brighter and darker)
+    let sum = 0;
+    if (guest.drawing) return 0;
+    for (const p of pointer.pokes) { if (p.age > 1.2) continue; const facing = Math.cos(a - Math.atan2(p.y - cy, p.x - cx)); if (facing > 0) sum += p.k * facing ** 16 * (1 - Math.exp(-p.age / 0.04)) * Math.exp(-p.age * 3); }
+    return Math.min(1.2, sum);
+  }
+  /* ---- the journeys ---- */
+  function oceanAt(x, y) { // Under the sea: a bubble near the mouse drifts aside from it. Gives back where to draw it (kept, nothing made)
+    pulled[0] = x;
+    pulled[1] = y;
+    if (pointer.near > 0.01) { const s = shove(x, y, Math.min(w, h) * 0.12, 0.8); pulled[0] += s[0]; pulled[1] += s[1]; }
+    return pulled;
+  }
+  function oceanTap(list) { // a click: a dozen bubbles go up from where it landed (in the sea's own list, never more than a dozen over its own most)
+    const f = pointer.fresh;
+    if (!f) return;
+    for (let k = 0; k < 12 && list.length < 102; k++) list.push({ x: f.x + rnd(-0.025, 0.025) * w, y: f.y + rnd(-0.02, 0.02) * h, r: rnd(0.005, 0.013) * Math.min(w, h), v: rnd(0.14, 0.28) * h, phase: rnd(0, TAU) });
+    pointer.taken = true; // (they rise from the place clicked: no ring)
+  }
+  function roadHand() { // Neon road: the road far ahead bends toward the mouse's side; a click changes lane, toward the side clicked, for a few seconds (the ring goes out). Gives back the bend
+    handKept.lane = -pointer.cx * w * 0.25; // (the near end of the grid moves the other way: we have moved over)
+    return leanAt(0.5, 0)[0] * w * 0.6;
+  }
+  function auroraLift(u) { // Northern lights: a curtain reaches up toward the mouse above it, and a click sends a ripple along the curtains from its place across. In dots (upward is less)
+    const P = pointer, x = u * w;
+    let up = 0;
+    if (P.near > 0.01) up -= h * 0.07 * handClose(x, P.sy, w * 0.09);
+    if (P.pokes.length) up -= h * 0.05 * pokeWave(x, 0, w * 0.35, w * 0.04, true);
+    return up;
+  }
+
+  /* ---- the 3D worlds ---- */
+  function worldMiddle(x, y) { // the Energy tube's and the shapes' vanishing point, leaned a little toward the mouse and more toward a place clicked (the ring goes out)
+    const at = leanAt(0.24, 0.45);
+    handKept.mx = x + at[0] * w;
+    handKept.my = y + at[1] * h;
+    return handKept;
+  }
+  function headsHand() { // Neon heads, once a frame: how much they turn to look at the mouse (eased by the clock, so with no mouse they look exactly their own way), and the nod a click gives them all
+    const P = pointer, K = handKept, dt = Math.min(0.1, P.dt);
+    K.headK += ((guest.drawing ? 0 : P.near) - K.headK) * (1 - Math.exp(-dt / 0.3));
+    if (!P.near && K.headK < 0.002) K.headK = 0;
+    if (K.headK < 0.01) { K.headX = P.sx; K.headY = P.sy; } // where they look: the mouse, followed unhurriedly (most of the way in about half a second), so quick clicks all over the picture,
+    else { const e = 1 - Math.exp(-dt / 0.6); K.headX += (P.sx - K.headX) * e; K.headY += (P.sy - K.headY) * e; } // which move the mouse from place to place, turn the heads smoothly instead of snapping them to and fro
+    K.nod = 0;
+    for (const p of P.pokes) if (p.age < 0.8) K.nod = Math.max(K.nod, p.k * Math.sin(Math.PI * (p.age / 0.8)) * 0.14); // (the ring goes out: the nod is not at the place clicked. The biggest nod of the clicks
+    // still nodding, not all of them added up, and a small one: clicks twice a second keep the heads nodding, never bowing lower and lower, and the glowing lines never sweep much)
+  }
+  function headLook(one, f, axis) { // how far one head turns toward the mouse: across (axis 0, its turn) or up and down (axis 1, its nod)
+    const K = handKept, P = pointer;
+    if (!K.headK) return axis ? -K.nod : 0;
+    const x = w / 2 + (one.x / one.z) * f, y = h / 2 - (one.y / one.z) * f;
+    return axis ? -K.nod + 0.22 * K.headK * Math.max(-1, Math.min(1, (K.headY - y) / (h * 0.4))) : -0.4 * K.headK * Math.max(-1, Math.min(1, (K.headX - x) / (w * 0.35)));
+  }
+  const cityLean = () => leanAt(0.3, 0.6)[0] * 4; // Neon city: we fly over a little toward the mouse's side, and more toward a place clicked (the ring goes out). In the city's own measure
+  function sphereHand() { // Sound sphere, once a frame: a click gives the ball a spin, about half a turn dying away within a second or two (the ring goes out). Gives back how far it turns this frame
+    const P = pointer, K = handKept, dt = Math.min(0.1, P.dt);
+    if (P.fresh) K.sphereSpin = 5 * Math.min(1, P.fresh.k) * (P.fresh.x >= w / 2 ? 1 : -1);
+    const turn = K.sphereSpin * dt;
+    K.sphereSpin *= Math.exp(-dt / 0.6);
+    if (Math.abs(K.sphereSpin) < 0.001) K.sphereSpin = 0;
+    return turn;
+  }
+
+  /* ---- the trips ---- */
+  function kaleidoHand() { // Kaleidoscope: the middle of the mirrors leans toward the mouse, and more toward a place clicked (the ring goes out). (Picking again how many times it is mirrored,
+    // as a drop does, made the whole picture flicker more under quick clicks, so a click only leans it)
+    const at = leanAt(0.3, 0.4);
+    handKept.mx = w / 2 + at[0] * w;
+    handKept.my = h / 2 + at[1] * h;
+    return handKept;
+  }
+  const plasmaKept = new Float64Array(26); // Plasma: what is the same for every dot of one frame, worked out at its first dot. For each of the four clicks kept: where it landed (x, y), the squares of its
+  // ring's inner and outer edge, how strong it is now (0: none), and how far out the ring has run; and last, the cosine and sine of how far round the swirl has turned
+  function plasmaHand(i, j, W, H, tt) { // Plasma, one of its dots (i, j of W by H): a warm swirl of two arms turning round the mouse, and a ripple running out from a click (taken: it starts where the
+    // click landed). Never less than nothing: the plasma's own sum never goes below 0, and its colors are counted from there. It is asked for every dot, so it is kept cheap: no angle,
+    // exponent or cosine for any dot, and a square root only for the dots inside a ripple's ring (a rise in the middle of the ring and a dip on either side, dying away in two seconds)
+    const P = pointer, A = plasmaKept, x = (i / W) * w, y = (j / H) * h;
+    if (!i && !j) {
+      const L = P.pokes, half = w * 0.08; // (half the ring's width)
+      A[24] = Math.cos(tt * 2);
+      A[25] = -Math.sin(tt * 2);
+      for (let k = 0; k < 4; k++) {
+        const p = L[k], o = k * 6, r = p ? w * 0.4 * p.age : 0;
+        A[o + 4] = p && p.age < 2.4 ? p.k * Math.exp(-p.age * 1.6) * clamp(p.age / 0.05) : 0; // (after two and a half seconds next to nothing is left of it)
+        if (!A[o + 4]) continue;
+        A[o] = p.x; A[o + 1] = p.y; A[o + 2] = Math.max(0, r - half) ** 2; A[o + 3] = (r + half) ** 2; A[o + 5] = r;
+      }
+    }
+    let v = 0, sum = 0;
+    if (P.near > 0.01) { const dx = x - P.sx, dy = y - P.sy, R = Math.min(w, h) * 0.22, r2 = dx * dx + dy * dy, q = r2 / (R * R); if (q < 4) { const f = 1 - q / 4; v = 0.8 * P.near * f * f * f * (1 + (2 * dx * dy * A[24] + (dx * dx - dy * dy) * A[25]) / (r2 + R * R * 0.25)); } } // (the two arms fade out toward the middle,
+    // inside about half their reach, so they meet in a soft round glow there and bend the plasma's dark lines gently, not into a sharp point or a corner)
+    for (let o = 0; o < 24; o += 6) {
+      if (!A[o + 4]) continue;
+      const dx = x - A[o], dy = y - A[o + 1], r2 = dx * dx + dy * dy;
+      if (r2 < A[o + 2] || r2 > A[o + 3]) continue;
+      const u = (Math.sqrt(r2) - A[o + 5]) / (w * 0.08), uu = u * u, rest = 1 - uu;
+      sum += A[o + 4] * rest * rest * (1 - 5 * uu);
+    }
+    return sum ? v + 1.6 * Math.min(1.2, Math.abs(sum)) : v;
+  }
+  const LEAN_NONE = [0, 0];
+  const juliaLean = [0, 0];
+  function steerTap(aspect) { // the fractals' journeys: a click is kept as where to go next, in the sum's own measure (across and up from the middle, in parts of half the picture's height),
+    // for up to fifteen seconds, until the journey next picks where to go. Gives back, for Julia, the slide toward the mouse and the place clicked, the answer that shows at once (the ring goes
+    // out): as leanOf() for the mouse, but only a fifth of the way to the place clicked, not half, since quick clicks sliding its fine spirals to and fro swung the picture's brightness more
+    const f = pointer.fresh, K = handKept, at = leanAt(0.14, 0.2), wide = h ? w / h : 1;
+    if (f && !guest.drawing) { K.want[0] = ((f.x / w) * 2 - 1) * aspect; K.want[1] = -((f.y / h) * 2 - 1); K.wantAt = realNow; }
+    juliaLean[0] = at[0] * 2 * wide;
+    juliaLean[1] = -at[1] * 2;
+    return juliaLean;
+  }
+  const steerWant = () => (!quiet && handKept.wantAt >= 0 && realNow - handKept.wantAt < 15000 ? handKept.want : null); // a place clicked not long ago and not yet gone to, or nothing (and nothing for an effect on its way out, which is drawn with quiet set)
+  const steerUsed = () => { handKept.wantAt = -1; };
+  const steerSoon = (wait) => (steerWant() ? Math.min(wait, 0) : wait); // Newton: a place clicked, and it sets off as soon as it can, instead of waiting
+  function steerFit(at, edge) { // Newton: how well a bead suits as the next to go to: the one nearest a place clicked, of those well inside the picture; with no click, its own way (near the middle, with a little chance)
+    const want = steerWant();
+    if (!want) return edge + Math.random() * 0.25;
+    return (edge < 1 ? 0 : 3 + edge) + Math.hypot(at[0] - want[0], at[1] - want[1]);
+  }
+  const leanMid = [0, 0];
+  function leanView(mx, my, vx, vy) { // the middle of a fractal's view moved by leanOf(), turned and scaled as its view is (Newton and the Mandelbrot set: across and up, in parts of half the picture's height)
+    const L = leanOf();
+    leanMid[0] = mx + L[0] * vx - L[1] * vy;
+    leanMid[1] = my + L[0] * vy + L[1] * vx;
+    return leanMid;
+  }
+  function leanDraw(d) { // the Mandelbrot set: one picture of this frame (made anew every frame by its journey), slid the same way
+    const m = leanView(d.mx, d.my, d.vx, d.vy);
+    d.mx = m[0];
+    d.my = m[1];
+    handKept.mvx = d.vx;
+    handKept.mvy = d.vy;
+  }
+  function mandelSide(a, b, which) { // the Mandelbrot set, leaving a place: of its two tiny copies, the one on the side clicked (a, b: the two; which: the one it would take by itself)
+    const want = steerWant(), K = handKept;
+    if (!want) return which ? b : a;
+    const side = (c) => { const d = K.mvx * K.mvx + K.mvy * K.mvy || 1, u = (-c.fromX * K.mvx - c.fromY * K.mvy) / d, v = (-c.fromY * K.mvx + c.fromX * K.mvy) / d; return Math.cos(Math.atan2(v, u) - Math.atan2(want[1], want[0])); }; // (how nearly it lies the way clicked, seen as the picture is now)
+    steerUsed();
+    return side(a) >= side(b) ? a : b;
+  }
+
+  /* ---- Space ---- */
+  const spaceQuick = () => Math.max(1, (TRIPS[name] || TRIPS.space).pace); // how much faster than Space itself this trip flies (Warp: nearly three times): its look and its turns toward the mouse are that much smaller
+  function spaceLook(axis) { // the ship looks toward the mouse: a little of the way toward it, on top of its heading (sky.aimX and aimY are left alone)
+    const at = leanAt(0.5, 0);
+    return ((axis ? at[1] : at[0]) * 0.6) / spaceQuick();
+  }
+  function spaceTap(trip) { // a click in Space: on a thing out there (as drawn last frame, the nearest in front), it glows a moment (taken). Anywhere else the ship turns toward the place clicked,
+    // through its own change of course: only with Changes of course on, no jump or fall going on, and not within four seconds of the last time (the ring goes out). Not in Warp, which flies
+    // so fast that every streak swings right across the picture when it turns: there the click only sends its ring, and the ship still looks toward the mouse
+    const P = pointer, f = P.fresh, K = handKept;
+    if (!f) return;
+    for (let i = sky.things.length - 1; i >= 0; i--) { const o = sky.things[i]; if (o.seenR > 0 && o.seenN !== undefined && P.frames - o.seenN <= 1 && Math.hypot(f.x - o.seenX, f.y - o.seenY) < o.seenR) { if (o.glowAt === undefined || realNow - o.glowAt > 1400) o.glowAt = realNow; P.taken = true; return; } } // (seen: see thingHand. Clicked again while it still glows, it is still the thing's click, and the glow goes on as it was)
+    if (T.turns > 0 && spaceQuick() < 1.5 && !sky.move && !sky.fall && realNow - K.courseAt > 4000) { K.courseAt = realNow; const k = 0.5 + 0.5 / spaceQuick(); newCourse(trip, Math.max(-1, Math.min(1, (f.x / w) * 2 - 1)) * 0.9 * k, Math.max(-1, Math.min(1, (f.y / h) * 2 - 1)) * 0.5 * k); }
+  }
+  function thingHand(o, x, y, size, seen) { // in drawThing, at the thing: where it is on the picture (turned by the roll it is drawn in), for a click to find it, and its glow when clicked (by the clock)
+    const c = Math.cos(handKept.roll), s = Math.sin(handKept.roll), p = o.glowAt === undefined ? 9 : (realNow - o.glowAt) / 1000;
+    folkHand.dx = folkHand.dy = 0; // (nothing pushes it aside, as the mouse may a visitor)
+    seenAt(o, w / 2 + x * c - y * s, h / 2 + x * s + y * c, o.kind !== "nebula" && size * 0.32 < Math.min(w, h) * 0.3 ? size * 0.32 : 0); // seen as a visitor is, at its place on the picture. A cloud, or anything
+    // so near that it fills much of the picture, gets no room round it at all: it is not clicked on, or a click would never turn the ship
+    if (p >= 1.4) return; // (the glow is never bigger across than two fifths of the picture's short side, even on a galaxy we are flying right past: it lights the thing, never the whole picture)
+    const was = g.globalCompositeOperation, alpha = g.globalAlpha;
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 1;
+    softBlob(g, 0, 0, Math.min(size * 0.5, Math.min(w, h) * 0.2), mix(colors[0], [255, 255, 255], 0.5), 0.22 * seen * Math.sin(Math.PI * clamp(p / 1.4)));
+    g.globalCompositeOperation = was;
+    g.globalAlpha = alpha;
+  }
+  function wellHand() { // Black hole: a click makes everything whirl faster round it for a second (the ring goes out). Gives back the extra whirl this frame
+    const P = pointer, K = handKept, dt = Math.min(0.1, P.dt);
+    if (P.fresh) K.wellSpin = 1;
+    const more = K.wellSpin * dt * 4;
+    K.wellSpin *= Math.exp(-dt / 0.5);
+    if (K.wellSpin < 0.002) K.wellSpin = 0;
+    return more;
+  }
+  /* ---- the visions ---- */
+  function facesGaze(own, axis) { // Faces: the eyes that are open look toward the mouse (only the mouse's share is eased, so with no mouse they look exactly their own way)
+    const K = handKept, P = pointer;
+    if (axis === 0) { K.faceK += ((guest.drawing ? 0 : P.near) - K.faceK) * (1 - Math.exp(-Math.min(0.1, P.dt) / 0.2)); if (!P.near && K.faceK < 0.002) K.faceK = 0; }
+    if (!K.faceK) return own;
+    const to = axis ? Math.max(-1, Math.min(1, (P.sy / h) * 2 - 1)) * 0.6 : Math.max(-1, Math.min(1, (P.sx / w) * 2 - 1)) * 0.9;
+    return own + (to - own) * K.faceK;
+  }
+  const facesBlink = (b, age) => !!pointer.fresh && b.blink > 0.4 && age < 2; // Faces: a click, and every face that is not about to blink anyway blinks now (the ring goes out: the answer is all
+  // over the picture). Not the faces grown big (age: 0 when born, 4 when grown out of sight): their lids, shut all at once twice a second, would be large flashes
+  function beingLook(b, n, x, y) { // Beings: the one that is here looks at the mouse, and a click flings its limbs out (the ring goes out). Gives back its look, a new pair as before
+    const K = handKept, P = pointer;
+    if (n) return [x, y];
+    K.beingK += ((guest.drawing ? 0 : P.near) - K.beingK) * (1 - Math.exp(-Math.min(0.1, P.dt) / 0.25));
+    if (!P.near && K.beingK < 0.002) K.beingK = 0;
+    if (P.fresh) b.reachV += 4 * Math.min(1, P.fresh.k);
+    if (!K.beingK) return [x, y];
+    const tx = Math.max(-1, Math.min(1, (P.sx / w) * 2 - 1)) * 0.8, ty = Math.max(-1, Math.min(1, (P.sy / h) * 2 - 1)) * 0.5;
+    return [x + (tx - x) * K.beingK, y + (ty - y) * K.beingK];
+  }
+
+  function formsHand(N, cells) { // Forms, once a frame: the middle of the pattern is drawn a little toward the mouse and half way toward a place clicked (hand, in the sum's own measure), and a click
+    // pushes the whole pattern outward from there for a moment, as a small drop would (the ring goes out: the answer is the whole pattern). cells: how much a fine pattern may be pushed
+    const L = leanOf();
+    let push = 0;
+    N.hand[0] = L[0];
+    N.hand[1] = L[1];
+    for (const p of pointer.pokes) if (p.age < 2) push += p.k * (1 - Math.exp(-p.age / 0.06)) * Math.exp(-p.age / 0.45);
+    N.grow[3] += 0.12 * Math.min(1.5, push) * cells;
+  }
+
+  /* ---- the pixel worlds ---- */
+  const arcadeHand = (x, across, rail) => { const P = pointer; return P.near < 0.01 || guest.drawing ? x : x + (Math.max(rail + 8, Math.min(across - rail - 8, (P.sx / w) * across)) - x) * 0.7 * P.near; }; // Arcade: the ship slides
+  // most of the way toward the mouse's place across, inside its lane (x: where the game wants it, in its own dots). Its bolts still find their foe. A click fires a bolt at once: that is in the game's own code
+  function placeLift(v, u) { // Places: whatever in the column under the mouse follows the music (lamps, windows, reeds: each place has its own) is lifted as if its part of the sound were louder, by a share of
+    // the room left (v: that part's level, u: how far across the picture, 0 to 1). A click makes it flare there for a second (the ring goes out: what answers may be anywhere up and down that column)
+    const P = pointer;
+    if ((P.near < 0.01 && !P.pokes.length) || guest.drawing) return v;
+    let k = 0.5 * handClose(u * w, P.sy, w * 0.07);
+    for (const p of P.pokes) if (p.age < 1.5) { const d = (u * w - p.x) / (w * 0.09); k += 0.8 * p.k * Math.exp(-d * d) * (1 - Math.exp(-p.age / 0.05)) * Math.exp(-p.age * 2.2); }
+    return v + Math.max(0, 1 - v) * Math.min(1, k);
+  }
+  const cellOf = (v, of, n) => Math.floor((v / of) * n); // which of n cells a place v along a side of length "of" is in
+  function lifeHand(L, cols, rows, dt, again) { // Living grid, once a frame: a click plants where it lands, about half what a big kick plants, at every mirror image of the spot (taken only if something was planted:
+    // while the drop's ring is out nothing is, and the ring goes out instead); a moving mouse leaves a crumb of life every fifth of a second
+    const P = pointer, K = handKept, cell = cellOf;
+    if (again) return;
+    if (P.fresh && L.touch(cell(P.fresh.x, w, cols), cell(P.fresh.y, h, rows), true)) P.taken = true;
+    K.crumb = Math.min(1, K.crumb + Math.min(0.1, P.dt));
+    if (P.near > 0.5 && Math.hypot(P.vx, P.vy) > w * 0.05 && K.crumb > 0.2) { K.crumb = 0; L.touch(cell(P.sx, w, cols), cell(P.sy, h, rows), false); }
+  }
+  function runnerTap(st, K) { // Runner: a click and the figure hops, if it is on the ground and not floating, stumbling, leaping a gate or hopping already (then taken). Only its drawing hops: the beat and the course are left alone
+    const P = pointer, H = handKept;
+    if (!P.fresh) return;
+    const busy = realNow - H.hopAt < 480;
+    if (busy || st.floating || st.stumble || st.leap || st.gate || st.gone || runnerTrack(st.beat, K).air) return; // (it cannot hop just now: the ring answers instead)
+    H.hopAt = realNow;
+    H.hopHigh = Math.max(6, Math.round((K.HS || 1) * 14));
+    P.taken = true; // (the hop is the answer, wherever the click landed on its little screen: no ring)
+  }
+  const runnerHop = () => { const p = (realNow - handKept.hopAt) / 450; return p > 0 && p < 1 ? Math.round(handKept.hopHigh * 4 * p * (1 - p)) : 0; }; // how high its own hop has it, in its dots, by the clock
+
+  /* ---- recipes ---- */
+  function recipeHand(env) { // a recipe may use the mouse: mx and my, where it is over the picture from 0 to 1 across and down (a half, the middle, when it is not there), and mnear, how much it is there
+    const P = pointer, k = guest.drawing ? 0 : P.near;
+    env.mx = 0.5 + ((w ? P.sx / w : 0.5) - 0.5) * k;
+    env.my = 0.5 + ((h ? P.sy / h : 0.5) - 0.5) * k;
+    env.mnear = k;
+  }
+
+  /* ---- Aero's own answers: each of the six answers a click in its own way; with the slider on, only the picture's clicks (fresh: never more than two a second, and not one a visitor took),
+     and the ones in between only send the ring. With the slider at 0 they answer every click, as they always did ---- */
+  const aeroTap = () => (T.hand > 0 && !pointer.fresh ? null : pointer.tapped);
+  const aeroNear = (own) => (T.hand > 0 ? Math.min(own, pointer.near) : own); // and how much each of them feels a hovering mouse (own: as it always did, 0 to 1). With the slider on, never more than near:
+  // so it follows the slider, a finger's tap leaves nothing behind, and a mouse left lying still is let go of within about five and a half seconds, as everywhere else. At 0, as always
+
+  /* ---- the 303's singer and the band, which stand in front of the visitors: a click is theirs first (frontTap, from handTap), the one in front first: the crowd, the rocket, the dancer, the singer ---- */
+  const singerSeen = new Float64Array(8).fill(-9), singerLook = [0, 0]; // where the singer's face was drawn (x, y, radius, frame), for two faces at most (a duet); and how far its eyes look
+  handKept.singerSeen = singerSeen; // (kept with the rest, so all of it can be looked at in one place)
+  function singerEyes(cx, cy, r) { // in acidFace: where its face is, for a click, and how far its eyes look toward the mouse (in parts of its face, at most 0.06)
+    const P = pointer, K = handKept, S = singerSeen, at = S[3] === P.frames ? 4 : 0;
+    S[at] = cx; S[at + 1] = cy; S[at + 2] = r; S[at + 3] = P.frames;
+    if (!at) S[7] = -9; // (a second face this frame is a duet's: both are kept)
+    if (!at) { K.singK += ((guest.drawing ? 0 : P.near) - K.singK) * (1 - Math.exp(-Math.min(0.1, P.dt) / 0.2)); if (!P.near && K.singK < 0.002) K.singK = 0; }
+    singerLook[0] = singerLook[1] = 0;
+    if (!K.singK) return singerLook;
+    const ax = P.sx - cx, ay = P.sy - cy, far = Math.hypot(ax, ay) || 1, near = clamp(far / (r * 3));
+    singerLook[0] = (ax / far) * 0.06 * near * K.singK;
+    singerLook[1] = (ay / far) * 0.05 * near * K.singK;
+    return singerLook;
+  }
+  function singerLick(S) { // in acidNow: a click on its face, and it licks (not again within 0.6 s)
+    const K = handKept;
+    if (!K.lick) return false;
+    K.lick = false;
+    return S.t - S.lickAt > 0.6;
+  }
+  function bandHop(p, U, X) { // the crowd, one person: where they are, for a click, and how high they hop after one (a wave of hops running out along the crowd from the place clicked)
+    p.hitX = X; p.hitU = U; p.hitN = pointer.frames;
+    const q = p.hopAt === undefined ? 9 : (realNow - p.hopAt) / 380;
+    return q > 0 && q < 1 ? U * 0.7 * 4 * q * (1 - q) : 0;
+  }
+  function dancerHop(P, top) { // the dancer on the speakers: where it is, for a click, and a little hop off the beat after one
+    const K = handKept;
+    K.danceX = P.dx; K.danceY = top; K.danceH = P.dH; K.danceN = pointer.frames;
+    const q = (realNow - K.danceAt) / 340;
+    return q > 0 && q < 1 ? P.dH * 0.12 * 4 * q * (1 - q) : 0;
+  }
+  function rocketHand(x, y, s) { // the rocket: where it is, for a click, and the wobble a click gives it (it does not launch, burst or end anything)
+    const K = handKept, q = (realNow - K.rocketAt) / 1000;
+    K.rocketX = x; K.rocketY = y; K.rocketR = s * 2.2; K.rocketN = pointer.frames;
+    return q > 0 && q < 1.2 ? 0.35 * Math.sin(q * 18) * Math.exp(-q * 3) : 0;
+  }
+  function frontTap(p) { // a click on the band or the singer, as drawn last frame, the one in front first. Says whether one of them took it (then no visitor, picture or ring sees it).
+    // Each answers at most twice a second; a click on one while it is still answering is still its own and does nothing more
+    const P = pointer, K = handKept, now = (n) => n !== undefined && P.frames - n <= 1;
+    const floor = bandAt.floor;
+    for (let i = BAND_FOLK - 1; i >= 0; i--) { // the crowd, nearest us
+      const o = bandFolk[i];
+      if (!o.posed || o.came <= 0.3 || !now(o.hitN) || Math.abs(p.x - o.hitX) > o.hitU * 0.95 || p.y > floor || p.y < floor - o.hitU * 3.2) continue;
+      if (realNow - K.crowdAt >= 500) { K.crowdAt = realNow; for (let j = 0; j < BAND_FOLK; j++) { const q = bandFolk[j]; if (q.hitX !== undefined) q.hopAt = realNow + (Math.abs(q.hitX - p.x) / Math.max(1, w)) * 500; } }
+      return true;
+    }
+    if (now(K.rocketN) && Math.hypot(p.x - K.rocketX, p.y - K.rocketY) < K.rocketR) { if (realNow - K.rocketAt >= 1200) K.rocketAt = realNow; return true; }
+    if (now(K.danceN) && Math.abs(p.x - K.danceX) < K.danceH * 0.35 && p.y < K.danceY + K.danceH * 0.1 && p.y > K.danceY - K.danceH * 1.05) { if (realNow - K.danceAt >= 500) K.danceAt = realNow; return true; }
+    const S = singerSeen;
+    for (let at = 4; at >= 0; at -= 4) if (S[at + 3] >= 0 && P.frames - S[at + 3] <= 1 && Math.hypot(p.x - S[at], p.y - S[at + 1]) < S[at + 2] * 1.05) { K.lick = true; return true; }
+    return false;
+  }
+  /* ==== mouse styles: end ==== */
   function pointerRings() { // a click on the picture sends a soft ring out from where it landed, in the record's colors, and the kick pushes it on
     handAfter(); // what is left of a click once the effect has drawn: a saucer close by may come for it, and during a change of effect the ring always goes out (see the mouse block)
     const L = pointer.rings;
