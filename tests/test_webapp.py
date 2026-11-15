@@ -896,16 +896,17 @@ class SecondStart(unittest.TestCase):
         with self.home():
             code, said, opened = self.start(port, lan=True, open_browser=False)
         self.assertIsNone(code)
-        self.assertEqual(self.asked[0][0], "0.0.0.0")
-        self.assertNotEqual(self.asked[0][1], port)  # this computer's own address on that port is in use: the wider one is left alone too
-        self.assertIn(f"On your home network: http://192.168.1.20:{self.asked[0][1]}/?key=0123456789", said)
+        self.assertEqual({address[0] for address in self.asked}, {"0.0.0.0"})
+        self.assertNotIn(port, [address[1] for address in self.asked])  # this computer's own address on that port is in use: the wider one is left alone too
+        self.assertIn(f"On your home network: http://192.168.1.20:{self.asked[-1][1]}/?key=0123456789", said)  # (the port after it may be in use too on a busy computer: the last one asked is the one it took)
 
     def test_asked_for_the_home_network_a_port_taken_on_the_networks_address_only_is_left_alone(self):
         port = self.free_port()
         with self.home(), mock.patch.object(webapp, "_held", lambda candidate: candidate == port), mock.patch.object(webapp, "_taken", lambda host, candidate: (host, candidate) == ("192.168.1.20", port)):
             code, said, opened = self.start(port, lan=True, open_browser=False)
         self.assertNotIn(port, [address[1] for address in self.asked])
-        self.assertEqual(len(self.asked), 1)
+        self.assertTrue(self.asked)
+        self.assertIn(f":{self.asked[-1][1]}/", said)  # it opened on a port of its own (the next one may be in use too on a busy computer)
 
 
 class Command(unittest.TestCase):
