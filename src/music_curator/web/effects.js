@@ -13,7 +13,7 @@ window.Effects = (() => {
   const paintFilter = () => { canvas.style.filter = [aside.lit === 1 ? "" : `brightness(${aside.lit})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); }; // the picture's Brightness and its softness behind the page, both on the picture itself (a blur laid over the window from outside would cost far more)
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
   const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [], touch: false, near: 0, much: 1, over: 0, sx: 0, sy: 0, vx: 0, vy: 0, lx: 0, ly: 0, cx: 0, cy: 0, aimX: 0, aimY: 0, aimTill: -1, fresh: null, pokes: [], since: 99, dt: 0, frames: 0 }; // the mouse over the picture, in the picture's own dots (what comes after rings belongs to the mouse block, which says what each is): on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, stay: 1, bold: 1, punch: 1, hand: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, stay: 1, bold: 1, cover: 1, punch: 1, hand: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -31,7 +31,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], stay: ["Color tricks, how long", 0, 2], bold: ["Color tricks, how strong", 0, 2], punch: ["Hard kicks", 0, 2], hand: ["Answers to the mouse", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], stay: ["Color tricks, how long", 0, 2], bold: ["Color tricks, how strong", 0, 2], cover: ["The record's colors", 0, 3], punch: ["Hard kicks", 0, 2], hand: ["Answers to the mouse", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), HEADS = 9;
   let peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS); // (let: while one effect changes into another, each can have its own)
@@ -3644,10 +3644,10 @@ window.Effects = (() => {
      All of them take their colors from the mood (every color for psytrance, yellow for acid, red for hardcore, pale for trance) or else the record, and follow how the song is going. ---------- */
   function moodColors(n) { // the version's turn of the colors reaches these too, a little for acid and hardcore so they stay yellow and red
     const hue = V.hue || 0;
-    if (mood === "psy") return Array.from({ length: n }, (_, i) => rainbowTone(sound.t * 0.08, (i / n) * TAU + (hue * Math.PI) / 180)); // spread evenly round the wheel, all turning together
+    if (mood === "psy") return moodTake(Array.from({ length: n }, (_, i) => rainbowTone(sound.t * 0.08, (i / n) * TAU + (hue * Math.PI) / 180))); // spread evenly round the wheel, all turning together (and the record's colors, when they are taken: see the cover block)
     const set = mood === "acid" ? [[246, 230, 50], [150, 240, 60], [255, 140, 30]] : mood === "hard" ? [[255, 50, 40], [170, 20, 30], [255, 140, 60]] : mood === "euphoric" ? [mix(colors[0], [255, 255, 255], 0.35), [170, 210, 255], [255, 190, 235]] : mood === "nightcore" ? NIGHT_PASTEL : colors, turn = set === colors ? 0 : hue * (mood === "euphoric" ? 0.5 : mood === "nightcore" ? 0.25 : 0.12); // nightcore: sakura pink, cyan and lavender
     const lit = mood === "acid" || mood === "hard" || mood === "euphoric" ? songTint(set, songMoment.mood, mood === "euphoric" ? 1 : 0) : set; // the song's moment on the mood's own colors: euphoric's first is the record's, which has it already
-    return Array.from({ length: n }, (_, i) => turnHue(lit[i % lit.length], turn));
+    return moodTake(Array.from({ length: n }, (_, i) => turnHue(lit[i % lit.length], turn)));
   }
   function skyStars(n, bottom, seed = 1) { // a fixed scatter of stars, twinkling a little
     const { t } = sound;
@@ -5882,9 +5882,124 @@ window.Effects = (() => {
       setVersion(pick, "fade");
     }
   }
+  /* ==== cover: begin ==== */
+  /* The record's colors in the pictures (the slider "The record's colors", T.cover). Most effects paint in the record's colors (colors, made in tint() below); the ones that go by the mood
+     paint in the mood's own instead (moodColors: every color for psytrance, yellow for acid, red for hard music, pale for trance, pastels for nightcore), and in the record's only on a song with no mood.
+       0  Never: the app's own three colors (lime, teal and blue) in place of the record's, whatever the record. This reaches every effect.
+       1  Only on songs without a mood: as it always was.
+       2  Sometimes: on a song with a mood, every 50 to 110 seconds, on the start of a bar, the mood's colors glide to the record's over a second and a half, stay 24 to 48 seconds, and glide back.
+       3  Always: the record's colors on songs with a mood too.
+     Sometimes and Always reach only the effects in COVER_TAKES below, each in the moods it was measured safe in (Effects.coverTakes says which, so the page can say it too),
+     and never hard music, which keeps its own red: there the record's colors, held to the red's brightness, came out dark and dull, and five of the thirteen effects measured,
+     one more on a recorded hard song, gave a second with more large changes of light than the red did.
+     Kept safe for the eyes. A color taken is given the brightness of the mood's color it stands in for, so the picture stays as light or as dark as the mood made it, place by place,
+     and only its hue moves, slowly; and never more than that color wherever it is drawn two, three or four times over. (Most effects add their light up where shapes cross, on the kick and at the drop,
+     and a color whose light is mostly in its red, as hard music's are, is soon full there and stops brightening, while one whose light is mostly in its green goes on. Such a color is taken darker.)
+     So that as little as can be is darkened, the record's brightest color goes where the mood has its brightest, and its darkest where the mood has its darkest.
+     A record's strong red is first taken part of the way to grey (red no more than six tenths of the color), so no big patch of strong red is made where the mood had none.
+     A record with no color worth taking (grey, black, or none) gives nothing, and nothing changes.
+     When to come and how long to stay are picked by a chance of their own, so the rest of the picture picks by chance exactly as it would have without them. */
+  const COVER_TAKES = { aurora: ["nightcore", "euphoric"], ocean: [], sphere: ["acid"], aero: [], aqua: [], dorfic: [], eco: [], darkaero: [], zen: [] };
+  // COVER_TAKES: each effect that takes the record's colors on songs with a mood, and the moods it is kept out of. Each effect that paints in the mood's colors was measured in every mood
+  // with four to six records and at least one recorded song, the record's colors against the mood's on the same run (scripts/judge.js), and is here only where the record's colors never once gave
+  // a second with more than three large changes of light and more than that same second had without them, then again over long runs, and on a phone, a tall and a wide picture.
+  // Left out, as measured: the Energy tube, Shapes in space, Neon road, Neon heads and Beings (their many changes of light: some second, somewhere, had one more), and, as the first review measured them, the Kaleidoscope,
+  // the zoom (Fractal), Faces and Neon city; Julia, Mandelbrot and Newton were never put in (their fine patterns). Plasma is left out in every mood: one second more on a recorded song in each
+  // (acid; nightcore, on a recorded hard song; psytrance, with a yellow and a sunset record; euphoric, on two recorded trance songs with a magenta and a red record). The Sound sphere is kept out
+  // of acid (one more, with a neon record), and Northern lights out of euphoric (one more at the drop, with a neon and an orange record).
+  const COVER_MOODS = ["euphoric", "psy", "acid", "nightcore"]; // the moods whose own colors may give way to the record's (hard music's red never does: see above)
+  const coverTakesIn = (style, m) => !!COVER_TAKES[style] && COVER_MOODS.includes(m) && !COVER_TAKES[style].includes(m); // whether Sometimes and Always reach this effect in this mood
+  const coverTake = { k: 0, plain: 0, on: false, has: false, wait: 0, stay: 0, dice: 0, at: -1e9, seen: null, mood: "", from: [], to: [], swap: 1, bare: false, kept: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], memo: [] };
+  // k: how far the mood's colors have gone to the record's (0 to 1, eased where it is used); plain: how far the record's colors have gone to the app's own three ("Never");
+  // on: whether the record's are wanted just now; has: whether the record playing gave any; wait, stay: seconds until the next visit ("Sometimes"), and left of this one;
+  // dice: the chance of its own (0 until it is first needed, when the first wait is drawn); at: the clock when it was last looked at (ms); seen, mood: the record's colors it last took from (base) and the mood it took them for; to: the colors taken, calmed, in the mood's places; from, swap: the last ones, and
+  // how far from those to these (0 to 1), for a new record (or mood) while they show; bare: while the mood's own colors are asked for, untaken (to see which of them is brightest);
+  // kept: the three colors on the way to the app's own, filled in again, not made anew; memo: for each of the mood's colors, the last one asked about, the color taken for it, and what coverLight made of the two (worked out again only when one of them changes)
+  const coverDice = () => (coverTake.dice = (coverTake.dice * 48271) % 2147483647) / 2147483647; // 0 to 1
+  const coverWait = () => 50 + 60 * coverDice(); // seconds until the next visit ("Sometimes")
+  const coverLuma = ([r, gr, b]) => 0.2126 * r + 0.7152 * gr + 0.0722 * b; // how bright a color looks, 0 to 255
+  function coverCalm([r, gr, b], most) { // a strong red taken toward the grey with the same sum, until red is no more than most of the color (a strong red is from about eight tenths: see momentRed)
+    const red = r / (r + gr + b + 1);
+    if (red <= most) return [r, gr, b];
+    const k = (red - most) / (red - 1 / 3), grey = (r + gr + b) / 3;
+    return [r + (grey - r) * k, gr + (grey - gr) * k, b + (grey - b) * k];
+  }
+  const coverAt = (x, k) => (k <= 1 ? x * k : x + (255 - x) * (k - 1)); // one part of a color, from k up to 1 of the full color, then from 1 to 2 of the way on to white
+  const coverOver = (r, gr, b, m, s) => 0.2126 * (Math.min(255, s * r) - Math.min(255, s * m[0])) + 0.7152 * (Math.min(255, s * gr) - Math.min(255, s * m[1])) + 0.0722 * (Math.min(255, s * b) - Math.min(255, s * m[2])); // how much brighter (r, gr, b) looks than m, both drawn s times over
+  const coverPoints = new Float64Array(8); // the strengths to look at (kept, filled in again)
+  function coverLight(c, m) { // the color c made as bright as m where it can be, and never brighter, however many times over either is drawn, up to four (where shapes cross, on the kick, at the drop):
+    // brighter by turning it up and then toward white once its strongest part is full, but only as far as every strength allows. A color whose light is mostly in its red (hard music's) is soon full there
+    // and stops brightening when drawn over and over, while one whose light is mostly in its green goes on; so against such a mood color a green is taken darker, and a pale color, soon full in
+    // every part, stays short of white and keeps its color. (Drawn s times over, each part grows with s until it is full, so how much brighter one is than the other changes its way only where
+    // a part of either becomes full: looking there, and at once and four times, is looking everywhere between)
+    const top = Math.max(c[0], c[1], c[2], 1), r = (c[0] * 255) / top, gr = (c[1] * 255) / top, b = (c[2] * 255) / top, P = coverPoints;
+    const fits = (k) => {
+      const vr = coverAt(r, k), vg = coverAt(gr, k), vb = coverAt(b, k);
+      P[0] = 1; P[1] = 4; P[2] = 255 / vr; P[3] = 255 / vg; P[4] = 255 / vb; P[5] = 255 / m[0]; P[6] = 255 / m[1]; P[7] = 255 / m[2];
+      for (let i = 0; i < 8; i++) if (P[i] >= 1 && P[i] <= 4 && coverOver(vr, vg, vb, m, P[i]) > (P[i] > 1 ? 4 : 1e-6)) return false; // (drawn over, 4 of 255 to spare: a sixth of a large change, so that white is not refused against a mood color that is nearly white there)
+      return true;
+    };
+    let lo = 0, hi = 2;
+    for (let i = 0; i < 14; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; } // halved fourteen times: to about an eight-thousandth of the way
+    return [coverAt(r, lo), coverAt(gr, lo), coverAt(b, lo)];
+  }
+  const coverColor = (i) => { const C = coverTake, to = C.to[i % C.to.length]; return C.swap < 1 && C.from.length ? mix(C.from[i % C.from.length], to, eased(C.swap)) : to; }; // the taken color for the mood's color i
+  const coverRank = (list) => [0, 1, 2].sort((a, b) => coverLuma(list[b]) - coverLuma(list[a])); // the places of three colors, the brightest first
+  function coverSeen() { // a new record (Effects.cover changed base) or a new mood: the colors worth taking. The app's own three, which fill in when a record has fewer than three colors, are not taken: the record's first is turned instead
+    const C = coverTake, taken = base.filter((c) => !PLAIN.includes(c));
+    if (taken.length) while (taken.length < 3) taken.push(turnHue(taken[0], taken.length === 1 ? 35 : -35)); // a record of one or two colors: its first turned a little each way, so the picture keeps a few colors
+    C.seen = base;
+    C.mood = mood;
+    C.has = taken.length > 0;
+    if (!C.has) return; // (the last record's are kept, for the glide back)
+    if (C.k > 0 && C.to.length) { C.from = [0, 1, 2].map(coverColor); C.swap = 0; } // the last record's colors are showing: glide from them
+    const calmed = taken.map((c) => coverCalm(c, 0.6));
+    if (!COVER_MOODS.includes(mood) || mood === "psy") { C.to = calmed; return; } // (psytrance's colors go all round the wheel, none brighter for long: the record's keep their own order)
+    C.bare = true;
+    const own = moodColors(3); // the mood's own three, as they are now
+    C.bare = false;
+    const places = coverRank(own), mine = coverRank(calmed);
+    C.to = [];
+    places.forEach((place, i) => (C.to[place] = calmed[mine[i]])); // the record's brightest where the mood has its brightest, and so on down
+  }
+  function coverNow(real) { // once a frame, from frame(): whether the record's colors are wanted just now, and the glides toward them or away
+    const C = coverTake, level = T.cover, slept = realNow - C.at > 1000; // (the picture was not drawn for a second or more: the first frame, or back from hidden or a sleeping tab. Then it is where it should be at once, as no glide was seen)
+    C.at = realNow;
+    if (C.seen !== base || C.mood !== mood) coverSeen();
+    if (!mood || !C.has || level < 1.5) { if (C.on && C.dice) C.wait = coverWait(); C.on = false; } // (a visit cut short, by a song with no mood or a record with no colors: the next one is a whole wait away)
+    else if (level >= 2.5) C.on = true;
+    else { // Sometimes
+      if (!C.dice) { C.dice = 1 + (Math.floor(Math.abs(realNow)) % 2147483646); C.wait = coverWait(); }
+      if (C.on) { if ((C.stay -= real) <= 0) { C.on = false; C.wait = coverWait(); } }
+      else if ((C.wait -= real) <= 0 && (C.wait < -4 || (flow.beatSure > 0.6 && flow.barSure > 0.3 ? flow.barHit : sound.kickHit))) { C.on = true; C.stay = 24 + 24 * coverDice(); } // on the start of a bar while the song's clock is sure of it, or else on a kick; in a long break, four seconds late
+    }
+    const plain = level < 0.5 ? 1 : 0;
+    C.k = !mood ? 0 : slept ? +C.on : Math.max(0, Math.min(1, C.k + (C.on ? real : -real) / 1.5)); // (with no mood there is nothing to glide from: the next song with one glides in from its own colors)
+    C.plain = slept ? plain : Math.max(0, Math.min(1, C.plain + (plain ? real : -real) / 2.5)); // slower, as the record's colors and the app's own can be far apart in brightness
+    C.swap = slept ? 1 : Math.min(1, C.swap + real / 1.5);
+  }
+  function coverFrom() { // what tint() starts from: the record's colors, the app's own three ("Never"), or the way between
+    const C = coverTake;
+    if (C.plain <= 0) return base;
+    if (C.plain >= 1) return PLAIN;
+    const k = eased(C.plain);
+    for (let i = 0; i < 3; i++) for (let c = 0; c < 3; c++) C.kept[i][c] = base[i][c] + (PLAIN[i][c] - base[i][c]) * k;
+    return C.kept;
+  }
+  function moodTake(list) { // the mood's colors (from moodColors) gone as far toward the record's as coverNow says: each taken color as bright as the mood's color it stands in for (see coverLight)
+    const C = coverTake;
+    if (C.bare || C.k <= 0 || !C.to.length || !coverTakesIn(name, mood)) return list; // (name: the effect being drawn; while one changes into another, each is drawn under its own name)
+    const k = eased(C.k);
+    return list.map((m, i) => {
+      const c = coverColor(i), memo = C.memo[i] || (C.memo[i] = { m: [-1, -1, -1], c: null, out: null }); // (as many as the most colors ever asked for at once: a handful)
+      if (memo.c !== c || memo.m[0] !== m[0] || memo.m[1] !== m[1] || memo.m[2] !== m[2]) { memo.c = c; memo.m[0] = m[0]; memo.m[1] = m[1]; memo.m[2] = m[2]; memo.out = coverLight(c, m); }
+      return mix(m, memo.out, k);
+    });
+  }
+  /* ==== cover: end ==== */
   function tint() { // the record's colors as the version has them: turned round the color wheel, and in another order (or between two orders, on the way from one to the other). While it changes by itself they also drift a little, all the time
-    const turn = (V.hue || 0) + (VERSIONS[name] && T.vary ? 10 * Math.sin(sound.t * 0.04) : 0), order = V.order || 0, first = Math.floor(order), part = order - first, n = base.length;
-    colors = turn || order ? base.map((_, i) => turnHue(part ? mix(base[(i + first) % n], base[(i + first + 1) % n], part) : base[(i + first) % n], turn)) : base;
+    const turn = (V.hue || 0) + (VERSIONS[name] && T.vary ? 10 * Math.sin(sound.t * 0.04) : 0), order = V.order || 0, first = Math.floor(order), part = order - first, from = coverFrom(), n = from.length; // (from: the record's colors, or the app's own three when they are never to be taken: see the cover block)
+    colors = turn || order ? from.map((_, i) => turnHue(part ? mix(from[(i + first) % n], from[(i + first + 1) % n], part) : from[(i + first) % n], turn)) : from;
     const pale = Math.min(0.4, dream.held * 0.25); // and paler while a big lead plays
     if (pale > 0.004) colors = colors.map((c) => mix(c, [255, 255, 255], pale));
     colors = nightTint(acidTint(colors)); // and a little toward acid's yellow while the 303's singer sings; three quarters of the way to the pastels in the nightcore mood
@@ -17117,7 +17232,7 @@ window.Effects = (() => {
     visiting: () => guest.list.length > 0,
     hover: (x, y, how, by) => (guest.list.length ? guestHover(x, y, how, by) : ""), // the page's own mouse, for whoever is over the app: where it is on the screen, "move", "down" or "still" (lying where it was: said on every frame while somebody is there), and what it is ("mouse", "pen" or "touch"). If it came on the visitor or near it, the visitor leaves quickly, and its kind is given back ("" if nobody went)
     shoo() { for (const o of guest.list) guestGo(o); }, // whoever is over the app leaves quickly, each in its own way (the page's "Things on top" was turned off)
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "stay", "bold", "dream", "folk", "hand", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "stay", "bold", "cover", "dream", "folk", "hand", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       changeKnobs(); // the sliders the picture was drawn with, kept for an effect that goes on beside the next one (see the live change)
@@ -17156,6 +17271,7 @@ window.Effects = (() => {
     box(across, down) { const wide = Math.round(+across), high = Math.round(+down), fits = (v) => Number.isFinite(v) && v >= 16 && v <= 16384; [boxed.w, boxed.h] = fits(wide) && fits(high) && wide <= high * 20 && high <= wide * 20 ? [wide, high] : [0, 0]; if (name) fit(); return boxed.w > 0; }, // the picture drawn for a box of the page so many points across and down (in whole points), in place of the whole window (the Effects page's own window for it). 0, 0 gives it the whole window again, and so do sizes that make no sense (under 16 points, over 16384, or one side more than twenty times the other). Says whether it took the box. The mouse's places move with it, and the crowd stands on the box's bottom edge. Full view always has the whole window, but full() does not change the picture's size: give the box back (0, 0) before Full view, and tell it again after. A new size wipes the picture's trails, as a new window size does, so tell it only when the size really changes (the same size again costs nothing)
     soft(px) { pageSoft = Math.max(0, Math.min(40, +px || 0)); paintFilter(); }, // how soft the picture is behind the page, in dots (0 is sharp)
     filterAt: (k) => `brightness(${k * aside.lit})${pageSoft ? ` blur(${pageSoft}px)` : ""}`, // the picture's filter with its Brightness times k, for the page's flash on the kick, which must keep the softness
+    coverTakes: (style) => COVER_MOODS.filter((m) => coverTakesIn(style, m)), // the moods in which "Sometimes" and "Always" of the record's colors reach this effect (none: on it they change nothing, and only "Never" does)
     cover(img) { // the colors come from the record
       picture = img;
       base = PLAIN;
@@ -17186,6 +17302,7 @@ window.Effects = (() => {
         acidNow(real);
         acidAll(real); // what every picture hears of the 303 (the acidall block)
         songMomentNow(real); // the song's moment, eased for the colors
+        coverNow(real); // and whether the mood's colors are taking the record's (see the cover block)
         tint();
         drawFrame();
         drawFlow(real);
