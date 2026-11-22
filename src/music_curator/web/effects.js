@@ -5674,7 +5674,7 @@ window.Effects = (() => {
     aqua: { school: [1, 0.65, 1.4], kelp: [1, 0.5, 1.5], caps: [1, 0.4, 1.7], shine: [1, 0.7, 1.4], murk: [0, 0.45, 0.2], current: [0, 0.6, -0.6] },
     dorfic: { swish: [1, 0.6, 1.5], arcset: [1, 0.5, 1.6], dusk: [0, 0.5, 1, 0.25], shardy: [1, 0.4, 1.8], sunway: [0.64, 0.36, 0.5, 0.74] },
     eco: { breeze: [1, 0.6, 1.6], leafy: [1, 0.5, 1.6], golden: [0, 0.4, 0.8, 0.2], mills: [1, 0.3, 1.8], canopy: [1, 0.7, 1.3] },
-    darkaero: { streaks: [1, 0.6, 1.5], orbs: [1, 0.65, 1.4], panes: [1, 0.4, 1.6], floor: [0.64, 0.58, 0.7], lean: [0.35, 0.15, 0.6], glow: [1, 0.75, 1.3] },
+    darkaero: { streaks: [1, 0.6, 1.5], orbs: [1, 0.65, 1.4], panes: [1, 0.4, 1.6], floor: [0.64, 0.58, 0.7], lean: [0.35, 0.15, 0.6], glow: [1, 0.75, 1.3], veil: [0, 1, 0.6, 0], weave: [0, 1, 2, 0, 1], twirl: [0, 0.5, 1, 0.3], hour: [0, 0.5, 1, 0.25, 0.75] }, // (veil, weave, twirl and hour: see Dark Aero)
     zen: { flurry: [1, 0.6, 1.5], size: [1, 0.85, 1.15], floor: [0.47, 0.42, 0.53], lean: [0.3, 0.12, 0.5], wind: [1, 0.4, -0.8], glow: [1, 0.75, 1.3], perch: [0.5, 0.4, 0.6] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
@@ -10421,6 +10421,59 @@ window.Effects = (() => {
   const awArea = () => Math.max(0.7, Math.min(1.5, Math.sqrt((w * h) / 518400))); // how much room there is, against a picture of 960 by 540: a bigger picture gets a few more things in it
   const awVivid = (c) => { const top = Math.max(c[0], c[1], c[2], 1); return [(c[0] * 235) / top, (c[1] * 235) / top, (c[2] * 235) / top]; }; // a color as bright as it will go and still the same color, for glints and stripes
   const awStep = (st) => { const dt = st.at === realNow ? 0 : Math.min(0.12, sound.dt); st.at = realNow; return dt; }; // a style can be drawn twice in one frame (for a picture of it as it changes): only the first call moves anything on
+  /* Night. Frutiger Aero, Aqua and Frutiger Eco follow the app's theme as DORFic does: by day in its light theme, exactly as they always were, and at night in its dark theme, each a world of its own
+     at night (a sky of stars and a moon over a sea with a city's lights far off; deep water lit by what lives in it; the green world under the moon, with fireflies). A change of theme while one
+     is showing goes over in about a second; a fresh start begins as the theme is. Nothing of the night is made, or even worked out, until night first comes, so by day each draws just as before. */
+  function awNight(st, dt) { // how far into the night a picture is, 0 by day and 1 at night: a change goes over in 1.2 s, a little slower at its ends than in its middle but never quicker than a quarter more than even, so no part of the picture brightens or darkens by a tenth within a tenth of a second
+    const want = document.documentElement.dataset.theme === "light" ? 0 : 1; // (no theme at all is the app's dark one)
+    if (!(st.night >= 0)) st.night = want;
+    else if (st.night !== want) st.night = want > st.night ? Math.min(want, st.night + dt / 1.2) : Math.max(want, st.night - dt / 1.2);
+    return st.night - (0.25 * Math.sin(TAU * st.night)) / TAU;
+  }
+  function awStarArt(st, wide, tall) { // the stars, painted once for the size of the picture and kept on st: many faint ones, a few bright ones with a soft glow, and a faint band of the far galaxy, all fading toward the horizon
+    if (st.starArt && st.starArt.width === wide && st.starArt.height === Math.ceil(tall * 0.8)) return st.starArt;
+    const [c, x] = paper(wide, Math.ceil(tall * 0.8)), S = Math.min(wide, tall), n = Math.round(150 * Math.sqrt((wide * tall) / 518400));
+    x.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 9; i++) { const u = i / 8, bx = wide * (0.08 + 0.84 * u), by = tall * (0.1 + 0.32 * u + 0.05 * Math.sin(i * 1.7)); softBlob(x, bx, by, S * (0.16 + 0.08 * awHash(i + 40)), [120, 130, 190], 0.05); } // the galaxy's band, leaning across
+    for (let i = 0; i < n; i++) {
+      const px = awHash(i * 1.31 + 7) * wide, py = awHash(i * 2.17 + 3) ** 1.35 * tall * 0.78, big = awHash(i * 3.7 + 1), a = (0.25 + 0.6 * awHash(i * 5.3)) * (1 - 0.7 * (py / (tall * 0.78)) ** 2), tone = big > 0.8 ? [255, 236, 214] : big > 0.6 ? [206, 222, 255] : [236, 240, 255];
+      if (big > 0.94) softBlob(x, px, py, S * 0.012, tone, 0.35 * a);
+      x.fillStyle = rgba(tone, a);
+      const r = big > 0.94 ? 1.6 : big > 0.7 ? 1.1 : 0.8;
+      x.fillRect(px - r / 2, py - r / 2, r, r);
+    }
+    return (st.starArt = c);
+  }
+  let awMoon = null;
+  function awMoonArt() { // the moon: a pale disc, a little darker where its seas are, shaded softly toward one side
+    if (awMoon) return awMoon;
+    const m = 64, R = 60, [c, x] = paper(128), face = x.createRadialGradient(m - 14, m - 16, 4, m, m, R);
+    face.addColorStop(0, "rgb(252,250,240)"); face.addColorStop(0.7, "rgb(226,230,236)"); face.addColorStop(1, "rgb(176,188,210)");
+    x.fillStyle = face; x.beginPath(); x.arc(m, m, R, 0, TAU); x.fill();
+    x.save(); x.clip();
+    for (const [px, py, r, a] of [[42, 48, 19, 0.15], [55, 62, 15, 0.13], [64, 44, 11, 0.12], [86, 76, 13, 0.11], [74, 92, 8, 0.09], [30, 72, 7, 0.08]]) softBlob(x, px, py, r, [120, 132, 156], a * 2.2); // (its seas in one rambling patch and a few smaller, so it never looks like a face)
+    const side = x.createLinearGradient(m - R, 0, m + R, 0);
+    side.addColorStop(0, "rgba(40,50,80,0)"); side.addColorStop(0.75, "rgba(40,50,80,0)"); side.addColorStop(1, "rgba(40,50,80,0.4)");
+    x.fillStyle = side; x.fillRect(0, 0, 128, 128);
+    x.restore();
+    return (awMoon = c);
+  }
+  function awMoonDraw(x0, y0, r, a, glowR, glowA, kick = 0) { // the moon at a place, r its size, with a soft halo of its light round it (added to what is under it); the kick brightens only the small halo close round it
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = glowA; g.drawImage(awGlowArt([110, 140, 220]), x0 - glowR, y0 - glowR, glowR * 2, glowR * 2);
+    g.globalAlpha = Math.min(1, glowA * (0.7 + 0.5 * kick)); g.drawImage(awGlowArt([200, 214, 255]), x0 - r * 2.6, y0 - r * 2.6, r * 5.2, r * 5.2);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = a; g.drawImage(awMoonArt(), x0 - r, y0 - r, r * 2, r * 2);
+  }
+  function awDimArt(day, shade) { // a picture made once more for the night: the same shape, colored over by a fade from top to bottom (shade: its stops, as [where, color, how much])
+    const [c, x] = paper(day.width, day.height);
+    x.drawImage(day, 0, 0);
+    x.globalCompositeOperation = "source-atop";
+    const f = x.createLinearGradient(0, 0, 0, day.height);
+    for (const [at, tone, a] of shade) f.addColorStop(at, rgba(tone, a));
+    x.fillStyle = f; x.fillRect(0, 0, day.width, day.height);
+    return c;
+  }
   const AW_TROPIC = [[255, 136, 36], [255, 204, 46], [236, 72, 140]], AW_GLASS = [[70, 200, 228], [96, 206, 140], [110, 160, 240]]; // the warm colors of tropical fish, which the record's colors lean, and the colors of glass orbs, which catch the record's colors only in their light
   FOLK_OF.aero = ["whale", "shapes", "jelly", "shapes"]; // visitors who suit a sky over water: a whale drifting by, glassy shapes, a jellyfish
   FOLK_OF.aqua = ["jelly", "whale", "jelly", "shapes"];
@@ -10501,6 +10554,34 @@ window.Effects = (() => {
     });
     return awClouds[v];
   }
+  let awNightClouds = null;
+  const awNightCloudArt = (v) => (awNightClouds = awNightClouds || [0, 1, 2].map((k) => awDimArt(awCloudArt(k), [[0, [176, 192, 232], 0.92], [0.42, [62, 76, 122], 0.95], [1, [24, 30, 62], 0.96]])))[v]; // the same three clouds at night: dark blue-grey, their tops silvered by the moon
+  function awCityArt(wide, tall) { // a far city along the horizon at night: dark towers in groups with gaps of open sea between them, lit windows, a red light on the tallest, and the glow of it all above
+    const [c, x] = paper(wide, tall), base = tall, S = tall / 0.16;
+    const haze = x.createLinearGradient(0, base - tall, 0, base);
+    haze.addColorStop(0, "rgba(255,170,120,0)"); haze.addColorStop(0.55, "rgba(190,120,170,0.12)"); haze.addColorStop(1, "rgba(255,190,140,0.3)");
+    x.fillStyle = haze; x.fillRect(0, 0, wide, tall);
+    const towers = [], step = Math.max(3, S * 0.012);
+    for (let px = 0, i = 0; px < wide; i++) { // tower after tower, in groups: a group's height and whether it is there at all from where along it is, so the sky line has its own shape and it is the same every time
+      const group = awHash(Math.floor(px / (S * 0.42)) * 3.1 + 11), here = group > 0.3, wd = step * (1.4 + 2.6 * awHash(i * 1.9)), ht = tall * (0.12 + 0.62 * awHash(i * 2.7 + 5) ** 1.6) * (0.45 + 0.55 * group);
+      if (here) towers.push([px, wd, ht]);
+      px += wd + (awHash(i * 4.1) < 0.2 ? step * 0.6 : 0.6);
+    }
+    x.fillStyle = "rgb(8,12,30)";
+    for (const [px, wd, ht] of towers) x.fillRect(px, base - ht, wd, ht);
+    const dot = Math.max(1, Math.round(S * 0.0035));
+    for (let k = 0; k < towers.length; k++) {
+      const [px, wd, ht] = towers[k];
+      for (let wy = base - ht + dot * 2; wy < base - dot; wy += dot * 2.6) for (let wx = px + dot; wx < px + wd - dot; wx += dot * 2.2) {
+        const on = awHash(k * 31.7 + wx * 0.37 + wy * 0.71);
+        if (on < 0.62) continue;
+        x.fillStyle = on > 0.93 ? "rgba(170,214,255,0.85)" : on > 0.8 ? "rgba(255,236,190,0.8)" : "rgba(255,206,140,0.55)";
+        x.fillRect(Math.round(wx), Math.round(wy), dot, dot);
+      }
+      if (ht > tall * 0.5) { x.fillStyle = "rgba(255,70,60,0.9)"; x.fillRect(px + wd / 2 - dot, base - ht - dot * 2, dot * 2, dot * 2); }
+    }
+    return c;
+  }
   function awFishArt(a, b) { // a glossy tropical fish facing right, banded in a second color edged in white; its tail is a picture of its own, so it can swing
     return awArt("fish", a, 160, 80, (x, A, B) => {
       const body = new Path2D();
@@ -10562,7 +10643,8 @@ window.Effects = (() => {
 
   /* Frutiger Aero. The sky and the water are two gradients made fresh each frame (they're cheap); everything in them is a little picture made once. The bubbles rise for about twenty seconds each,
      so the picture is never the same twice; the clouds go by and come back as others, now and then a few fish cross under the water or a butterfly over it, and over four minutes or so the light warms and cools again. */
-  const awSky = { list: [], drops: [], rings: [], clouds: [], fish: [], fly: null, at: -1, tap: null, W: 0, H: 0, day: 0, bassS: 0, glow: 0, gx: 0, gy: 0, burstAt: -9, flare: 1, swoosh: 1, swooshAt: 10, flip: 1, swooshY: 0.4, fishAt: 18, flyAt: 32 };
+  const awSky = { list: [], drops: [], rings: [], clouds: [], fish: [], fly: null, at: -1, tap: null, W: 0, H: 0, day: 0, bassS: 0, glow: 0, gx: 0, gy: 0, burstAt: -9, flare: 1, swoosh: 1, swooshAt: 10, flip: 1, swooshY: 0.4, fishAt: 18, flyAt: 32,
+    night: -1, starArt: null, cityArt: null, twk: new Float32Array(14), shoot: [], shootAt: 0, lights: [null, null, null] }; // and for the night (see awNight): the stars and the far city painted once, the bright stars a hi-hat lights, the shooting stars, and the lights inside the bubbles
   const awCloud = (x, k) => ({ x, k, y: rnd(0.1, 0.6), s: rnd(0.75, 1.3), v: Math.floor(rnd(0, 3)), speed: rnd(0.6, 1.4) }); // where it is across (in widths of the picture) and how high (in heights of the sky)
   function awSkyBubble(x, y, boost, small) { // one bubble on its way up, or now and then a glass orb (which it is depends on the version: see glassy)
     if (awSky.list.length >= 90) return;
@@ -10570,7 +10652,8 @@ window.Effects = (() => {
     awSky.list.push({ x, y, r, rise: 0.028 + (0.45 * r) / S, ph: rnd(0, TAU), u: Math.random(), slot: Math.floor(rnd(0, 3)), px: 0, py: 0, boost });
   }
   function awSkyStart() { // a sky of its own when it starts or the picture changes size: clouds already out and bubbles already on their way up
-    Object.assign(awSky, { W: w, H: h, fly: null, flare: 1, swoosh: 1, glow: 0, tap: pointer.tapped });
+    Object.assign(awSky, { W: w, H: h, fly: null, flare: 1, swoosh: 1, glow: 0, tap: pointer.tapped, night: -1 });
+    awSky.shoot.length = 0;
     awSky.list.length = awSky.drops.length = awSky.rings.length = awSky.fish.length = 0;
     awSky.clouds = Array.from({ length: 7 }, (_, i) => awCloud(((i + rnd(0, 0.5)) / 7) * 1.8 - 0.4, (i * 3) % 7)); // spread round a loop wider than the picture, so there are always some in sight
     for (let i = 0; i < 16 * awArea(); i++) awSkyBubble(rnd(0, w), rnd(0.1, 1.05) * h, 1);
@@ -10606,8 +10689,9 @@ window.Effects = (() => {
     awSky.bassS += (sound.bass - awSky.bassS) * Math.min(1, dt * 5); // the bass, eased, so the sun and the water breathe rather than blink
     awSky.day = (awSky.day + (dt * TAU) / 260) % TAU; // the light warming and cooling again over about four minutes
     const bassS = awSky.bassS, day = Math.sin(awSky.day), warm = clamp((V.golden ?? 0) * 0.85 + 0.08 * (day + 1)), dim = 1 - 0.12 * calm, lit = (c) => mix(c, [24, 64, 128], 0.2 * calm); // a calm part dims it toward a deeper blue
-    const top = lit(mix(mix([26, 100, 196], [58, 92, 168], warm), tones[0], 0.1)), middle = lit(mix(mix([88, 168, 232], [150, 158, 204], warm), tones[1], 0.08)), low = lit(mix(mix([160, 212, 240], [242, 202, 160], warm), tones[2], 0.08));
-    const near = lit(mix(mix([66, 186, 212], [120, 172, 182], warm * 0.6), tones[1], 0.12)), mid = lit(mix([22, 130, 186], tones[1], 0.1)), deep = lit(mix([6, 60, 118], tones[2], 0.08));
+    const nt = awNight(awSky, dt), dark = (c, n) => (nt > 0 ? mix(c, mix(n, [4, 10, 34], 0.25 * calm), nt) : c); // how far into the night it is, and a day color taken that far to its night color (a calm part deepens the night too)
+    const top = dark(lit(mix(mix([26, 100, 196], [58, 92, 168], warm), tones[0], 0.1)), mix([2, 5, 20], tones[0], 0.05)), middle = dark(lit(mix(mix([88, 168, 232], [150, 158, 204], warm), tones[1], 0.08)), mix([10, 20, 56], tones[1], 0.06)), low = dark(lit(mix(mix([160, 212, 240], [242, 202, 160], warm), tones[2], 0.08)), mix(mix([40, 48, 100], [92, 58, 96], warm), tones[2], 0.08)); // at night: deep navy above, and a glow low over the horizon, warmer when the light is golden
+    const near = dark(lit(mix(mix([66, 186, 212], [120, 172, 182], warm * 0.6), tones[1], 0.12)), mix([18, 42, 84], tones[1], 0.08)), mid = dark(lit(mix([22, 130, 186], tones[1], 0.1)), [8, 24, 58]), deep = dark(lit(mix([6, 60, 118], tones[2], 0.08)), [2, 7, 22]);
     const hy = h * (V.tide ?? 0.64) + h * 0.012 * Math.sin(t * 0.045) - h * (0.004 + 0.018 * bassS), shine = clamp(0.5 + 0.18 * bassS + 0.28 * lift + 0.1 * drop - 0.24 * calm); // where the water starts (the bass lifts it a little), and how bright the sun is
     const sx = w * ((V.sunx ?? 0.8) + 0.07 * Math.cos(awSky.day)), sy = hy * (0.2 - 0.07 * day), fishes = awFishSet(tv); // the sun wanders a little along its corner as the light changes
     // the mouse: a soft light follows it, as if through glass, and fades when it has rested a while or gone
@@ -10626,10 +10710,25 @@ window.Effects = (() => {
     g.fillStyle = sky;
     g.fillRect(0, 0, w, hy + h * 0.03);
     const sun = awGlowArt([255, 226, 182]), R = S * (0.55 + 0.12 * bassS + 0.22 * lift); // the sun in its corner, breathing with the bass and brighter through a build
+    if (nt > 0) { // at night the stars come out, and a few bright ones glint on the hi-hats
+      g.globalCompositeOperation = "lighter";
+      g.globalAlpha = nt * (1 - 0.3 * calm);
+      const stars = awStarArt(awSky, w, h), sky = Math.min(stars.height, Math.ceil(hy + h * 0.02)); g.drawImage(stars, 0, 0, w, sky, 0, 0, w, sky); // (only where the sky is)
+      if (hatHit && dt) for (let k = 0; k < 2; k++) { const i = Math.floor(Math.random() * 14); awSky.twk[i] = Math.max(awSky.twk[i], hatHit); }
+      for (let i = 0; i < 14; i++) { awSky.twk[i] *= Math.exp(-dt / 0.3); if (awSky.twk[i] > 0.03) glint(awHash(i * 9.1 + 100) * w, awHash(i * 4.3 + 60) ** 1.4 * hy * 0.8, S * 0.035 * (0.6 + awSky.twk[i]), 0.8 * awSky.twk[i] * nt); }
+    }
     g.globalCompositeOperation = "lighter";
-    g.globalAlpha = 0.75 * shine; g.drawImage(sun, sx - R, sy - R, R * 2, R * 2);
-    g.globalAlpha = Math.min(1, (0.9 + 0.3 * kick) * shine); g.drawImage(sun, sx - R * 0.18, sy - R * 0.18, R * 0.36, R * 0.36); // (the sun's heart beats with the kick)
-    g.globalAlpha = 0.45 * shine; g.drawImage(sun, sx - w * 0.5, sy - S * 0.018, w, S * 0.036); // the flat streak a lens draws through it
+    if (nt < 1) { // (by day all of it; at night it gives way to the moon)
+      g.globalAlpha = 0.75 * shine * (1 - nt); g.drawImage(sun, sx - R, sy - R, R * 2, R * 2);
+      g.globalAlpha = Math.min(1, (0.9 + 0.3 * kick) * shine) * (1 - nt); g.drawImage(sun, sx - R * 0.18, sy - R * 0.18, R * 0.36, R * 0.36); // (the sun's heart beats with the kick)
+      g.globalAlpha = 0.45 * shine * (1 - nt); g.drawImage(sun, sx - w * 0.5, sy - S * 0.018, w, S * 0.036); // the flat streak a lens draws through it
+    }
+    if (nt > 0) { // the moon where the sun was, its halo breathing with the bass and its near light with the kick, and a faint streak of the lens through it
+      const r = S * 0.05 * (1 + 0.05 * bassS);
+      awMoonDraw(sx, sy, r, nt, R * 0.95, Math.min(1, (0.42 + 0.14 * lift) * shine) * nt, kick);
+      g.globalCompositeOperation = "lighter";
+      g.globalAlpha = 0.16 * shine * nt; g.drawImage(awGlowArt([150, 180, 255]), sx - w * 0.5, sy - S * 0.012, w, S * 0.024);
+    }
     g.globalCompositeOperation = "source-over";
     const cover = 0.68 + 0.32 * Math.sin(awSky.day * 2 + 1); // the sky clouds over and clears again, slowly: some clouds fade out and come back
     for (const c of awSky.clouds) { // drifting with the breeze, and gone off one side to come back on the other as another cloud
@@ -10637,8 +10736,8 @@ window.Effects = (() => {
       if (c.x > 1.4) Object.assign(c, awCloud(c.x - 1.8, c.k)); else if (c.x < -0.4) Object.assign(c, awCloud(c.x + 1.8, c.k));
       const cw = Math.max(w * 0.3, S * 0.62) * c.s, ch = (cw * 180) / 384, shown = clamp(cover * 7 - c.k);
       if (shown < 0.01) continue;
-      g.globalAlpha = 0.86 * dim * shown;
-      g.drawImage(awCloudArt(c.v), c.x * w - cw / 2, c.y * hy - ch * 0.6, cw, ch);
+      if (nt < 1) { g.globalAlpha = 0.86 * dim * shown * (1 - nt); g.drawImage(awCloudArt(c.v), c.x * w - cw / 2, c.y * hy - ch * 0.6, cw, ch); }
+      if (nt > 0) { g.globalAlpha = 0.74 * dim * shown * nt; g.drawImage(awNightCloudArt(c.v), c.x * w - cw / 2, c.y * hy - ch * 0.6, cw, ch); } // at night the same cloud, dark, its top lit by the moon
     }
     if (dt && (t > awSky.swooshAt || (flow.dropHit && awSky.swoosh >= 1))) { awSky.swoosh = 0; awSky.swooshAt = t + rnd(13, 26); awSky.flip = Math.random() < 0.5 ? 1 : -1; awSky.swooshY = rnd(0.3, 0.65); } // a soft swoosh of light sweeps through now and then, and on the drop
     if (awSky.swoosh < 1) {
@@ -10652,6 +10751,12 @@ window.Effects = (() => {
     }
     // the water: its edge rocks a little, more with the bass
     g.globalCompositeOperation = "source-over";
+    const cityH = Math.round(S * 0.16);
+    if (nt > 0) { // at night a city far off along the horizon, its lights and its glow
+      if (!awSky.cityArt || awSky.cityArt.width !== w || awSky.cityArt.height !== cityH) awSky.cityArt = awCityArt(w, cityH);
+      g.globalAlpha = nt;
+      g.drawImage(awSky.cityArt, 0, hy - cityH + h * 0.004);
+    }
     g.globalAlpha = 1;
     const sea = g.createLinearGradient(0, hy - h * 0.01, 0, h), amp = h * (0.0025 + 0.006 * bassS + 0.012 * acidLook.open), edge = new Path2D();
     sea.addColorStop(0, rgba(near, 1)); sea.addColorStop(0.3, rgba(mid, 1)); sea.addColorStop(1, rgba(deep, 1));
@@ -10663,6 +10768,16 @@ window.Effects = (() => {
     const deepH = h - hy, gleam = g.createLinearGradient(0, hy, 0, hy + deepH * 0.22); // the sky shining back off the water near its edge
     gleam.addColorStop(0, rgba(low, 0.28 * dim)); gleam.addColorStop(1, rgba(low, 0));
     g.globalCompositeOperation = "lighter"; g.fillStyle = gleam; g.fillRect(0, hy - h * 0.01, w, deepH * 0.22 + h * 0.01);
+    if (nt > 0) { const sheen = awGlowArt([110, 140, 230]); g.globalAlpha = Math.min(1, 0.55 * shine * nt * dim); g.drawImage(sheen, sx - w * 0.22, hy - deepH * 0.05, w * 0.44, deepH * 0.7); } // the moon's light lying on the water below it
+    if (nt > 0 && awSky.cityArt) { // and the city's lights shining back off the water, drawn long and rocking a little in three bands
+      for (let k = 0; k < 3; k++) {
+        const y0 = (cityH * k) / 3, y1 = (cityH * (k + 1)) / 3, shift = Math.sin(t * (1.1 + 0.4 * k) + k * 2) * S * 0.004 * (3 - k);
+        g.globalAlpha = 0.32 * nt * dim;
+        g.setTransform(1, 0, 0, -1.7, shift, hy + 1.7 * cityH);
+        g.drawImage(awSky.cityArt, 0, y0, w, y1 - y0, 0, y0, w, y1 - y0);
+      }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    }
     g.globalCompositeOperation = "source-over";
     if (dt && t > awSky.fishAt) { // now and then a few fish cross under the water
       awSky.fishAt = t + rnd(22, 44);
@@ -10676,24 +10791,24 @@ window.Effects = (() => {
       f.x += f.dir * f.v * dt * (0.8 + 0.4 * intense);
       f.ph = (f.ph + dt * 7) % TAU;
       if ((f.dir > 0 && f.x > w + f.len * 2) || (f.dir < 0 && f.x < -f.len * 2)) { awSky.fish.splice(i, 1); continue; }
-      awDrawFish(f.x, hy + deepH * f.y + Math.sin(t * 1.4 + f.ph * 0.3) * S * 0.01, f.len, 0.8 * dim, fishes[f.slot], Math.sin(f.ph) * 0.35, f.dir, 0.06 * Math.sin(t * 1.4 + f.ph * 0.3));
+      awDrawFish(f.x, hy + deepH * f.y + Math.sin(t * 1.4 + f.ph * 0.3) * S * 0.01, f.len, 0.8 * dim * (1 - 0.45 * nt), fishes[f.slot], Math.sin(f.ph) * 0.35, f.dir, 0.06 * Math.sin(t * 1.4 + f.ph * 0.3));
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "lighter";
-    g.fillStyle = "#fff";
+    g.fillStyle = nt > 0 ? rgba(mix([255, 255, 255], [178, 204, 255], nt), 1) : "#fff"; // (at night the moon's road, paler and bluer)
     for (let k = 0; k < 18; k++) { // the sun's road across the water
       const q = k / 18, y = hy + deepH * (0.01 + 0.9 * q ** 1.5), len = w * (0.012 + 0.06 * q) * (1 + 1.6 * acidLook.open) * (0.45 + 0.55 * Math.sin(t * 2.3 + k * 1.9) ** 2), x = sx + Math.sin(t * 1.1 + k * 2.7) * w * 0.012 * (1 + 3 * q);
-      g.globalAlpha = shine * 0.5 * (1 - q * 0.8);
+      g.globalAlpha = shine * 0.5 * (1 - q * 0.8) * (1 + 0.25 * nt);
       g.fillRect(x - len / 2, y, len, Math.max(1, h * 0.002 * (1 + 2 * q)));
     }
     for (let i = 0; i < 64; i++) { // light glittering on the ripples, bigger nearer
       const q = awHash(i), x = ((((awHash(i + 0.5) + t * (0.004 + 0.01 * awHash(i + 0.3)) * (breeze < 0 ? -1 : 1)) % 1) + 1) % 1) * w, on = (0.5 + 0.5 * Math.sin(t * (1.3 + 2 * awHash(i + 0.7)) + i * 2.1)) ** 6;
       if (on < 0.03) continue;
-      g.globalAlpha = 0.45 * on * (0.5 + 0.5 * q) * (0.7 + 0.5 * drop) * dim;
+      g.globalAlpha = 0.45 * on * (0.5 + 0.5 * q) * (0.7 + 0.5 * drop) * dim * (1 - 0.35 * nt);
       g.fillRect(x, hy + deepH * (0.02 + 0.9 * q ** 1.6), w * (0.004 + 0.02 * q ** 1.3), Math.max(1, h * 0.0018 * (1 + 2 * q)));
     }
-    g.globalAlpha = Math.min(1, 0.55 + 0.4 * kick) * dim; // (the bright edge of the water catches the kick)
-    g.strokeStyle = "#fff";
+    g.globalAlpha = Math.min(1, 0.55 + 0.4 * kick) * dim * (1 - 0.45 * nt); // (the bright edge of the water catches the kick)
+    g.strokeStyle = nt > 0 ? rgba(mix([255, 255, 255], [190, 214, 255], nt), 1) : "#fff";
     g.lineWidth = Math.max(1, h / 450);
     g.stroke(edge);
     g.globalCompositeOperation = "source-over";
@@ -10705,7 +10820,8 @@ window.Effects = (() => {
       if (f.p >= 1) awSky.fly = null;
       else {
         const x = f.dir > 0 ? -0.08 * w + 1.16 * w * f.p : 1.08 * w - 1.16 * w * f.p, y = hy * (f.y + 0.08 * Math.sin(f.p * TAU * 2.3)) + S * 0.012 * Math.sin(f.ph), k = (S * 0.07) / 96, open = 0.2 + 0.8 * Math.abs(Math.cos(f.ph)), art = awWingArt(mix(tv[f.k], [255, 255, 255], 0.15), tv[(f.k + 1) % 3]);
-        g.globalAlpha = 0.95;
+        if (nt > 0) { const r = S * 0.07; g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.3 * nt; g.drawImage(awGlowArt(mix(tv[f.k], [255, 255, 255], 0.4)), x - r, y - r, r * 2, r * 2); g.globalCompositeOperation = "source-over"; } // (at night a little light of its own round it)
+        g.globalAlpha = 0.95 * (1 - 0.3 * nt);
         g.setTransform(open * k, 0, 0, k, x, y); g.drawImage(art, 0, -48);
         g.setTransform(-open * k, 0, 0, k, x, y); g.drawImage(art, 0, -48);
         g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10729,9 +10845,21 @@ window.Effects = (() => {
     }
     L.sort((p, q) => p.r - q.r); // the small ones are further off, so they go behind
     const base = awBubbleArt(), sheens = [0, 1, 2].map((i) => awSheenArt(tv[i], tv[(i + 1) % 3])), orbs = [0, 1, 2].map((i) => awOrbArt(AW_GLASS[i], tv[(i + 2) % 3])), pulse = 1 + 0.08 * kick;
+    if (nt > 0) { // at night each bubble and orb is lit from within: a soft light of its color behind it, an orb's stronger
+      g.globalCompositeOperation = "lighter";
+      const lights = awSky.lights;
+      for (let i = 0; i < 3; i++) lights[i] = awGlowArt(mix(tv[i], [200, 230, 255], 0.35));
+      for (const b of L) {
+        if (b.r < S * 0.012) continue;
+        const orb = awOrbness(b), r = b.r * (1 - 0.4 * orb) * pulse * (1.25 + 0.35 * orb);
+        g.globalAlpha = (0.2 + 0.3 * orb) * nt;
+        g.drawImage(lights[b.slot], b.x - r, b.y - r, r * 2, r * 2);
+      }
+      g.globalCompositeOperation = "source-over";
+    }
     for (const b of L) {
       const orb = awOrbness(b), r = b.r * (1 - 0.4 * orb) * pulse, wob = 0.035 * Math.sin(t * 2.2 + b.ph) + 0.07 * acidLook.open * Math.sin(t * 9 + b.ph * 3), rx = r * (1 + wob), ry = r * (1 - wob);
-      if (orb < 0.99) { g.globalAlpha = (1 - orb) * 0.95; g.drawImage(base, b.x - rx, b.y - ry, rx * 2, ry * 2); g.globalAlpha = (1 - orb) * 0.5; g.drawImage(sheens[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
+      if (orb < 0.99) { g.globalAlpha = (1 - orb) * 0.95 * (1 - 0.15 * nt); g.drawImage(base, b.x - rx, b.y - ry, rx * 2, ry * 2); g.globalAlpha = (1 - orb) * 0.5; g.drawImage(sheens[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
       if (orb > 0.01) { g.globalAlpha = orb * 0.92; g.drawImage(orbs[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
     }
     g.globalCompositeOperation = "lighter"; // each catches the light on the kick, and more near the mouse
@@ -10766,13 +10894,34 @@ window.Effects = (() => {
       g.beginPath(); g.arc(ring.x, ring.y, ring.r * (0.6 + 1.2 * eased(p)), 0, TAU); g.stroke();
     }
     g.globalCompositeOperation = "lighter";
-    const fx = w * 0.5 - sx, fy = h * 0.5 - sy, flareA = (0.1 + 0.08 * bassS + 0.1 * lift) * (1 - 0.6 * calm); // the lens's rings, on a line from the sun through the middle
+    const fx = w * 0.5 - sx, fy = h * 0.5 - sy, flareA = (0.1 + 0.08 * bassS + 0.1 * lift) * (1 - 0.6 * calm) * (1 - 0.55 * nt); // the lens's rings, on a line from the sun through the middle (fainter from the moon)
     [[0.45, 0.05, 0], [0.7, 0.028, 1], [1.05, 0.085, 2], [1.35, 0.04, 0], [1.7, 0.12, 1]].forEach(([at, size, k]) => { const r = S * size * (1 + 0.15 * bassS); g.globalAlpha = flareA; g.drawImage(awDiscArt(mix(tv[k], [255, 240, 210], 0.4)), sx + fx * at - r, sy + fy * at - r, r * 2, r * 2); });
     if (awSky.flare < 1) { // on the drop the sun's flare sweeps across the picture
       awSky.flare = Math.min(1, awSky.flare + dt / 1.8);
       const p = eased(awSky.flare), x = sx + (w - 2 * sx) * p, y = sy + (h * 0.45 - sy) * p, a = Math.sin(Math.PI * awSky.flare);
-      g.globalAlpha = 0.4 * a; g.drawImage(sun, x - w * 0.6, y - S * 0.03, w * 1.2, S * 0.06);
-      g.globalAlpha = 0.22 * a; g.drawImage(sun, x - S * 0.3, y - S * 0.3, S * 0.6, S * 0.6);
+      if (nt < 1) {
+        g.globalAlpha = 0.4 * a * (1 - nt); g.drawImage(sun, x - w * 0.6, y - S * 0.03, w * 1.2, S * 0.06);
+        g.globalAlpha = 0.22 * a * (1 - nt); g.drawImage(sun, x - S * 0.3, y - S * 0.3, S * 0.6, S * 0.6);
+      }
+      if (nt > 0) { const cool = awGlowArt([170, 196, 255]); g.globalAlpha = 0.3 * a * nt; g.drawImage(cool, x - w * 0.6, y - S * 0.025, w * 1.2, S * 0.05); g.globalAlpha = 0.14 * a * nt; g.drawImage(cool, x - S * 0.3, y - S * 0.3, S * 0.6, S * 0.6); } // (from the moon a cooler, fainter light)
+    }
+    if (nt > 0) { // at night now and then a shooting star, and one on each drop: a bright head and a tail fading behind it, across the upper sky
+      if (!awSky.shootAt) awSky.shootAt = t + 8; // (the first some seconds after night first comes)
+      if (dt && awSky.shoot.length < 3 && (t > awSky.shootAt || (flow.dropHit && t - awSky.burstAt < 0.1))) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        awSky.shoot.push({ x: w * (dir > 0 ? rnd(0.05, 0.5) : rnd(0.5, 0.95)), y: hy * rnd(0.06, 0.4), vx: dir * S * rnd(0.9, 1.3), vy: S * rnd(0.2, 0.4), age: 0, life: rnd(0.7, 1.1) });
+        awSky.shootAt = t + rnd(12, 26);
+      }
+      g.lineCap = "round";
+      for (let i = awSky.shoot.length - 1; i >= 0; i--) {
+        const o = awSky.shoot[i];
+        o.age += dt;
+        if (o.age > o.life) { awSky.shoot.splice(i, 1); continue; }
+        const p = o.age / o.life, hx = o.x + o.vx * o.age, hy0 = o.y + o.vy * o.age, a = Math.sin(Math.PI * p) * nt;
+        for (let k = 0; k < 5; k++) { const b0 = 0.035 * k, b1 = 0.035 * (k + 1); g.globalAlpha = a * 0.7 * (1 - k / 5); g.strokeStyle = "rgb(214,228,255)"; g.lineWidth = Math.max(1, S * 0.003 * (1 - k / 6)); g.beginPath(); g.moveTo(hx - o.vx * b0, hy0 - o.vy * b0); g.lineTo(hx - o.vx * b1, hy0 - o.vy * b1); g.stroke(); }
+        const r = S * 0.02; g.globalAlpha = a * 0.8; g.drawImage(awGlowArt([220, 232, 255]), hx - r, hy0 - r, r * 2, r * 2);
+      }
+      g.lineCap = "butt";
     }
     if (awSky.glow > 0.01) { const r = S * 0.26; g.globalAlpha = 0.3 * awSky.glow; g.drawImage(awGlowArt(mix(tv[0], [210, 240, 255], 0.55)), awSky.gx - r, awSky.gy - r, r * 2, r * 2); }
     g.globalAlpha = 1;
@@ -10783,11 +10932,12 @@ window.Effects = (() => {
 
   /* Aqua: inside a bright aquarium. The rippling light is one small tile of it, worked out once, laid twice over the picture at two sizes going two ways, so where they cross it shimmers.
      The school follows a leader round the tank and turns with it on a kick; over a long song the leader keeps finding new places to go, a far school or a big slow fish passes now and then, and the rays drift across. */
-  const awTank = { fish: [], caps: [], bubs: [], flakes: [], rings: [], weeds: [], vents: [], guest: null, at: -1, tap: null, W: 0, H: 0, lead: { x: 0, y: 0, a: 0 }, aim: { x: 0, y: 0 }, aimAt: 0, turnAt: 0, spread: 1, scatterAt: -9, away: 0, bassS: 0, day: 0, guestAt: 30, floor: null, pat: null, patFor: null, web1: [0, 0], web2: [0, 0], webIn: 0, rays: 0 };
+  const awTank = { fish: [], caps: [], bubs: [], flakes: [], rings: [], weeds: [], vents: [], guest: null, at: -1, tap: null, W: 0, H: 0, lead: { x: 0, y: 0, a: 0 }, aim: { x: 0, y: 0 }, aimAt: 0, turnAt: 0, spread: 1, scatterAt: -9, away: 0, bassS: 0, day: 0, guestAt: 30, floor: null, pat: null, patFor: null, web1: [0, 0], web2: [0, 0], webIn: 0, rays: 0,
+    night: -1, floorN: null, glim: new Float32Array(96), fishGlow: [null, null, null], glimArt: null, dotArt: null }; // and for the night (see awNight): the floor at night, made once, how lit each speck of the glowing plankton is, the fish's glows, and the plankton's lights (made once)
   const awCapsule = (k, y) => ({ k, x: rnd(0.08, 0.92) * w, y, len: rnd(0.07, 0.11), a: rnd(0, TAU), spin: rnd(-0.35, 0.35), va: 0, vx: 0, vy: 0, rise: rnd(0.018, 0.032), slot: k % 3, ph: rnd(0, TAU) });
   function awTankStart() { // a tank of its own when it starts or the picture changes size
     const S = Math.min(w, h), lead = { x: w * 0.5, y: h * 0.42, a: Math.random() < 0.5 ? 0 : Math.PI };
-    Object.assign(awTank, { W: w, H: h, lead, spread: 1, away: 0, floor: null, guest: null, tap: pointer.tapped, aim: { x: w * rnd(0.2, 0.8), y: h * rnd(0.25, 0.6) }, aimAt: sound.t + rnd(6, 10), guestAt: sound.t + rnd(25, 40) });
+    Object.assign(awTank, { W: w, H: h, lead, spread: 1, away: 0, floor: null, floorN: null, night: -1, guest: null, tap: pointer.tapped, aim: { x: w * rnd(0.2, 0.8), y: h * rnd(0.25, 0.6) }, aimAt: sound.t + rnd(6, 10), guestAt: sound.t + rnd(25, 40) });
     awTank.fish = Array.from({ length: 24 }, (_, k) => ({ k, x: lead.x + rnd(-0.2, 0.2) * S, y: lead.y + rnd(-0.1, 0.1) * S, vx: 0, vy: 0, ox: rnd(-0.32, 0.08), oy: rnd(-0.14, 0.14), len: rnd(0.8, 1.2), slot: k % 3, ph: rnd(0, TAU), face: Math.cos(lead.a) })).sort((p, q) => p.len - q.len); // (k says which come and go first as the school grows and shrinks; the bigger ones are drawn last)
     awTank.caps = Array.from({ length: 9 }, (_, k) => awCapsule(k, rnd(0.1, 1.05) * h));
     const order = Array.from({ length: 20 }, (_, k) => k).sort(() => Math.random() - 0.5);
@@ -10913,6 +11063,7 @@ window.Effects = (() => {
     awTank.bassS += (sound.bass - awTank.bassS) * Math.min(1, dt * 5); // the bass, eased: it brightens the light in the water
     awTank.day = (awTank.day + (dt * TAU) / 280) % TAU; // and the water itself turns a little greener and back over a few minutes
     const day = 0.5 + 0.5 * Math.sin(awTank.day), shine = (V.shine ?? 1) * (0.75 + 0.5 * awTank.bassS + 0.2 * lift + 0.15 * drop) * (1 - 0.3 * calm), fishes = awFishSet(tv);
+    const nt = awNight(awTank, dt), dark = (c, n) => (nt > 0 ? mix(c, n, nt) : c); // how far into the night it is, and a day color taken that far to its night color
     const tap = aeroTap(); // (see the mouse styles block)
     if (tap && tap !== awTank.tap) { awTank.tap = tap; if (awTankTap(tap, S)) pointer.taken = true; } // (with the tank full of food, the usual ring answers instead)
     awTank.away += (aeroNear(pointer.on && realNow - pointer.at < 1500 ? 1 : 0) - awTank.away) * Math.min(1, dt * (pointer.on && realNow - pointer.at < 1500 ? 6 : 1)); // the fish keep away from a moving mouse, and come back once it rests
@@ -10921,9 +11072,9 @@ window.Effects = (() => {
     g.globalAlpha = 1;
     g.globalCompositeOperation = "source-over";
     const water = g.createLinearGradient(0, 0, 0, h);
-    water.addColorStop(0, rgba(mix(mix(mix([96, 204, 228], [110, 214, 200], 0.25 * day), [56, 160, 200], murk), tones[0], 0.1), 1));
-    water.addColorStop(0.5, rgba(mix(mix([36, 152, 198], [20, 112, 162], murk), tones[1], 0.1), 1));
-    water.addColorStop(1, rgba(mix(mix([14, 92, 146], [6, 54, 100], murk), tones[2], 0.08), 1));
+    water.addColorStop(0, rgba(dark(mix(mix(mix([96, 204, 228], [110, 214, 200], 0.25 * day), [56, 160, 200], murk), tones[0], 0.1), mix(mix([14, 52, 92], [10, 40, 72], murk), tones[0], 0.06)), 1)); // (at night a deep blue, lighter only near the surface where the moon reaches)
+    water.addColorStop(0.5, rgba(dark(mix(mix([36, 152, 198], [20, 112, 162], murk), tones[1], 0.1), mix([5, 22, 50], tones[1], 0.05)), 1));
+    water.addColorStop(1, rgba(dark(mix(mix([14, 92, 146], [6, 54, 100], murk), tones[2], 0.08), [1, 6, 18]), 1));
     g.fillStyle = water;
     g.fillRect(0, 0, w, h);
     if (dt && !awTank.guest && t > awTank.guestAt) { awTank.guest = { far: Math.random() < 0.6, dir: Math.random() < 0.5 ? 1 : -1, p: 0, y: rnd(0.22, 0.55), slot: Math.floor(rnd(0, 3)) }; awTank.guestAt = t + rnd(40, 75); } // now and then a far school, or one big slow fish, goes by behind
@@ -10934,13 +11085,13 @@ window.Effects = (() => {
       else if (o.far) {
         const far = awFishSet([[150, 214, 232], [150, 214, 232], [150, 214, 232]])[0];
         for (let i = 0; i < 18; i++) { const x = (o.dir > 0 ? -0.25 + 1.5 * o.p : 1.25 - 1.5 * o.p) * w + (awHash(i) - 0.5) * S * 0.5, y = h * o.y + (awHash(i + 0.4) - 0.5) * S * 0.2 + Math.sin(t * 0.9 + i) * S * 0.01; awDrawFish(x, y, S * 0.03, 0.28, far, Math.sin(t * 9 + i) * 0.3, o.dir, 0); }
-      } else awDrawFish((o.dir > 0 ? -0.15 + 1.3 * o.p : 1.15 - 1.3 * o.p) * w, h * o.y + Math.sin(t * 0.6) * S * 0.02, S * 0.2, 0.8, fishes[o.slot], Math.sin(t * 3) * 0.25, o.dir, 0.04 * Math.sin(t * 0.6));
+      } else awDrawFish((o.dir > 0 ? -0.15 + 1.3 * o.p : 1.15 - 1.3 * o.p) * w, h * o.y + Math.sin(t * 0.6) * S * 0.02, S * 0.2, 0.8 * (1 - 0.4 * nt), fishes[o.slot], Math.sin(t * 3) * 0.25, o.dir, 0.04 * Math.sin(t * 0.6));
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
     const web = awWebArt();
     if (web && (!awTank.pat || awTank.patFor !== g)) { awTank.pat = g.createPattern(web, "repeat"); awTank.patFor = g; }
     if (awTank.pat) awTank.webIn = Math.min(1, awTank.webIn + dt * 1.5); // (it fades in the first time)
-    const net = awTank.webIn * shine * (1 + 0.7 * acidLook.knob);
+    const net = awTank.webIn * shine * (1 + 0.7 * acidLook.knob) * (1 - 0.68 * nt); // (at night only the moon's faint net)
     const go = dt * S * (0.6 + 0.5 * intense + 0.6 * lift), s1 = (S / 256) * 0.72, s2 = s1 * 1.4; // the light's net drifts, quicker as the song lifts
     awTank.web1[0] = (awTank.web1[0] + go * 0.03) % (256 * s1); awTank.web1[1] = (awTank.web1[1] + go * 0.018) % (256 * s1);
     awTank.web2[0] = (awTank.web2[0] - go * 0.022) % (256 * s2); awTank.web2[1] = (awTank.web2[1] + go * 0.026) % (256 * s2);
@@ -10951,24 +11102,29 @@ window.Effects = (() => {
     deep.addColorStop(0, "rgba(8,50,90,0)"); deep.addColorStop(1, rgba(mix([8, 46, 86], tones[2], 0.1), 0.5 + 0.2 * murk));
     g.globalAlpha = 1; g.fillStyle = deep; g.fillRect(0, h * 0.25, w, h * 0.75);
     g.globalCompositeOperation = "lighter";
+    if (nt > 0) { const r = S * 0.75; g.globalAlpha = 0.3 * nt * (0.8 + 0.3 * awTank.bassS); g.drawImage(awGlowArt([120, 160, 240]), w * 0.62 - r, -r * 0.8, r * 2, r * 2); } // at night the moon above the water, seen from below as a soft light through the surface
     const ray = awRayArt();
     awTank.rays = (awTank.rays + dt * 0.006) % 1; // the rays from the sun above, swaying, and slowly drifting along
     for (let k = 0; k < 5; k++) {
       const x = ((((k / 5 + awTank.rays + 0.04 * Math.sin(t * 0.05 + k)) % 1) + 1) % 1) * w * 1.3 - w * 0.15, wide = S * (0.12 + 0.1 * awHash(k + 9)) * (1 + 0.2 * Math.sin(t * 0.3 + k)), lean = 0.3 + 0.05 * Math.sin(t * 0.13 + k);
-      g.globalAlpha = (0.13 + 0.06 * Math.sin(t * 0.4 + k * 1.3)) * shine;
+      g.globalAlpha = (0.13 + 0.06 * Math.sin(t * 0.4 + k * 1.3)) * shine * (1 - 0.5 * nt);
       g.setTransform(Math.cos(lean), Math.sin(lean), -Math.sin(lean), Math.cos(lean), x, -h * 0.04);
       g.drawImage(ray, -wide / 2, 0, wide, h * 1.25);
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
-    const kelp = V.kelp ?? 1, weedsN = kelp * 13 * area, greens = [mix([36, 158, 92], tones[1], 0.15), mix([92, 192, 78], tones[0], 0.12)], deepGreen = mix(greens[0], [16, 84, 96], 0.5); // the seaweed: a few in front of the fish, the rest behind
+    const kelp = V.kelp ?? 1, weedsN = kelp * 13 * area, greens = [dark(mix([36, 158, 92], tones[1], 0.15), [8, 46, 44]), dark(mix([92, 192, 78], tones[0], 0.12), [14, 60, 46])], deepGreen = dark(mix(mix([36, 158, 92], tones[1], 0.15), [16, 84, 96], 0.5), [6, 30, 40]); // the seaweed: a few in front of the fish, the rest behind (dark at night, with a glowing line down each)
     for (const wd of awTank.weeds) wd.grow += (clamp(weedsN - wd.rank) - wd.grow) * Math.min(1, dt * 0.5); // a strand grows in or sinks back as the dial moves
     g.lineWidth = Math.max(1, S * 0.003);
-    g.strokeStyle = "rgba(190,250,190,0.35)";
+    g.strokeStyle = nt > 0 ? rgba(mix([190, 250, 190], [90, 255, 210], nt), 0.35 + 0.2 * nt) : "rgba(190,250,190,0.35)";
     for (const wd of awTank.weeds) if (!wd.front && wd.grow > 0.02) { g.fillStyle = rgba(mix(deepGreen, greens[wd.tone < 0.5 ? 0 : 1], 0.5), 1); awWeed(wd, S, floorY + S * 0.03, t, current, wd.tall * h * wd.grow * (0.75 + 0.25 * kelp)); }
     if (!awTank.floor || awTank.floor.width !== w) awTank.floor = awFloorArt(floorY);
     g.drawImage(awTank.floor, 0, floorY);
+    if (nt > 0) { // at night the same floor, dark
+      if (!awTank.floorN || awTank.floorN.width !== awTank.floor.width) awTank.floorN = awDimArt(awTank.floor, [[0, [16, 40, 66], 0.8], [1, [2, 8, 18], 0.9]]);
+      g.globalAlpha = nt; g.drawImage(awTank.floorN, 0, floorY); g.globalAlpha = 1;
+    }
     // the gel capsules rising, turning slowly; a click sends one spinning off
     const capsN = (V.caps ?? 1) * 4.5 * area, capArts = [0, 1, 2].map((i) => awCapArt(mix([70, 214, 236], tv[i], 0.5), tv[(i + 1) % 3])), cfade = Math.exp(-dt * 1.2);
     for (const c of awTank.caps) {
@@ -10981,7 +11137,8 @@ window.Effects = (() => {
       const a = clamp(capsN - c.k);
       if (a < 0.01) continue;
       const k = L / 128, co = Math.cos(c.a) * k, si = Math.sin(c.a) * k;
-      g.globalAlpha = a * 0.95;
+      if (nt > 0) { g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.3 * a * nt; g.drawImage(awGlowArt(tv[c.slot]), c.x - L * 0.75, c.y - L * 0.75, L * 1.5, L * 1.5); g.globalCompositeOperation = "source-over"; } // (at night lit from within)
+      g.globalAlpha = a * 0.95 * (1 - 0.2 * nt);
       g.setTransform(co, si, -si, co, c.x, c.y);
       g.drawImage(capArts[c.slot], -64, -28);
     }
@@ -11006,7 +11163,8 @@ window.Effects = (() => {
       for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; awBubbleUp(rx + Math.cos(a) * S * 0.12, floorY - S * 0.04 + Math.sin(a) * S * 0.04, S * rnd(0.028, 0.045), 0.16, Math.cos(a) * S * 0.05); }
     }
     const fear = pointer.on && awTank.away > 0.01, top = speed * 3 + S * (food ? 0.6 : 0.4), steer = Math.min(1, dt * 2.2), room = S * 0.04;
-    const shown = Math.ceil(N); // (the fish not shown just follow along: they neither eat nor jostle the others)
+    const shown = Math.ceil(N), fishGlow = awTank.fishGlow; // (the fish not shown just follow along: they neither eat nor jostle the others)
+    if (nt > 0) for (let i = 0; i < 3; i++) fishGlow[i] = awGlowArt(mix(mix(AW_TROPIC[i], tv[i], 0.3), [80, 230, 255], 0.45)); // (at night, each fish's glow in its color)
     for (let i = 0; i < F.length; i++) for (let j = i + 1; j < F.length; j++) { // each keeps a little room round itself
       const p = F[i], q = F[j], dx = q.x - p.x, dy = q.y - p.y, d = Math.abs(dx) + Math.abs(dy);
       if (d > room || d < 1e-3 || p.k >= shown || q.k >= shown) continue;
@@ -11031,7 +11189,14 @@ window.Effects = (() => {
       const a = clamp(N - f.k);
       if (a < 0.01) continue;
       const face = Math.abs(f.face) < 0.08 ? (f.face < 0 ? -0.08 : 0.08) : f.face, tilt = Math.max(-0.5, Math.min(0.5, Math.atan2(f.vy, Math.abs(f.vx) + S * 0.01))) * (face < 0 ? -1 : 1);
-      awDrawFish(f.x, f.y, S * 0.085 * f.len, a, fishes[f.slot], Math.sin(f.ph) * 0.4, face, tilt);
+      if (nt > 0) { const r = S * 0.085 * f.len * (0.8 + 0.25 * kick); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.5 * a * nt; g.drawImage(fishGlow[f.slot], f.x - r, f.y - r * 0.6, r * 2, r * 1.2); g.globalCompositeOperation = "source-over"; } // at night each fish glows softly in its own color, a little more on the kick
+      awDrawFish(f.x, f.y, S * 0.085 * f.len, a * (1 - 0.6 * nt), fishes[f.slot], Math.sin(f.ph) * 0.4, face, tilt);
+      if (nt > 0) { // and along its belly a row of four small lights, as fish of the deep have: swelling on the kick, and each brightening in its turn, slowly
+        const L = S * 0.085 * f.len, k = L / 160, c = Math.cos(tilt) * k, s = Math.sin(tilt) * k, r = L * 0.13 * (0.85 + 0.35 * kick), dot = awTank.dotArt || (awTank.dotArt = awGlowArt([150, 255, 228])); // (the same turn as the fish's own picture: see awDrawFish)
+        g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter";
+        for (let j = 0; j < 4; j++) { const lx = -44 + 30 * j, ly = j === 3 ? 10 : 16; g.globalAlpha = Math.min(1, a * nt * (0.75 + 0.25 * Math.sin(t * 1.6 - j * 1.2 + f.k))); g.drawImage(dot, f.x + c * face * lx - s * ly - r, f.y + s * face * lx + c * ly - r, r * 2, r * 2); }
+        g.globalCompositeOperation = "source-over";
+      }
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
@@ -11048,7 +11213,7 @@ window.Effects = (() => {
       b.y -= b.rise * h * dt * (1 + 0.4 * kick); b.vx *= Math.exp(-dt * 0.5);
       b.x += (b.vx + Math.sin(t * 3 + b.ph) * S * 0.03 + current * S * 0.03) * dt;
       if (b.y < S * 0.02 - b.r) { B.splice(i, 1); continue; } // they burst at the top
-      g.globalAlpha = 0.9;
+      g.globalAlpha = 0.9 * (1 - 0.2 * nt);
       g.drawImage(bub, b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
       if (b.r > S * 0.015) { g.globalAlpha = 0.5; g.drawImage(sheen, b.x - b.r, b.y - b.r, b.r * 2, b.r * 2); }
     }
@@ -11063,8 +11228,9 @@ window.Effects = (() => {
       g.fillRect(-fl.s / 2, -fl.s / 3, fl.s, fl.s * 0.66);
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
+    if (nt > 0) awPlankton(t, S, dt, nt, kick, hatHit, floorY); // at night the glowing plankton
     g.globalCompositeOperation = "lighter"; // the surface seen from below, rippling, and the net of light faintly over everything
-    g.globalAlpha = 0.16;
+    g.globalAlpha = 0.16 * (1 - 0.5 * nt);
     g.fillStyle = "#fff";
     const surface = new Path2D();
     surface.moveTo(0, 0);
@@ -11086,6 +11252,22 @@ window.Effects = (() => {
     g.lineWidth = 1;
     g.globalCompositeOperation = "source-over";
     g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  const AW_GLIM = [[70, 236, 255], [80, 255, 190], [130, 160, 255]]; // the colors of the plankton's light: cyan, sea green and a soft blue
+  function awPlankton(t, S, dt, nt, kick, hatHit, floorY) { // tiny lights drifting through the night water: each glows and fades in its own time, a hi-hat lights a few, and the mouse stirs the ones near it into light
+    const G = awTank.glim, n = Math.min(G.length, Math.round(80 * awArea())), current = V.current ?? 0, near = pointer.on && realNow - pointer.at < 1500, lights = awTank.glimArt || (awTank.glimArt = AW_GLIM.map((c) => awGlowArt(c)));
+    if (hatHit && dt) for (let k = 0; k < 4; k++) { const i = Math.floor(Math.random() * n); G[i] = Math.max(G[i], hatHit); }
+    g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < n; i++) {
+      const u = awHash(i * 1.7 + 3), v = awHash(i * 2.9 + 1), x = ((((u + t * (0.004 + 0.008 * awHash(i + 0.6)) * (1 + 2 * current)) % 1) + 1) % 1) * w * 1.1 - w * 0.05, y = (0.08 + 0.84 * v) * floorY + Math.sin(t * (0.3 + 0.4 * awHash(i + 0.2)) + i) * S * 0.03;
+      let lit = G[i] *= Math.exp(-dt / 0.45);
+      if (near) { const d = Math.hypot(x - pointer.x, y - pointer.y); if (d < S * 0.22) lit = Math.max(lit, (1 - d / (S * 0.22)) * 0.9 * awTank.away + 0.2); }
+      const a = Math.min(1, (0.22 + 0.18 * Math.sin(t * (0.5 + awHash(i + 0.9)) + i * 2.3) + 0.1 * kick + 0.8 * lit) * nt), r = S * (0.01 + 0.016 * awHash(i + 0.4)) * (1 + 0.8 * lit);
+      if (a < 0.02) continue;
+      g.globalAlpha = a;
+      g.drawImage(lights[i % 3], x - r, y - r, r * 2, r * 2);
+    }
+    g.globalCompositeOperation = "source-over";
   }
   function awReset(next) { if (next === "aero") awSky.W = 0; if (next === "aqua") awTank.W = 0; } // a fresh sky, or a fresh tank, for the one that is starting: the one going away is left as it was, so it can go on moving while the change fades
   /* ==== aerowater: end ==== */
@@ -12040,7 +12222,8 @@ window.Effects = (() => {
      grass in front, leaves and dandelion seeds on the wind, and dewdrops that ripen on the leaf tips and fall on the kick. The land goes slowly by, the sun crosses the sky over a long song,
      clouds come and go, and in a calm part the seeds come out. Its greens and blues are its own: the record and the mood come in through a light tint, the turbines' lamps and the flowers that clicks grow. */
   const AS_LEAVES = [[[18, 96, 42], [64, 158, 62], [150, 214, 110]], [[40, 136, 44], [112, 196, 66], [196, 240, 140]], [[96, 170, 30], [176, 226, 70], [232, 250, 170]], [[14, 120, 92], [60, 190, 140], [170, 240, 210]]]; // each kind of leaf's edge, middle and shine: deep, fresh, lime and a sea green
-  const asEco = { w: 0, h: 0, art: null, canopy: [], leaves: [], seeds: [], clouds: [], drops: [], splashes: [], sprouts: [], bushes: [], flowers: [], wind: 0.3, gust: 0, flare: 0, flareAt: 99, swell: 0, lift: 0, bob: 0, bobV: 0, puff: 0, far: 0, near: 0, grassA: 0, grassB: 0, turn: 0, water: 0, mouse: { x: 0, y: 0, vx: 0, vy: 0, near: 0, tapAt: -1 }, tap: null };
+  const asEco = { w: 0, h: 0, art: null, canopy: [], leaves: [], seeds: [], clouds: [], drops: [], splashes: [], sprouts: [], bushes: [], flowers: [], wind: 0.3, gust: 0, flare: 0, flareAt: 99, swell: 0, lift: 0, bob: 0, bobV: 0, puff: 0, far: 0, near: 0, grassA: 0, grassB: 0, turn: 0, water: 0, mouse: { x: 0, y: 0, vx: 0, vy: 0, near: 0, tapAt: -1 }, tap: null,
+    night: -1, nightArt: null, starArt: null, glow: new Float32Array(48) }; // and for the night (see awNight): its own pictures and the stars, made when night first comes, and how lit each firefly is
   function asEcoArt() { // the leaves, a dewdrop, a dandelion seed and two clouds, each painted once
     const leaf = AS_LEAVES.map(([edge, middle, shine]) => {
       const [c, x] = paper(64, 128), body = new Path2D();
@@ -12107,6 +12290,24 @@ window.Effects = (() => {
     });
     return { leaf, drop, seed, clouds, bush };
   }
+  const AS_GLOWS = [[150, 255, 190], [176, 255, 150], [214, 255, 140], [120, 255, 226]]; // the soft light each kind of leaf gives off at night along its veins and edge
+  function asEcoNight(E) { // the night's own pictures, made once when night first comes: each leaf dark with its veins and edge glowing softly, the bushes dark with their tops caught by the moon, the clouds dark and silvered
+    if (E.nightArt) return E.nightArt;
+    const A = E.art, leaf = A.leaf.map((day, k) => {
+      const c = awDimArt(day, [[0, [10, 40, 38], 0.82], [1, [4, 16, 20], 0.88]]), x = c.getContext("2d"), body = new Path2D();
+      body.moveTo(32, 120); body.bezierCurveTo(2, 98, 3, 36, 32, 4); body.bezierCurveTo(61, 36, 62, 98, 32, 120); body.closePath();
+      x.globalCompositeOperation = "source-over";
+      x.lineCap = "round";
+      x.strokeStyle = rgba(AS_GLOWS[k], 0.5); x.lineWidth = 1.4; x.stroke(body);
+      x.strokeStyle = rgba(AS_GLOWS[k], 0.9); x.lineWidth = 1.8; x.beginPath(); x.moveTo(32, 120); x.quadraticCurveTo(33.5, 64, 32, 12); x.stroke();
+      x.strokeStyle = rgba(AS_GLOWS[k], 0.45); x.lineWidth = 1;
+      x.beginPath(); for (let j = 1; j <= 5; j++) { const y = 112 - j * 17; x.moveTo(32, y); x.lineTo(14, y - 13); x.moveTo(32, y); x.lineTo(50, y - 13); } x.stroke();
+      return c;
+    });
+    const bush = A.bush.map((day) => awDimArt(day, [[0, [52, 84, 104], 0.62], [0.5, [10, 34, 34], 0.78], [1, [3, 12, 12], 0.88]]));
+    const clouds = A.clouds.map((day) => awDimArt(day, [[0, [164, 180, 224], 0.9], [0.5, [58, 70, 112], 0.94], [1, [24, 30, 60], 0.95]]));
+    return (E.nightArt = { leaf, bush, clouds });
+  }
   function asEcoLeaf(L, anywhere) { // a leaf on the wind, coming in from the left, or anywhere at the start
     const m = Math.min(w, h);
     L.depth = rnd(0, 1); L.size = m * rnd(0.075, 0.13) * (0.6 + 0.5 * L.depth);
@@ -12133,9 +12334,11 @@ window.Effects = (() => {
     E.drops.length = E.splashes.length = E.sprouts.length = 0;
     E.gust = E.flare = 0;
     E.flareAt = 99;
+    E.night = -1; // (a fresh world starts as the theme is, with no fade)
   }
   const AS_BLADES = Float32Array.from({ length: 997 * 4 }, (_, i) => hashOf(Math.floor(i / 4) * [1, 1.7, 2.3, 5.1][i % 4])); // each blade of grass: where in its place it stands, which green it is, how tall and how it leans, from 997 places that come round again
-  const AS_GRASS = [[40, 128, 40], [84, 168, 56], [140, 206, 84], [42, 136, 42], [89, 178, 59], [148, 218, 89]].map((c) => rgba(c, 1)); // the three greens of the grass in front, and the same a little lighter for the row behind it
+  const AS_GREENS = [[40, 128, 40], [84, 168, 56], [140, 206, 84], [42, 136, 42], [89, 178, 59], [148, 218, 89]], AS_GRASS = AS_GREENS.map((c) => rgba(c, 1)); // the three greens of the grass in front, and the same a little lighter for the row behind it
+  const AS_NIGHT_GRASS = [[8, 30, 24], [16, 46, 36], [34, 70, 58]], AS_GRASS_NIGHT = AS_NIGHT_GRASS.map((c) => rgba(c, 1)); // and the grass at night
   const asRidge = (u, far) => (far ? 0.075 + 0.03 * Math.sin(TAU * u * 0.375 + 0.5) + 0.016 * Math.sin(TAU * u * 0.875 + 1.1) + 0.007 * Math.sin(TAU * u * 1.875 + 2) : 0.03 + 0.016 * Math.sin(TAU * u * 0.5 + 2) + 0.008 * Math.sin(TAU * u * 1.25 + 0.4)); // how high the far hill (or the nearer rise) stands above the horizon, in parts of the picture's height, at a place u along the world. It comes round again every 24 widths of the picture
   function asSprout(x, y, tones) { // a click on the meadow (or anywhere): a shoot comes up, opens two leaves and flowers
     const E = asEco;
@@ -12150,7 +12353,8 @@ window.Effects = (() => {
   function asEcoFx() { // Frutiger Eco: on the kick dewdrops fall from the leaves and splash, the hi-hats make the seeds sparkle, the bass bends the grass and spins the turbines, a build lifts the wind, and the drop is a gust: leaves swirl up and the sunbeams flare
     const E = asEco, dt = asStep("eco"), { t, kickHit, hatHit } = sound, m = Math.min(w, h), tall = h > w * 1.15, M = E.mouse, tones = moodColors(3);
     if (E.w !== w || E.h !== h) asEcoSet();
-    const A = E.art;
+    const A = E.art, nt = awNight(E, dt), N = nt > 0 ? asEcoNight(E) : null, dark = (c, n) => (nt > 0 ? mix(c, n, nt) : c); // how far into the night it is (see awNight), the night's own pictures, and a day color taken that far to its night color
+    const put = (day, night, a, x0, y0, wd, ht) => { if (nt < 1) { g.globalAlpha = a * (1 - nt); g.drawImage(day, x0, y0, wd, ht); } if (nt > 0) { g.globalAlpha = a * nt; g.drawImage(night, x0, y0, wd, ht); } }; // a picture by day, its night one at night, the one fading into the other while the theme changes
     asMouse(M, dt);
     E.lift += (asLift() - E.lift) * (1 - Math.exp(-dt * 1.2));
     E.swell += (sound.bass - E.swell) * (1 - Math.exp(-dt * 8));
@@ -12202,36 +12406,40 @@ window.Effects = (() => {
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
     const lit = alone ? 1 : 0.86, top = mix([66, 150, 224], [104, 146, 206], 0.25 * gold), low = mix([198, 234, 248], [250, 222, 176], 0.5 * gold), sky = g.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, rgba(top.map((c) => c * (0.6 + 0.4 * lit)), 1));
-    sky.addColorStop(1, rgba(low.map((c) => c * lit), 1));
+    sky.addColorStop(0, rgba(dark(top.map((c) => c * (0.6 + 0.4 * lit)), [5, 10, 32]), 1)); // (at night a deep blue, and a glow low over the hills, warmer when the light is golden)
+    sky.addColorStop(1, rgba(dark(low.map((c) => c * lit), mix([44, 58, 104], [112, 76, 98], gold)), 1));
     g.fillStyle = sky;
     g.fillRect(0, 0, w, horizon + 2);
-    softBlob(g, sunX, sunY, m * 0.65, mix([255, 250, 228], [255, 226, 170], gold), alone ? 0.9 : 0.7); // the sun, behind the leaves
-    softBlob(g, sunX, sunY, m * 0.14, [255, 255, 245], alone ? 0.95 : 0.75);
+    if (nt > 0) { g.globalCompositeOperation = "lighter"; g.globalAlpha = nt; const stars = awStarArt(E, w, h), sky = Math.min(stars.height, Math.ceil(horizon + 2)); g.drawImage(stars, 0, 0, w, sky, 0, 0, w, sky); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; } // the stars
+    if (nt < 1) {
+      softBlob(g, sunX, sunY, m * 0.65, mix([255, 250, 228], [255, 226, 170], gold), (alone ? 0.9 : 0.7) * (1 - nt)); // the sun, behind the leaves
+      softBlob(g, sunX, sunY, m * 0.14, [255, 255, 245], (alone ? 0.95 : 0.75) * (1 - nt));
+    }
+    if (nt > 0) { awMoonDraw(sunX, sunY + m * 0.04, m * 0.045, nt, m * 0.55, (alone ? 0.5 : 0.4) * nt, sound.kick); g.globalAlpha = 1; } // at night the moon, behind the leaves
     for (const C of E.clouds) { // clouds crossing, now and then a new one
       C.x += C.v * w * dt * (1 + 0.6 * E.wind);
       const cw = m * 0.5 * C.size, ch = cw * 0.44;
       if (C.x > w + cw * 0.1) { C.x = -cw * rnd(1, 1.6); C.y = rnd(0.16, 0.38); C.size = rnd(0.7, 1.25); }
-      g.globalAlpha = alone ? 0.9 : 0.75;
-      g.drawImage(A.clouds[C.kind], C.x, C.y * horizon * 1.2 - ch / 2, cw, ch);
+      if (nt > 0) put(A.clouds[C.kind], N.clouds[C.kind], alone ? 0.85 : 0.7, C.x, C.y * horizon * 1.2 - ch / 2, cw, ch);
+      else { g.globalAlpha = alone ? 0.9 : 0.75; g.drawImage(A.clouds[C.kind], C.x, C.y * horizon * 1.2 - ch / 2, cw, ch); }
     }
     g.globalAlpha = 1;
 
     const step = Math.max(4, w / 120), rise = Math.max(h, w * 0.42); // how tall the hills stand: on a very wide picture a little taller than its height alone would make them
-    g.fillStyle = rgba(mix(low.map((c) => c * lit), [118, 164, 204], 0.42), 1); // a far blue range behind everything, going by slowest of all
+    g.fillStyle = rgba(dark(mix(low.map((c) => c * lit), [118, 164, 204], 0.42), [24, 32, 70]), 1); // a far blue range behind everything, going by slowest of all
     g.beginPath();
     g.moveTo(0, horizon + 2);
     for (let x = 0; x <= w + step; x += step) { const u = E.far * 0.5 + x / w; g.lineTo(x, horizon - rise * (0.12 + 0.045 * Math.sin(TAU * u * 0.25 + 2.2) + 0.03 * Math.sin(TAU * u * 0.75 + 0.7) + 0.012 * Math.sin(TAU * u * 1.5 + 4))); }
     g.lineTo(w, horizon + 2);
     g.fill();
     const hazy = mix(low.map((c) => c * lit), [66, 136, 150], 0.52); // the far hill, hazy, with its turbines
-    g.fillStyle = rgba(hazy, 1);
+    g.fillStyle = rgba(dark(hazy, [14, 32, 50]), 1);
     g.beginPath();
     g.moveTo(0, horizon + 2);
     for (let x = 0; x <= w + step; x += step) g.lineTo(x, horizon - rise * asRidge(E.far + x / w, true));
     g.lineTo(w, horizon + 2);
     g.fill();
-    const gapU = 24 / 200, firstK = Math.floor((E.far - 0.1) / gapU), mills = V.mills ?? 1, white = rgba(mix([240, 246, 250], hazy, 0.22), 1), blades = new Path2D(), towers = new Path2D(), lamps = [];
+    const gapU = 24 / 200, firstK = Math.floor((E.far - 0.1) / gapU), mills = V.mills ?? 1, white = rgba(dark(mix([240, 246, 250], hazy, 0.22), [58, 70, 96]), 1), blades = new Path2D(), towers = new Path2D(), lamps = [];
     for (let k = firstK; k <= firstK + Math.ceil(1.2 / gapU) + 1; k++) {
       const key = ((k % 200) + 200) % 200, farm = hashOf(Math.floor(key / 7) * 7.3 + 1), aim = (farm > 0.3 ? 0.5 : 0.08) * (0.4 + 0.6 * mills), chance = hashOf(key * 3.7 + 2), here = clamp((aim - chance) / 0.05);
       if (here <= 0) continue;
@@ -12247,12 +12455,22 @@ window.Effects = (() => {
     g.fillStyle = rgba(mix(tones[1], [255, 90, 70], 0.4), 0.85); // a small lamp on each, in the record's colors
     const lampR = Math.max(1, m * 0.003);
     for (let i = 0; i < lamps.length; i += 3) { const on = Math.max(Math.sin(t * 2.4 + i) > 0.2 ? 0.55 : 0, sound.kick); if (on < 0.05) continue; g.globalAlpha = lamps[i + 2] * on; g.fillRect(lamps[i] - lampR, lamps[i + 1] - lampR, lampR * 2, lampR * 2); } // they light up on the kick too
+    if (nt > 0) { // at night each turbine is lit: a soft white light on its hub, and its lamp glowing round itself
+      g.globalCompositeOperation = "lighter";
+      const hub = awGlowArt([200, 220, 255]), red = awGlowArt(mix(tones[1], [255, 90, 70], 0.4));
+      for (let i = 0; i < lamps.length; i += 3) {
+        const on = Math.max(Math.sin(t * 2.4 + i) > 0.2 ? 0.55 : 0, sound.kick), r = m * 0.035, q = lampR * 7;
+        g.globalAlpha = 0.45 * nt * lamps[i + 2]; g.drawImage(hub, lamps[i] - r, lamps[i + 1] - r, r * 2, r * 2);
+        if (on > 0.05) { g.globalAlpha = 0.7 * nt * on * lamps[i + 2]; g.drawImage(red, lamps[i] - q, lamps[i + 1] - q, q * 2, q * 2); }
+      }
+      g.globalCompositeOperation = "source-over";
+    }
     g.globalAlpha = 1;
 
     const meadow = g.createLinearGradient(0, horizon - h * 0.06, 0, h); // the nearer rise and the meadow below it
-    meadow.addColorStop(0, rgba(mix([132, 200, 104], [190, 196, 96], 0.35 * gold).map((c) => c * (0.85 + 0.15 * lit)), 1));
-    meadow.addColorStop(0.35, rgba(mix([92, 176, 74], [150, 170, 70], 0.3 * gold), 1));
-    meadow.addColorStop(1, rgba([34, 112, 44], 1));
+    meadow.addColorStop(0, rgba(dark(mix([132, 200, 104], [190, 196, 96], 0.35 * gold).map((c) => c * (0.85 + 0.15 * lit)), [24, 56, 50]), 1)); // (at night a dark green going to near black, the top of the rise caught by the moon)
+    meadow.addColorStop(0.35, rgba(dark(mix([92, 176, 74], [150, 170, 70], 0.3 * gold), [12, 38, 30]), 1));
+    meadow.addColorStop(1, rgba(dark([34, 112, 44], [3, 14, 10]), 1));
     g.fillStyle = meadow;
     g.beginPath();
     g.moveTo(0, h);
@@ -12273,6 +12491,7 @@ window.Effects = (() => {
       g.setTransform(1, 0, 0, 1, 0, 0);
     }
     const dotR = Math.max(1.2, m * 0.0045); // small flowers on it, going by with the land
+    if (nt > 0) g.globalAlpha = 1 - 0.4 * nt; // (paler at night)
     for (const tone of [0, 1, 2]) {
       g.beginPath();
       for (const F of E.flowers) { if (F.tone !== tone) continue; const x = asWrap(F.u - E.near / 6, 1) * w * 1.1 - w * 0.05, y = horizon + (h - horizon) * F.v ** 1.4, r = dotR * (0.6 + F.v) * (1 + 0.3 * sound.kick); g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU); }
@@ -12280,17 +12499,18 @@ window.Effects = (() => {
       g.fill();
     }
 
+    g.globalAlpha = 1;
     const course = (p) => w * (0.5 + 0.22 * Math.sin(TAU * E.near / 8 + 1.2) * (0.4 + 0.6 * p) + 0.16 * Math.sin(p * 3.4 + TAU * E.near / 4) * p ** 0.7), width = (p) => Math.max(w, h * 0.7) * (0.006 + 0.15 * p ** 1.7); // the stream: where it runs at each part of the way down from the horizon (0) to the bottom (1), and how wide it is there
     const brook = new Path2D(), yAt = (p) => horizon - h * 0.004 + (h - horizon + h * 0.04) * p;
     for (let k = 0; k <= 24; k++) { const p = k / 24; brook[k ? "lineTo" : "moveTo"](course(p) - width(p) / 2, yAt(p)); }
     for (let k = 24; k >= 0; k--) { const p = k / 24; brook.lineTo(course(p) + width(p) / 2, yAt(p)); }
     brook.closePath();
     const water = g.createLinearGradient(0, horizon, 0, h);
-    water.addColorStop(0, rgba(mix(low.map((c) => c * lit), [150, 214, 240], 0.5), 1));
-    water.addColorStop(1, "rgb(56,164,222)");
+    water.addColorStop(0, rgba(dark(mix(low.map((c) => c * lit), [150, 214, 240], 0.5), [44, 62, 112]), 1)); // (at night the sky's dark blue in it, the moon's light running down it)
+    water.addColorStop(1, nt > 0 ? rgba(mix([56, 164, 222], [12, 34, 84], nt), 1) : "rgb(56,164,222)");
     g.fillStyle = water;
     g.fill(brook);
-    g.strokeStyle = "rgba(225,250,255,0.55)";
+    g.strokeStyle = nt > 0 ? rgba([225, 250, 255], 0.55 - 0.25 * nt) : "rgba(225,250,255,0.55)";
     g.lineWidth = Math.max(1, m * 0.0025);
     g.stroke(brook);
     g.lineCap = "round"; // light running down it
@@ -12308,15 +12528,15 @@ window.Effects = (() => {
       const B = E.bushes[((k % 160) + 160) % 160];
       if (!B.here) continue;
       const x = (k * bushGap - E.near + B.at * bushGap) * w, y = horizon - h * asRidge(E.near + x / w, false), bw = m * B.size * 1.6 * (1 + 0.06 * nod), bh = m * B.size * (1 - 0.1 * nod); // a little squashed on the kick, standing where it stood
-      g.drawImage(A.bush[B.kind], x - bw / 2, y + m * B.size * 0.28 - bh, bw, bh);
+      if (nt > 0) put(A.bush[B.kind], N.bush[B.kind], 1, x - bw / 2, y + m * B.size * 0.28 - bh, bw, bh);
+      else g.drawImage(A.bush[B.kind], x - bw / 2, y + m * B.size * 0.28 - bh, bw, bh);
     }
     const blowAt = (x, y, reach) => { if (M.near < 0.01) return 0; const dx = x - M.x, dy = y - M.y; return M.near * Math.exp(-(dx * dx + dy * dy) / (2 * reach * reach)); }; // how much the mouse's breath reaches a place
     const fly = (L, back) => { // a leaf on the wind, tumbling as it goes; the back ones are behind the grass
       if (back !== L.depth < 0.45) return;
       const c = Math.cos(L.rot), s = Math.sin(L.rot), f = Math.cos(L.flip), fx = (f < 0 ? -1 : 1) * Math.max(0.2, Math.abs(f)), size = L.size;
       g.setTransform(c * fx, s * fx, -s, c, L.x, L.y);
-      g.globalAlpha = L.shown * (0.75 + 0.25 * L.depth);
-      g.drawImage(A.leaf[L.tone], -size * 0.25, -size * 0.5, size * 0.5, size);
+      put(A.leaf[L.tone], N ? N.leaf[L.tone] : null, L.shown * (0.75 + 0.25 * L.depth), -size * 0.25, -size * 0.5, size * 0.5, size);
     };
     const flying = 8 + 8 * (V.leafy ?? 1) + 6 * E.gust; // how many are out: more while a gust lasts
     for (let i = 0; i < E.leaves.length; i++) { // how they move: on the wind, round and up in a gust, away from the mouse
@@ -12347,7 +12567,7 @@ window.Effects = (() => {
         P.moveTo(x, y0); P.quadraticCurveTo(x + sb * 0.2, y0 - len * 0.55, x + sb, y0 - Math.cos(bend) * len);
       }
       g.lineWidth = Math.max(1.2, m * thick);
-      for (let tone = 0; tone < 3; tone++) { g.strokeStyle = AS_GRASS[base < 1 ? tone + 3 : tone]; g.stroke(tufts[tone]); }
+      for (let tone = 0; tone < 3; tone++) { g.strokeStyle = nt >= 1 ? AS_GRASS_NIGHT[tone] : nt > 0 ? rgba(mix(AS_GREENS[base < 1 ? tone + 3 : tone], AS_NIGHT_GRASS[tone], nt), 1) : AS_GRASS[base < 1 ? tone + 3 : tone]; g.stroke(tufts[tone]); } // (at night dark greens, a little blue)
     }
 
     for (const L of E.leaves) if (L.shown > 0) fly(L, false);
@@ -12355,7 +12575,7 @@ window.Effects = (() => {
     g.globalAlpha = 1;
 
     const hangTop = m * 0.02; // the canopy along the top: a branch and its leaves, swaying, with dewdrops ripening on the tips
-    g.strokeStyle = "rgb(70,84,44)";
+    g.strokeStyle = nt > 0 ? rgba(mix([70, 84, 44], [16, 26, 22], nt), 1) : "rgb(70,84,44)";
     g.lineWidth = Math.max(2, m * 0.009);
     g.beginPath();
     for (let x = -10; x <= w + 10; x += step * 2) { const y = hangTop * hang + m * 0.018 * Math.sin(x / w * 4 + 1) + m * 0.012 * Math.sin(x / w * 9.7); if (x === -10) g.moveTo(x, y); else g.lineTo(x, y); }
@@ -12364,8 +12584,7 @@ window.Effects = (() => {
       const ax = L.x, ay = hangTop * hang + m * 0.018 * Math.sin(ax / w * 4 + 1) + m * 0.012 * Math.sin(ax / w * 9.7) + L.drop * m * hang + nod * m * 0.014 * (0.5 + L.depth), len = L.len * m * (0.7 + 0.45 * hang), b = blowAt(ax, ay + len * 0.6, m * 0.14);
       const a = L.lean + 0.08 * Math.sin(t * 0.8 + L.phase) - lean * 0.25 + 0.35 * E.gust * Math.sin(t * 5 + L.phase) + (M.x < ax ? -1 : 1) * 0.6 * b + 0.3 * nod * (L.phase < 3.14 ? 1 : -1), c = Math.cos(Math.PI + a), s = Math.sin(Math.PI + a);
       g.setTransform(c, s, -s, c, ax, ay);
-      g.globalAlpha = 0.8 + 0.2 * L.depth;
-      g.drawImage(A.leaf[L.tone], -len * 0.27, -len, len * 0.54, len);
+      put(A.leaf[L.tone], N ? N.leaf[L.tone] : null, 0.8 + 0.2 * L.depth, -len * 0.27, -len, len * 0.54, len);
       L.tipX = ax - len * 0.96 * Math.sin(a); L.tipY = ay + len * 0.96 * Math.cos(a);
       L.ripe = Math.min(1, L.ripe + dt / 9);
     }
@@ -12404,7 +12623,7 @@ window.Effects = (() => {
     g.globalAlpha = 1;
 
     const fan = (0.5 - sunX / w) * 0.7, beam = g.createRadialGradient(sunX, sunY, m * 0.04, sunX, sunY, h * 1.15), strength = (alone ? 0.2 : 0.15) * (1 + 0.15 * E.lift + 1.4 * E.flare); // the sunbeams coming down through the leaves, flaring on the drop
-    beam.addColorStop(0, rgba(mix([255, 250, 220], [255, 224, 170], gold), Math.min(0.6, strength)));
+    beam.addColorStop(0, nt > 0 ? rgba(mix(mix([255, 250, 220], [255, 224, 170], gold), [150, 180, 255], nt), Math.min(0.6, strength) * (1 - 0.6 * nt)) : rgba(mix([255, 250, 220], [255, 224, 170], gold), Math.min(0.6, strength))); // (at night the moon's paler, bluer beams)
     beam.addColorStop(1, "rgba(255,248,220,0)");
     g.fillStyle = beam;
     g.beginPath();
@@ -12434,6 +12653,25 @@ window.Effects = (() => {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
 
+    if (nt > 0) { // at night the fireflies: each drifting on its own slow path over the meadow and blinking in its own time; a hi-hat lights a few, the drop's gust lifts them, and the mouse's breath blows them aside
+      const F = E.glow, n = Math.min(F.length, Math.round(26 * Math.sqrt((w * h) / 518400))), bug = awGlowArt([196, 255, 110]);
+      if (hatHit && dt) for (let k = 0; k < 3; k++) { const i = Math.floor(Math.random() * n); F[i] = Math.max(F[i], hatHit); }
+      g.globalCompositeOperation = "lighter";
+      g.fillStyle = "rgb(236,255,190)";
+      for (let i = 0; i < n; i++) {
+        const u = hashOf(i * 3.1 + 7), v = hashOf(i * 5.7 + 2), sp = 0.2 + 0.35 * hashOf(i + 0.5);
+        let x = asWrap(u + E.near * 0.125 + 0.05 * Math.sin(t * sp + i * 1.3), 1) * w * 1.1 - w * 0.05, y = h * (0.34 + 0.6 * v) + h * 0.04 * Math.sin(t * sp * 1.3 + i * 2.1) - E.gust * h * 0.22 * (0.4 + hashOf(i + 0.2));
+        const b = blowAt(x, y, m * 0.18);
+        if (b > 0.001) { const dx = x - M.x, dy = y - M.y, d = Math.hypot(dx, dy) || 1; x += (dx / d) * b * m * 0.14; y += (dy / d) * b * m * 0.14; }
+        F[i] *= Math.exp(-dt / 0.4);
+        const on = (0.5 + 0.5 * Math.sin(t * (0.5 + 0.8 * hashOf(i + 0.8)) + i * 2.4)) ** 4, a = Math.min(1, (0.12 + 0.8 * on + 0.9 * F[i]) * nt), r = m * 0.03 * (0.6 + 0.4 * on + 0.4 * F[i]);
+        if (a < 0.03) continue;
+        g.globalAlpha = a * 0.75; g.drawImage(bug, x - r, y - r, r * 2, r * 2);
+        g.globalAlpha = a; g.fillRect(x - 1, y - 1, 2, 2);
+      }
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = 1;
+    }
     for (let i = E.sprouts.length - 1; i >= 0; i--) { // what the clicks grew: a shoot, two leaves unfurling, a flower opening, and then it fades
       const S = E.sprouts[i];
       S.age += dt;
@@ -12445,7 +12683,7 @@ window.Effects = (() => {
       g.lineWidth = Math.max(1.5, m * 0.006);
       g.lineCap = "round";
       g.beginPath(); g.moveTo(S.x, S.y); g.quadraticCurveTo(S.x - S.lean * len * 0.2, S.y - len * 0.5 * up, tx, ty); g.stroke();
-      if (open > 0) for (const side of [-1, 1]) { const size = m * 0.065 * open, a = side * (0.25 + 0.95 * open) + sway, c = Math.cos(a), s = Math.sin(a), bx = S.x - S.lean * len * 0.05, by = S.y - len * 0.42 * up; g.setTransform(c, s, -s, c, bx, by); g.drawImage(A.leaf[side < 0 ? 1 : 2], -size * 0.25, -size, size * 0.5, size); }
+      if (open > 0) for (const side of [-1, 1]) { const size = m * 0.065 * open, a = side * (0.25 + 0.95 * open) + sway, c = Math.cos(a), s = Math.sin(a), bx = S.x - S.lean * len * 0.05, by = S.y - len * 0.42 * up; g.setTransform(c, s, -s, c, bx, by); if (nt > 0) { put(A.leaf[side < 0 ? 1 : 2], N.leaf[side < 0 ? 1 : 2], fade, -size * 0.25, -size, size * 0.5, size); g.globalAlpha = fade; } else g.drawImage(A.leaf[side < 0 ? 1 : 2], -size * 0.25, -size, size * 0.5, size); }
       g.setTransform(1, 0, 0, 1, 0, 0);
       if (bloom > 0) {
         const r = m * 0.03 * bloom * (1 + 0.04 * sound.kick);
@@ -12471,6 +12709,10 @@ window.Effects = (() => {
   /* ==== aeroglass: begin ==== */
   /* Aero: the glossy, hopeful look of the 2000s, all glass, water and light. Two of its styles are here, each put together from those things and from no picture in particular.
      Dark Aero is the gloss on black: balls and panes of glass over a black mirror of a floor, long streaks of light curving through them as in a long exposure, and soft lights far off.
+     Its versions go further: veils of light like an aurora hanging behind the glass, a floor that is a mirror, a floor of lines of light running toward us or dark water, some of the balls
+     turned into hoops of glass that turn in the light, and the glass taking the colors of another hour of the night (violet and magenta, or amber and gold). The version changes by itself
+     as the song goes on, and each of these glides from one setting to the next. For hard music (hardcore, gabber, frenchcore, uptempo, raw hardstyle, industrial and their kin) it turns red:
+     deep reds and hot whites on black glass, the streaks thinner and sharper, the floor a harder mirror, and red slashes of light cut across on the kick. Red is never flashed: it comes in and goes over seconds.
      Technozen is the quiet one: a pale silver space over still water, smooth stones, a thin ring of light like a gadget at rest, and petals drifting by. */
   const agArt = new Map(); // the small pictures these are drawn from, each made once and kept: glass, glows, petals and stones, by what it is and its tone
   function agSprite(kind, tone, paint) { // one of them, made the first time it is wanted. Its tone is rounded, so a color that turns slowly makes a new one only now and then
@@ -12524,7 +12766,98 @@ window.Effects = (() => {
   const agDarkTones = [[0, 196, 180], [40, 172, 255], [30, 214, 124], [70, 110, 255]]; // teal, cyan, emerald and a deep blue: the glows of dark glass. The record's colors reach the last one most
   const agTone = () => [0, 1, 2, 3, 3][Math.floor(Math.random() * 5)]; // which of them a piece of glass or a streak takes: the record's own color two times in five
   const agPaneShapes = [[1.5, 1], [1, 1.3], [2.1, 0.72]]; // the shapes of the panes of glass, across by down
-  const agDark = { seen: -1, tap: null, W: 0, mirror: null, orbs: [], panes: [], streaks: [], bokeh: [], ripples: [], flares: [], hover: 0, px: 0, py: 0, sweep: 9, wave: 0, low: 0, spawn: 0, pts: new Float32Array(4), skyFill: null, floorFill: null };
+  const agDark = { seen: -1, tap: null, W: 0, mirror: null, orbs: [], panes: [], streaks: [], bokeh: [], ripples: [], flares: [], hover: 0, px: 0, py: 0, sweep: 9, wave: 0, low: 0, spawn: 0, pts: new Float32Array(4), skyFill: null, floorFill: null,
+    red: 0, hardKey: null, hardIs: 0, slashes: [], slashAt: -9, veilGo: 0, veilKick: 0, veil: new Float32Array(33 * 4), veilFill: [null, null, null], gridGo: 0, spin: 0, spinV: 0 }; // and for its versions and the red: how red it is now (0 to 1), the slashes of light, how far the veils and the floor's lines have gone, the hoops' turn
+  const AG_HOURS = [agDarkTones, [[160, 92, 255], [232, 74, 206], [64, 126, 255], [120, 84, 255]], [[255, 184, 72], [110, 196, 255], [255, 128, 70], [255, 214, 130]]]; // the glass's colors at each hour of the night, between which the dial "hour" goes: teal and cyan as always, violet and magenta as in an aurora, amber and gold with an icy blue
+  const AG_RED = [[226, 16, 28], [255, 64, 44], [168, 6, 20], [255, 122, 98]]; // the red Dark Aero's colors: deep reds, and one near a hot white
+  function agHourTones(at) { // the colors for a setting of the dial "hour": 0 is Dark Aero's own, and in between two hours the colors are between theirs
+    if (!(at > 0)) return agDarkTones;
+    const k = Math.min(1.999, at * 2), i = Math.floor(k), f = k - i;
+    return AG_HOURS[i].map((c, j) => mix(c, AG_HOURS[i + 1][j], f));
+  }
+  function agHardness() { // 1 when the music playing is the hard, raw kind (hardcore, gabber, frenchcore, uptempo, raw hardstyle, industrial and their kin: the "hard" world, as the moods and the genres have it), else 0. Worked out again only when the genres or the mood change
+    const key = mood + "|" + genre;
+    if (key === agDark.hardKey) return agDark.hardIs;
+    const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ";
+    agDark.hardKey = key;
+    agDark.hardIs = musicWorld() === "hard" || ["uptempo", "rawstyle", "raw hardstyle", "frenchcore", "speedcore", "terrorcore"].some((word) => words.includes(word)) ? 1 : 0;
+    return agDark.hardIs;
+  }
+  function agHoopArt(tone) { // a hoop of dark glass seen face on: a ring with its color deep in it, both its edges caught by the light, a shine along its top and a faint glow round it
+    const R = 64, S = 176, m = S / 2, T = 15, [c, x] = paper(S);
+    let f = x.createRadialGradient(m, m, R - T * 1.8, m, m, R + T);
+    f.addColorStop(0, rgba(tone, 0)); f.addColorStop(0.55, rgba(tone, 0.2)); f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f; x.fillRect(0, 0, S, S);
+    f = x.createLinearGradient(0, m - R, 0, m + R);
+    f.addColorStop(0, rgba(mix(tone, [0, 0, 0], 0.72), 0.88)); f.addColorStop(0.65, rgba(mix(tone, [0, 0, 0], 0.4), 0.82)); f.addColorStop(1, rgba(mix(tone, agWhite, 0.25), 0.88)); // dark above, the light coming through it low down
+    x.lineWidth = T; x.strokeStyle = f; x.beginPath(); x.arc(m, m, R - T / 2, 0, TAU); x.stroke();
+    x.lineWidth = 1.4; x.strokeStyle = rgba(mix(tone, agWhite, 0.55), 0.85); x.beginPath(); x.arc(m, m, R - 0.7, 0, TAU); x.stroke();
+    x.strokeStyle = rgba(mix(tone, agWhite, 0.35), 0.6); x.beginPath(); x.arc(m, m, R - T + 0.7, 0, TAU); x.stroke();
+    x.lineCap = "round"; x.lineWidth = T * 0.32; x.strokeStyle = "rgba(255,255,255,0.72)"; x.beginPath(); x.arc(m, m, R - T / 2, 1.18 * Math.PI, 1.62 * Math.PI); x.stroke();
+    return c;
+  }
+  function agVeil(st, Y, pal, amount, M) { // veils of light: three long ribbons across the dark behind the glass, as an aurora hangs, each swelling and thinning along its length, its upper edge brightest
+    const n = 32, P = st.veil, lift = 1 + 0.3 * st.veilKick;
+    g.globalCompositeOperation = "lighter";
+    g.lineJoin = "round";
+    for (let k = 0; k < 3; k++) {
+      const a = [pal[1], pal[3], pal[0]][k], b = [pal[3], pal[0], pal[2]][k], base = Y * (0.26 + 0.2 * k), amp = Y * (0.1 + 0.04 * k) * (1 + 0.6 * acidLook.open), go = st.veilGo * (0.7 + 0.22 * k) + k * 2.1;
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, x = w * (-0.05 + 1.1 * u), y = base + amp * Math.sin(u * TAU * 0.8 + go) + amp * 0.35 * Math.sin(u * TAU * 1.9 - go * 1.3 + k), th = Y * (0.025 + 0.07 * (0.5 + 0.5 * Math.sin(u * TAU * 1.3 + go * 0.7 + k * 1.7))) * lift;
+        P[i * 4] = x; P[i * 4 + 1] = y - th * 0.35; P[i * 4 + 2] = x; P[i * 4 + 3] = y + th * 1.6; // its bright edge, and how far the light hangs below it
+      }
+      const key = rgba(a, 1) + rgba(b, 1) + w, kept = st.veilFill[k] = agFill(st.veilFill[k], key, () => { const f = g.createLinearGradient(0, 0, w, 0); f.addColorStop(0, rgba(a, 0)); f.addColorStop(0.22, rgba(a, 1)); f.addColorStop(0.62, rgba(mix(a, b, 0.7), 1)); f.addColorStop(1, rgba(b, 0)); return f; }), f = kept.fill; // (its color fade, kept while its colors stay)
+      for (const [grow, alpha] of [[1, 0.07], [0.45, 0.09]]) { // the soft body, twice: all of it faintly, and nearer the edge a little more
+        g.beginPath();
+        for (let i = 0; i <= n; i++) g.lineTo(P[i * 4], P[i * 4 + 1]);
+        for (let i = n; i >= 0; i--) g.lineTo(P[i * 4 + 2], P[i * 4 + 1] + (P[i * 4 + 3] - P[i * 4 + 1]) * grow);
+        g.closePath();
+        g.globalAlpha = Math.min(1, alpha * amount * lift);
+        g.fillStyle = f;
+        g.fill();
+      }
+      g.beginPath(); // and its edge, a glow and a fine bright line along it
+      for (let i = 0; i <= n; i++) g.lineTo(P[i * 4], P[i * 4 + 1]);
+      g.strokeStyle = f;
+      g.lineWidth = M * 0.014; g.globalAlpha = Math.min(1, 0.12 * amount * lift); g.stroke();
+      g.lineWidth = Math.max(1, M * 0.0028); g.globalAlpha = Math.min(1, 0.55 * amount); g.stroke();
+    }
+    g.lineJoin = "miter";
+    g.globalCompositeOperation = "source-over";
+  }
+  function agGrid(st, Y, F, pal, amount, M, kick) { // a floor of lines of light: rows coming slowly toward us with the music, and lines running off to a point far away, all fading with distance
+    const cx = w / 2, rows = 16, go = st.gridGo % 1, tone = rgba(mix(pal[0], agWhite, 0.3), 1);
+    g.globalCompositeOperation = "lighter";
+    g.strokeStyle = tone;
+    g.lineWidth = Math.max(1, M * 0.0016);
+    g.beginPath();
+    for (let i = -14; i <= 14; i++) { g.moveTo(cx + i * w * 0.018, Y); g.lineTo(cx + i * w * 0.16, Y + F * 1.05); }
+    g.globalAlpha = Math.min(1, 0.16 * amount);
+    g.stroke();
+    for (let j = 0; j < rows; j++) {
+      const d = j + 1 - go, y = Y + F / (1 + 0.55 * d);
+      g.globalAlpha = Math.min(1, (0.34 * amount * (1 + 0.35 * kick)) / (1 + 0.35 * d));
+      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    }
+    g.globalCompositeOperation = "source-over";
+  }
+  function agSlashes(st, real, M) { // the red Dark Aero's slashes of light: straight and quick, a white-hot line in a red glow, drawn in from one end and gone again in under half a second
+    g.globalCompositeOperation = "lighter";
+    g.lineCap = "round";
+    for (let i = st.slashes.length - 1; i >= 0; i--) {
+      const o = st.slashes[i];
+      if (real > 0) o.age += real;
+      const p = o.age / 0.45;
+      if (p >= 1) { st.slashes.splice(i, 1); continue; }
+      const u1 = eased(Math.min(1, p * 1.7)), u0 = eased(clamp((p - 0.3) / 0.7)), ca = Math.cos(o.a) * o.len, sa = Math.sin(o.a) * o.len, x0 = o.x + ca * u0, y0 = o.y + sa * u0, x1 = o.x + ca * u1, y1 = o.y + sa * u1, fade = 1 - p * p;
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1);
+      g.strokeStyle = rgba(o.tone, 1); g.lineWidth = M * 0.014; g.globalAlpha = 0.16 * fade * st.red; g.stroke();
+      g.lineWidth = M * 0.005; g.globalAlpha = 0.35 * fade * st.red; g.stroke();
+      g.strokeStyle = "rgb(255,236,226)"; g.lineWidth = Math.max(1, M * 0.0018); g.globalAlpha = 0.6 * fade * st.red; g.stroke();
+    }
+    g.lineCap = "butt";
+    g.globalCompositeOperation = "source-over";
+  }
   function agFill(old, key, make) { // a color fade for a large area, kept from frame to frame and made again only when its colors or its place change
     return old && old.key === key ? old : { key, fill: make() };
   }
@@ -12672,17 +13005,17 @@ window.Effects = (() => {
     out[at + 1] = y;
   }
   function agDrawStreak(st, s, t, Y, pal, light, M) {
-    const n = 40, tone = pal[s.tone], p = s.pts, q = st.pts, lw = Math.max(1, M * 0.0036) * s.size * (1 + 0.8 * acidLook.open);
+    const n = 40, tone = pal[s.tone], p = s.pts, q = st.pts, hot = st.red, lw = Math.max(1, M * 0.0036) * s.size * (1 + 0.8 * acidLook.open) * (1 - 0.3 * hot); // (the red one's are thinner, with less glow and a hotter core)
     if (light < 0.01) return;
     for (let i = 0; i <= n; i++) { const u = -0.08 + (1.16 * i) / n; agBend(st, u * w, agStreakY(s, u, t) * Y, p, i * 2, M); }
     g.beginPath();
     g.moveTo(p[0], p[1]);
     for (let i = 1; i <= n; i++) g.lineTo(p[i * 2], p[i * 2 + 1]);
     g.strokeStyle = rgba(tone, 1);
-    g.globalAlpha = Math.min(1, 0.06 * light); g.lineWidth = lw * 7; g.stroke(); // a wide soft glow, a narrower one, and a fine bright line in the middle
+    g.globalAlpha = Math.min(1, 0.06 * light * (1 - 0.4 * hot)); g.lineWidth = lw * 7; g.stroke(); // a wide soft glow, a narrower one, and a fine bright line in the middle
     g.globalAlpha = Math.min(1, 0.17 * light); g.lineWidth = lw * 2.4; g.stroke();
-    g.strokeStyle = rgba(mix(tone, agWhite, 0.55), 1);
-    g.globalAlpha = Math.min(1, 0.5 * light); g.lineWidth = lw * 0.7; g.stroke();
+    g.strokeStyle = rgba(mix(tone, agWhite, 0.55 + 0.3 * hot), 1);
+    g.globalAlpha = Math.min(1, 0.5 * light * (1 + 0.4 * hot)); g.lineWidth = lw * 0.7; g.stroke();
     const dir = s.v > 0 ? 1 : -1; // the light running along it, brightest at its head
     g.lineWidth = lw * 1.5;
     for (let k = 0; k < 6; k++) {
@@ -12704,6 +13037,7 @@ window.Effects = (() => {
     st.bokeh = Array.from({ length: 38 }, () => ({ x: rnd(0, 1), y: rnd(0, 1), r: rnd(0.006, 0.024), d: rnd(0, 1), tone: agTone(), ph: rnd(0, TAU), tw: 0 }));
     st.ripples = []; st.flares = [];
     st.sweep = 9;
+    st.red = agHardness(); st.slashes.length = 0; // (a fresh start is red at once for hard music; a song changing while it shows turns it over a few seconds)
   }
   function agPulse(list, kickHit, real, dt, wide) { // the glow that passes through the glass on a kick, reaching each piece a moment later the further right it is; and each piece drifting on
     for (const o of list) {
@@ -12717,7 +13051,11 @@ window.Effects = (() => {
   function agDarkAero() { // Dark Aero: balls and panes of glass over a black mirror, long streaks of light curving through
     const st = agDark, { t, kick, kickHit, hatHit, bass } = sound, dt = Math.min(0.4, sound.dt), real = agTick(st), M = Math.min(w, h), B = Math.max(w, h);
     const Y = Math.round(h * (V.floor ?? 0.64)), F = h - Y, lean = V.lean ?? 0.35, glow = V.glow ?? 1, acc = moodColors(3), calm = flow.calm, hour = t * 0.012;
-    const pal = agDarkTones.map((c, i) => agVivid(mix(mix(c, agDarkTones[(i + 1) % 3], 0.3 * (0.5 + 0.5 * Math.sin(hour + i * 2.1))), mix(acc[i % 3], agWhite, 0.12), clamp(i === 3 ? lean * 2.2 : lean * 0.3)), 150)); // the glows drift into one another over minutes, and the record's colors come in
+    const hard = agHardness(); // the red Dark Aero, for hard music: how red it is goes toward that over two and a half seconds, so a change of song never flashes red
+    if (!st.W) st.red = hard; // (a fresh start takes its red, or none, before its colors are worked out below, so its first frame is never in the wrong ones)
+    else if (real > 0 && st.red !== hard) st.red = hard > st.red ? Math.min(hard, st.red + real / 2.5) : Math.max(hard, st.red - real / 2.5);
+    const tones0 = agHourTones(V.hour), pal0 = tones0.map((c, i) => agVivid(mix(mix(c, tones0[(i + 1) % 3], 0.3 * (0.5 + 0.5 * Math.sin(hour + i * 2.1))), mix(acc[i % 3], agWhite, 0.12), clamp(i === 3 ? lean * 2.2 : lean * 0.3)), 150)); // the glows drift into one another over minutes, and the record's colors come in (in the colors of the version's hour)
+    const pal = st.red > 0 ? pal0.map((c, i) => mix(c, AG_RED[i], st.red)) : pal0; // and for hard music, red
     const building = flow.part === "build" || flow.build > 0.35 ? clamp((flow.build - 0.2) / 0.6) : 0;
     if (!st.W) agDarkStart(st);
     if (real >= 0) {
@@ -12747,6 +13085,16 @@ window.Effects = (() => {
         s.head += s.v * dt * (1 + 2.2 * building + 0.8 * flow.drop + 1.6 * acidLook.soft);
         if (s.head > 1.25) s.head -= 1.5; else if (s.head < -0.25) s.head += 1.5;
       }
+      st.veilGo = (st.veilGo + real * (0.14 + 0.3 * building + 0.2 * flow.drop + 0.3 * acidLook.soft)) % (TAU * 100); // the veils drift on, quicker through a build; the floor's rows come one every two beats
+      st.veilKick = Math.max(st.veilKick * Math.exp(-real / 0.3), kickHit > 0 ? kickHit : 0);
+      st.gridGo = (st.gridGo + real * (flow.bpm ? flow.bpm / 120 : 1) * (1 + building)) % 1000;
+      st.spinV = st.spinV * Math.exp(-real / 0.8) + (kickHit > 0 ? kickHit * 0.9 : 0); st.spin = (st.spin + real * (0.35 + st.spinV)) % (TAU * 100); // the hoops turn, a little quicker after each kick
+      if (kickHit > 0 && st.red > 0.3 && t - st.slashAt > 0.6 && st.slashes.length < 5 && !(punch.age === 0 && punch.big && punch.lit)) { // the red one: a slash of light on the kick, at most one every 0.6 s, and never on a kick where the punch lights the whole picture (the two together would be one flash too big)
+        st.slashAt = t;
+        const right = Math.random() < 0.5, a = (right ? 0 : Math.PI) + rnd(-0.38, 0.38);
+        st.slashes.push({ x: right ? rnd(-0.05, 0.45) * w : rnd(0.55, 1.05) * w, y: rnd(0.08, 0.92) * Y, a, len: rnd(0.4, 0.75) * w, age: 0, tone: pal[Math.floor(rnd(0, 3))] });
+      }
+      if (kickHit > 0 && (V.weave ?? 0) > 1.3 && st.ripples.length < 8) st.ripples.push({ x: rnd(0.1, 0.9) * w, u: rnd(0.15, 0.85), age: 0, tone: pal[Math.floor(rnd(0, 3))] }); // on a floor of water each kick drops a ring on it
       for (let i = st.ripples.length - 1; i >= 0; i--) if ((st.ripples[i].age += real) > 2.6) st.ripples.splice(i, 1);
       for (let i = st.flares.length - 1; i >= 0; i--) if ((st.flares[i].age += real) > 1.4) st.flares.splice(i, 1);
     }
@@ -12775,7 +13123,7 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     for (let i = 0; i < 3; i++) { // great soft glows wandering far behind
       const gx = (0.5 + 0.4 * Math.sin(t * 0.011 * (i + 1) + i * 2.1)) * w, gy = (0.32 + 0.24 * Math.sin(t * 0.017 * (i + 1.5) + i)) * Y, r = B * (0.3 + 0.06 * i);
-      g.globalAlpha = Math.min(1, (0.12 + 0.05 * flow.intensity + 0.04 * st.low) * glow);
+      g.globalAlpha = Math.min(1, (0.12 + 0.05 * flow.intensity + 0.04 * st.low) * glow * (1 - 0.4 * st.red)); // (the red one's are fainter, so its dark stays black)
       g.drawImage(agGlow(pal[i === 2 ? 3 : i]), gx - r, gy - r, r * 2, r * 2);
     }
     for (const b of st.bokeh) { // lights far off, out of focus
@@ -12783,6 +13131,7 @@ window.Effects = (() => {
       g.globalAlpha = Math.min(1, (0.2 + 0.1 * Math.sin(t * 0.6 + b.ph) + 0.7 * b.tw) * glow);
       g.drawImage(agSprite("bokeh", pal[b.tone], agBokehArt), x - r, y - r, r * 2, r * 2);
     }
+    if ((V.veil ?? 0) > 0.01) agVeil(st, Y, pal, (V.veil ?? 0) * glow * (1 - 0.3 * calm) * (0.85 + 0.3 * building), M); // the version's veils of light
     const light = (0.45 + 0.9 * kick + 0.3 * sound.mid) * (0.75 + 0.35 * flow.intensity) * (1 - 0.2 * calm) * (1 + 0.4 * building) * glow; // the streaks pulse brighter on the kick, and the tune keeps them lit when there is none
     g.lineCap = "round";
     for (let i = 0; i < st.streaks.length; i += 2) agDrawStreak(st, st.streaks[i], t, Y, pal, light * st.streaks[i].fade, M); // half of them behind the glass
@@ -12806,17 +13155,19 @@ window.Effects = (() => {
       const o = st.orbs[i], seen = clamp(orbs - i);
       if (seen <= 0) continue;
       const r = o.r * M * (1 + 0.12 * Math.sin(t * 0.05 + o.ph)), x = o.x * w, y = agOrbY(o, t, Y, M), S = (r * 176) / 64, tone = pal[o.tone];
+      const hoop = clamp(((V.twirl ?? 0) * 1.3 - 0.1 - awHash(i * 7.3 + 1)) * 5); // the version turns some of the balls into hoops of glass: as its dial moves, one at a time
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.globalCompositeOperation = "source-over";
-      g.globalAlpha = seen;
-      g.drawImage(agSprite("orb", tone, agOrbArt), x - S / 2, y - S / 2, S, S);
+      g.globalAlpha = seen * (1 - hoop);
+      if (hoop < 1) g.drawImage(agSprite("orb", tone, agOrbArt), x - S / 2, y - S / 2, S, S);
+      if (hoop > 0) { const turn = st.spin * (0.6 + 0.5 * awHash(i + 0.5)) + o.ph, k = (r * 1.08) / 64, sx = Math.max(0.18, Math.abs(Math.cos(turn))), tilt = 0.3 * Math.sin(t * 0.25 + o.ph), c = Math.cos(tilt), s = Math.sin(tilt); g.setTransform(c * k * sx, s * k * sx, -s * k, c * k, x, y); g.globalAlpha = seen * hoop; g.drawImage(agSprite("hoop", tone, agHoopArt), -88, -88); g.setTransform(1, 0, 0, 1, 0, 0); } // a hoop turning slowly, quicker after a kick
       g.globalCompositeOperation = "lighter";
       if (o.glow > 0.02) { const q = r * 1.25; g.globalAlpha = Math.min(1, seen * o.glow * 0.65 * glow); g.drawImage(agGlow(tone), x - q, y - q + r * 0.2, q * 2, q * 2); } // the kick's glow passing through it
       let lx = Math.cos(toward), ly = Math.sin(toward), near = 0;
       if (st.hover > 0.01) { const dx = st.px - x, dy = st.py - y, d = Math.hypot(dx, dy) + 0.001; lx += (dx / d - lx) * st.hover; ly += (dy / d - ly) * st.hover; near = st.hover * Math.exp(-d / (r * 4)); } // the mouse is a light: the shine turns toward it
       const turn = Math.atan2(ly, lx) + Math.PI / 2, c = Math.cos(turn), s = Math.sin(turn), k = r / 64;
       g.setTransform(c * k, s * k, -s * k, c * k, x, y);
-      g.globalAlpha = Math.min(1, seen * (0.7 + 0.3 * near));
+      g.globalAlpha = Math.min(1, seen * (0.7 + 0.3 * near) * (1 - hoop) * (1 + 0.3 * st.red)); // (a hoop has its own shine; the red one's is harder)
       g.drawImage(shine, -88, -88);
       const rang = o.ring < 2 ? (1 - o.ring / 2) ** 2 : 0, rim = Math.min(1, swept(x) * 0.75 + rang + 0.25 * near);
       if (rim > 0.01) { g.setTransform(k, 0, 0, k, x, y); g.globalAlpha = seen * rim; g.drawImage(agSprite("rim", tone, agRimArt), -88, -88); } // its edge lit all round: when the band passes, or when it is clicked
@@ -12853,7 +13204,7 @@ window.Effects = (() => {
     st.floorFill = agFill(st.floorFill, top + Y + "," + h, () => { const f = g.createLinearGradient(0, Y, 0, h); f.addColorStop(0, top); f.addColorStop(1, "rgb(1,2,4)"); return f; });
     g.fillStyle = st.floorFill.fill;
     g.fillRect(0, Y, w, F);
-    const sH = Math.max(2, Math.round(h / 220)), amp = M * (0.0006 + 0.011 * st.low * st.low + 0.01 * acidLook.soft), up = Math.min(F, Y);
+    const water = clamp((V.weave ?? 0) - 1), sH = Math.max(2, Math.round(h / 220)), amp = M * (0.0006 + 0.011 * st.low * st.low + 0.01 * acidLook.soft) * (1 + 2.5 * water) * (1 - 0.5 * st.red), up = Math.min(F, Y); // (a floor of water rocks more; the red one's is a harder, stiller mirror)
     if (!st.mirror || st.mirror[0].width !== w || st.mirror[0].height < up) st.mirror = paper(w, Math.max(up, Math.ceil(h * 0.5))); // what is above the floor, copied once a frame so the floor can be made from it in thin strips
     const [mc, mx] = st.mirror;
     mx.globalCompositeOperation = "copy";
@@ -12861,9 +13212,11 @@ window.Effects = (() => {
     for (let y = 0; y < F; y += sH) {
       const src = up - y - sH, u = y / F;
       if (src < 0) break;
-      g.globalAlpha = 0.52 * (1 - u) ** 1.4;
+      g.globalAlpha = 0.52 * (1 - u) ** 1.4 * (1 + 0.25 * st.red);
       g.drawImage(mc, 0, src, w, sH, amp * (0.3 + 1.4 * u) * Math.sin(u * 9 - st.wave * 2), Y + y, w, sH);
     }
+    const grid = clamp(1 - Math.abs((V.weave ?? 0) - 1));
+    if (grid > 0.01) agGrid(st, Y, F, pal, grid * glow * (1 - 0.6 * st.red), M, kick * (1 - st.red)); // the version's floor of lines of light (fainter in the red one, and still on the kick: in hard music the punch moves the whole picture on the kick, and a floor of bright fine lines moved like that would be a flash over much of it)
     g.globalCompositeOperation = "lighter";
     g.globalAlpha = Math.min(1, (0.35 + 0.25 * kick) * glow); // where the floor meets the dark, a thin line of light
     g.drawImage(agSprite("line", pal[0], agLineArt), -w * 0.1, Y - 1, w * 1.2, 2);
@@ -12887,6 +13240,7 @@ window.Effects = (() => {
       }
       g.restore();
     }
+    if (st.slashes.length) agSlashes(st, real, M);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
     g.globalCompositeOperation = "source-over";
