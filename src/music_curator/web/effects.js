@@ -726,6 +726,32 @@ window.Effects = (() => {
   }
   const sparks = []; // rising through a build, thrown out by a drop
   let wave = 0; // the drop's ring and flash, from 1 down to 0
+  let waveLit = 0; // how much of the drop's white flash is showing: it comes up over three or four frames instead of all in one (see drawFlow)
+  /* A kick's light, kept gentle for eyes that flashing light can hurt. The owner's rule: never more than three large flashes a second (a large flash: more than a quarter of the
+     picture getting brighter or darker by more than a tenth of full within about a tenth of a second), never a large saturated red flash, and nothing that strobes.
+     sound.kick jumps to full on the very frame a kick lands and is gone in about a seventh of a second, so an effect that lights much of its picture with it flashes on every
+     kick: four times a second in quick music. The few effects that light a lot of their picture on the kick take this instead. It comes up over a few frames, goes down more
+     slowly than it came up, and a kick within 340 ms of the last one it took full only lifts it a little (0.4 of that kick), so even at 200 beats a minute no more than three
+     kicks a second light the picture fully. A kick is known by sound.kick rising, so one that lands on a frame that was not drawn is still seen on the next.
+     When the Hard kicks' punch flashes much of the picture white on a kick, the effect's own light takes that kick as one too soon: the punch's flash is that kick's big light.
+     st is the effect's own { v, goal, k, at, lit }; rise and fall are in seconds, by the clock on the wall, as the kick's own sound goes. It moves on once a frame however
+     often the picture is drawn. Back after a while unseen (another effect was showing, or the page slept) it starts again from dark: by the clock the old light has died. */
+  function kickGlow(st, rise = 0.035, fall = 0.25) {
+    if (st.at === realNow) return st.v; // (already moved on this frame)
+    if (!(realNow - st.at <= 250)) { st.v = st.goal = 0; st.k = sound.kickHit > 0 ? 0 : sound.kick; st.at = realNow - 33; } // not drawn for more than a quarter of a second: a kick that is long over is not shown again when it comes back, and it moves on as if from one usual frame back (a kick landing on the very frame it comes back is still seen, and still comes up over a few frames)
+    const step = Math.min(0.1, Math.max(0, (realNow - st.at) / 1000)), k = sound.kick, rose = k > st.k + 0.02;
+    st.at = realNow;
+    st.k = k;
+    if (rose) {
+      const full = Math.min(1, k); // (the Reacts slider can make the kick bigger than full, but not its light here: above 1 it only lit more of the picture at once)
+      if (punch.big && punch.hitAt === realNow) { st.goal = Math.max(st.goal, 0.4 * full); st.lit = realNow; } // the punch is flashing the picture white on this very kick: a little only, and the punch's flash counts as this kick's big light (the owner's rule: never more than three large flashes a second)
+      else if (realNow >= st.lit && realNow - st.lit < 340) st.goal = Math.max(st.goal, 0.4 * full); // too soon after the last: a little only
+      else { st.goal = Math.max(st.goal, full); st.lit = realNow; }
+    }
+    st.v += (st.goal - st.v) * (1 - Math.exp(-step / rise));
+    st.goal *= Math.exp(-step / fall);
+    return st.v;
+  }
   function drawFlow(dt) {
     const most = Math.max(w, h), lights = dreaming() && !dream.done; // the melody's lights, unless the picture has put them behind something of its own
     dream.done = false;
@@ -766,7 +792,9 @@ window.Effects = (() => {
       g.arc(w / 2, h / 2, (1 - wave) * most * 0.8, 0, TAU);
       g.stroke();
       g.globalAlpha = agPale.has(name) ? 0.12 : 1; // (on a pale picture the white flash is kept faint, or it would turn the whole picture white)
-      g.fillStyle = `rgba(255,255,255,${(0.3 * wave ** 3 * T.light * (asPale.has(name) ? 0.12 : 1)).toFixed(3)})`;
+      const aim = 0.3 * wave ** 3 * Math.min(1, T.light); // the drop's white flash, one a drop, over the whole picture. It no longer grows with the Brightness slider: the slider already brightens the whole canvas, and the two together turned the whole picture pure white
+      waveLit = aim < waveLit ? aim : Math.min(aim, waveLit + 2.5 * dt); // and it comes up evenly over about a tenth of a second by the clock (three frames at 30 a second, six at 60), not all in one frame, as the Forms bring up their own drop light; dt here is the frame's time by the clock: the owner's rule, nothing that strobes
+      g.fillStyle = `rgba(255,255,255,${(waveLit * (asPale.has(name) ? 0.12 : 1)).toFixed(3)})`;
       g.fillRect(0, 0, w, h);
       wave = Math.max(0, wave - dt / 0.9);
     }
@@ -858,8 +886,9 @@ window.Effects = (() => {
     if (hatHit) for (let i = 0; i < 3; i++) { const u = Math.random(); twinkle(u * w, yAt(u, i % Math.floor(N), rnd(-0.5, 0.5)), h * 0.06); }
   }
 
+  const silkKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9 }; // the kick as the sheets show it (see kickGlow)
   function silk() { // broad sheets of light folding over each other, like the old glass desktop wallpapers
-    const { t, bass, kick, hatHit } = sound, step = Math.max(8, w / 120), SHEETS = V.sheets, k = V.waves;
+    const { t, bass, hatHit } = sound, kick = kickGlow(silkKick), step = Math.max(8, w / 120), SHEETS = V.sheets, k = V.waves;
     backdrop();
     threadsHand(step, h * 0.11); // the mouse parts the sheets, and a click plucks them
     g.globalCompositeOperation = "lighter";
@@ -880,11 +909,11 @@ window.Effects = (() => {
         for (let i = under.length - 2; i >= 0; i -= 2) sheet.lineTo(under[i], under[i + 1]);
         sheet.closePath();
         g.fillStyle = paint;
-        g.globalAlpha = (0.07 + 0.09 * kick) * share;
+        g.globalAlpha = (0.07 + 0.05 * kick) * share; // the sheets brighten half as much on the kick as they did, and over a few frames: three colors of sheets over each other, all lit at once in one frame, lit a third of the picture on every kick (the owner's rule: never more than three large flashes a second). Their bright edges carry more of the kick
         g.fill(sheet);
         g.strokeStyle = paint;
-        g.lineWidth = Math.max(1, h / 620);
-        g.globalAlpha = (0.34 + 0.4 * kick + 0.25 * acidLook.knob) * share;
+        g.lineWidth = Math.max(1, h / 620) * (1 + 1.5 * kick); // the edges swell and brighten on the kick: thin lines, so only a small part of the picture
+        g.globalAlpha = (0.34 + 0.32 * kick + 0.25 * acidLook.knob) * share;
         g.stroke(edge);
       }
     }
@@ -1581,6 +1610,7 @@ window.Effects = (() => {
     middle(cx, cy, r);
   }
 
+  const mandalaKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9 }; // the kick as the flower's panes and lines show it (see kickGlow)
   function mandala() { // the sound folded into a flower round the record, like stained glass
     const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), r = size * (0.2 + 0.014 * kick), FOLDS = V.folds, STEPS = 20, span = Math.PI / FOLDS, scratch = scratched(cx), soft = (at) => (smooth(at - 2.5) + smooth(at) + smooth(at + 2.5)) / 3;
     backdrop();
@@ -1599,9 +1629,9 @@ window.Effects = (() => {
         for (let f = 0; f < FOLDS * 2; f++) { // every other piece is a mirror image, so the ends meet
           const a = spin + f * span + (f % 2 ? span : 0), c = Math.cos(a), s = Math.sin(a);
           if (f % 2) g.setTransform(c, s, s, -c, cx, cy); else g.setTransform(c, s, -s, c, cx, cy);
-          g.fillStyle = rgba(tone, (0.06 + 0.08 * kick) * share);
+          g.fillStyle = rgba(tone, (0.06 + 0.08 * kickGlow(mandalaKick)) * share); // the panes, the lines' glow and the lines' width all grew on the kick in one frame, and together lit about a third of the picture on every kick (the owner's rule: never more than three large flashes a second). Now the panes brighten as much but over a few frames, the lines' glow more, gently (see kickGlow), the lines widen by half, and the flower still swells on the kick
           g.fill(pane);
-          neon(line, rgba(tone, 1), Math.max(1.2, h / 480) * (1 + kick), (0.7 + 0.3 * kick) * share, 0.55);
+          neon(line, rgba(tone, 1), Math.max(1.2, h / 480) * (1 + 0.5 * kick), (0.7 + 0.45 * kickGlow(mandalaKick)) * share, 0.55);
         }
       }
     }
@@ -1905,8 +1935,8 @@ window.Effects = (() => {
     spawn("galaxy");
     sky.things[sky.things.length - 1].z -= 12;
   }
-  function drawThing(o, focal, camX, camY, reach) {
-    const { t, bass, kick } = sound, k = focal / o.z, x = (o.x - camX) * k, size = o.size * k * (1 + 0.075 * kick * T.nod), y = (o.y - camY) * k + sky.bob * (k * 0.5 + o.nod * Math.min(size, h * 0.7) * 0.42), seen = clamp((FAR + 6 - o.z) / 10) * clamp((o.z - o.near) / (o.near * 1.4)) * sky.clear;
+  function drawThing(o, focal, camX, camY, reach, soon = 0) { // soon (Warp only): how far the ship goes in 0.6 s by the clock, just now
+    const { t, bass, kick } = sound, k = focal / o.z, x = (o.x - camX) * k, size = o.size * k * (1 + 0.075 * kick * T.nod), y = (o.y - camY) * k + sky.bob * (k * 0.5 + o.nod * Math.min(size, h * 0.7) * 0.42), seen = clamp((FAR + 6 - o.z) / 10) * clamp((o.z - o.near) / (o.near * 1.4)) * (soon > 0 ? clamp((o.z - o.near) / soon) : 1) * sky.clear;
     if (seen <= 0 || Math.abs(x) - size > reach || Math.abs(y) - size > reach) return;
     g.save();
     g.translate(x, y);
@@ -3482,13 +3512,14 @@ window.Effects = (() => {
     g.globalAlpha = 1;
   }
 
+  const warpKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9 }; // Warp's kick: every star streak lengthens with the speed, so a kick put straight into the speed lit a third to a half of the picture in one frame (the owner's rule: never more than three large flashes a second). In Warp the kick comes into the speed half as much, over a few frames, and leaves slower (see kickGlow), and its ring of light still goes past on every kick
   function space() {
     if (!sky.far) startSky();
     const trip = TRIPS[name], { t, dt, level, kick, hatHit } = sound;
     steer(trip);
     moves(trip);
     spaceTap(trip); // a click: a thing out there glows, or the ship turns toward it (see the mouse styles block)
-    const f = trip.falls ? falling(trip) : null, speed = (0.9 + 4.2 * level + 5 * kick + 15 * sky.surge) * trip.pace * sky.speedNow, focal = Math.max(w, h) * 0.62, reach = Math.hypot(w, h) * 0.6, size = Math.hypot(w, h) * 1.2;
+    const f = trip.falls ? falling(trip) : null, speed = (0.9 + 4.2 * level + (trip.rings ? 2.5 * kickGlow(warpKick, 0.08, 0.2) : 5 * kick) + 15 * sky.surge) * trip.pace * sky.speedNow, focal = Math.max(w, h) * 0.62, reach = Math.hypot(w, h) * 0.6, size = Math.hypot(w, h) * 1.2;
     sky.x += sky.vx * speed * dt;
     sky.y += sky.vy * speed * dt;
     const camX = sky.x + Math.sin(t * 0.07) * 1.4 + Math.sin(t * 0.031), camY = sky.y + Math.cos(t * 0.053) * 0.9, roll = Math.sin(t * 0.041) * 0.2 + sky.bank + sky.spin;
@@ -3527,7 +3558,7 @@ window.Effects = (() => {
     g.setTransform(1, 0, 0, 1, w / 2, h / 2);
     g.rotate(roll);
     handKept.roll = roll; // (so a click can find the things as they are drawn, turned)
-    if (sky.clear > 0) for (const o of sky.things) drawThing(o, focal, camX, camY, reach);
+    if (sky.clear > 0) for (const o of sky.things) drawThing(o, focal, camX, camY, reach, trip.rings ? 0.6 * speed * Math.max(0.2, T.speed * flow.pace) : 0); // (in Warp a galaxy or a cloud always fades out over at least the last 0.6 s by the clock before the ship reaches it, however fast it flies: at its speed, and most of all in the rush after a drop or at the top of the Speed slider, one came up to fill a third of the picture and was gone in a frame or two, several times a second, which is a flash; the owner's rule: never more than three large flashes a second)
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
     if (seen) planet(seen);
@@ -3639,7 +3670,7 @@ window.Effects = (() => {
     x.fillStyle = "rgba(0,0,0,0.32)";
     x.fillRect(0, 0, S, S);
     x.globalCompositeOperation = "lighter";
-    for (let i = 0; i < Math.ceil(B - 1e-6); i++) { const a = t * (0.2 + i * 0.07) + i * 1.7, r = S * (0.18 + 0.16 * Math.sin(t * 0.3 + i)); softBlob(x, S * 0.45 + Math.cos(a) * r, S * 0.5 + Math.sin(a) * r * 0.8, S * (0.07 + 0.07 * bass + 0.07 * acidLook.soft) * (5 / B) ** 0.4, tones[i % 3], (0.22 + 0.15 * kick) * shareOf(i, B)); }
+    for (let i = 0; i < Math.ceil(B - 1e-6); i++) { const a = t * (0.2 + i * 0.07) + i * 1.7, r = S * (0.18 + 0.16 * Math.sin(t * 0.3 + i)); softBlob(x, S * 0.45 + Math.cos(a) * r, S * 0.5 + Math.sin(a) * r * 0.8, S * (0.07 + 0.07 * bass + 0.07 * acidLook.soft) * (5 / B) ** 0.4, tones[i % 3], (0.22 + 0.07 * kick) * shareOf(i, B)); }
     if (lineShow > 0.004) { // the waveform across the wedge, or wound into a ring in it, or on its way from the one to the other
       const from = lineWas === "none" ? V.line : lineWas, to = V.line === "none" ? lineWas : V.line, toRing = +(from === "ring") + (+(to === "ring") - +(from === "ring")) * pl; // how round it is, 0 across the wedge and 1 a ring (one that comes from nothing, or goes to it, keeps its shape and fades)
       x.beginPath();
@@ -3655,7 +3686,7 @@ window.Effects = (() => {
     g.fillStyle = "rgba(3,3,8,0.35)";
     g.fillRect(0, 0, w, h);
     kal.turn += dt * (0.12 + 0.3 * flow.intensity + 1.5 * acidLook.soft) * V.spin;
-    const zoom = 1 + 0.12 * kick + 0.15 * flow.build, reach = Math.hypot(w, h) * 0.6, p = eased(kal.over);
+    const zoom = 1 + 0.06 * kick + 0.15 * flow.build, reach = Math.hypot(w, h) * 0.6, p = eased(kal.over); // the kick lit every colored blob in the wedge at once and swelled the bright spokes by an eighth, in one frame, and together they lit more than a quarter of the picture on every kick (the owner's rule: never more than three large flashes a second). Now the blobs brighten half as much and the spokes swell half as far, both still with the kick itself: brought up slowly over a few frames, they held the turning spokes on the edge of a change for longer, and those flickered more
     g.save();
     const { mx, my } = kaleidoHand(); // (leaned toward the mouse: see the mouse styles block)
     g.translate(mx, my);
@@ -3680,14 +3711,24 @@ window.Effects = (() => {
     g.restore();
   }
   let plasmaArt = null;
+  const plasmaKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9, slid: 0, slidAt: -1, bass: 0 }; // the kick as the plasma shows it (see kickGlow), how far its colors have slid along with the kicks, and the bass that warps it, followed smoothly
   function plasma() { // old-school plasma: colors flowing into each other, warped by the bass and lit by the kick
     const { t, bass, kick } = sound, W = 112, H = Math.max(28, Math.round((112 * h) / w));
     if (!plasmaArt || plasmaArt.W !== W || plasmaArt.H !== H) { const [c, x] = paper(W, H); plasmaArt = { W, H, c, x, img: x.createImageData(W, H) }; }
-    const tones = moodColors(3), d = plasmaArt.img.data, warp = (1 + 0.9 * bass + 0.7 * acidLook.soft) * V.scale, tt = t * 0.55, light = 0.6 + 0.5 * kick + 0.2 * flow.drop + 0.12 * acidLook.knob, sw = V.swirl, mid = 3 * warp, bands = V.stripes * Math.PI;
+    if (!(realNow - plasmaKick.slidAt <= 250)) plasmaKick.bass = bass; // (back after a while not drawn: the bass as it is now, not a catch-up from the old one)
+    plasmaKick.bass += (bass - plasmaKick.bass) * (1 - Math.exp(-Math.min(0.1, Math.max(0, (realNow - plasmaKick.slidAt) / 1000)) / 0.09)); // the bass that warps the plasma, followed over about a tenth of a second (by the clock, once a frame) instead of jumping with it: in fast music the bass comes with every kick, and the whole pattern jumping wider on each one changed a quarter of the picture at once (the owner's rule: never more than three large flashes a second). It still swells with the bass, a moment later
+    const tones = moodColors(3), d = plasmaArt.img.data, warp = (1 + 0.9 * plasmaKick.bass + 0.7 * acidLook.soft) * V.scale, tt = t * 0.55, light = 0.6 + 0.04 * kickGlow(plasmaKick) + 0.2 * flow.drop + 0.12 * acidLook.knob, sw = V.swirl, mid = 3 * warp, bands = V.stripes * Math.PI;
+    const bloom = 1.4 * plasmaKick.v, bloomX = w / W, bloomY = h / H, bloomR2 = 0.08 * w * h; // the kick's light now lights a round heart in the middle of the picture (a quarter of it at most, and strongly only its inner part, even in the bright moods), so it is still seen and felt on every kick but is no longer a flash of the whole picture
+    if (plasmaKick.slidAt !== realNow) { // the kick used to light the whole plasma at once, two thirds of the picture on every kick, and in the hard mood in and out of red (the owner's rule: never more than three large flashes a second, never a large red flash). Now each kick sends the colors surging on along their way, quickly as it lands and slower as it dies away, at much the same brightness, with only a little light over the whole picture, a light in its middle and a small swell (once a frame, by the clock on the wall as the kick's sound goes, and no further for a kick the Reacts slider made bigger than full)
+      let red = 0; // how much the reddest of its colors is a saturated red (the hard mood's, or a red record's), as the aurora measures it: colors like that hardly slide at all, as a slide took much of the picture in and out of its red, and the owner's rule says never a large red flash
+      for (let n = 0; n < 3; n++) red = Math.max(red, clamp((tones[n][0] / (tones[n][0] + tones[n][1] + tones[n][2] + 1) - 0.5) / 0.3));
+      plasmaKick.slid = (plasmaKick.slid + 1.4 * (1 - red) * Math.min(1, kick) * Math.min(0.1, Math.max(0, (realNow - plasmaKick.slidAt) / 1000))) % 3;
+      plasmaKick.slidAt = realNow;
+    }
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const u = (i / W) * 6 * warp, v = (j / H) * 6 * warp, round = sw > 0.01 ? sw * Math.sin(Math.atan2(v - mid, u - mid) * 3 + Math.hypot(u - mid, v - mid) * 0.8 - tt * 1.5) : 0; // the swirl winds it round the middle
       const k = (plasmaHand(i, j, W, H, tt) + Math.sin(u + tt) + Math.sin((v + tt) * 0.7) + Math.sin((u + v + tt * 1.3) * 0.5) + Math.sin(Math.hypot(u - 3 - Math.sin(tt * 0.4) * 2, v - 3) + tt) + round + 4 + sw) / (8 + 2 * sw);
-      const pos = (k * 3 + t * 0.04) % 3, a = Math.floor(pos), f = pos - a, c1 = tones[a % 3], c2 = tones[(a + 1) % 3], shade = light * (0.25 + 0.75 * Math.abs(Math.sin(k * bands)));
+      const pos = (k * 3 + t * 0.04 + plasmaKick.slid) % 3, a = Math.floor(pos), f = pos - a, c1 = tones[a % 3], c2 = tones[(a + 1) % 3], bx = (i + 0.5 - W / 2) * bloomX, by = (j + 0.5 - H / 2) * bloomY, near = bloom > 0.002 ? Math.max(0, 1 - (bx * bx + by * by) / bloomR2) : 0, shade = (light + bloom * near * near) * (0.25 + 0.75 * Math.abs(Math.sin(k * bands)));
       const o = (j * W + i) * 4;
       d[o] = (c1[0] + (c2[0] - c1[0]) * f) * shade;
       d[o + 1] = (c1[1] + (c2[1] - c1[1]) * f) * shade;
@@ -3698,7 +3739,8 @@ window.Effects = (() => {
     plasmaArt.x.putImageData(plasmaArt.img, 0, 0);
     g.globalCompositeOperation = "source-over";
     g.imageSmoothingEnabled = true;
-    g.drawImage(plasmaArt.c, 0, 0, w, h);
+    const grow = 0.03 * plasmaKick.v; // the swell on the kick: the picture drawn a little bigger round its middle, as the kick's light comes and goes
+    g.drawImage(plasmaArt.c, -w * grow, -h * grow, w * (1 + 2 * grow), h * (1 + 2 * grow));
   }
   let deeper = 0;
   function fractal() { // an endless fall into turning shapes, each with smaller ones on its corners; quicker through a build
@@ -4691,12 +4733,13 @@ window.Effects = (() => {
     return { newJourney, frame, trace, shadeOf };
   })();
   let newtonTrip = null;
+  const newtonKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9 }; // the kick as Newton's picture shows it (see kickGlow)
   function newton() { // Newton's method hunting the roots of z^n = 1: down a well of rings with a color for each root, over to the chains of beads where their lands meet, into a bead, and on from inside it, for as long as the song lasts
     trippyOn();
     if (!newtonTrip) newtonTrip = newtonWays.newJourney(V.roots || 3);
     steerTap(w / h); // a click: where to go next (see the mouse styles block)
     const R = newtonWays.frame(newtonTrip, sound.dt, sound, { twist: V.twist || 0, spin: V.spin ?? 1, roots: V.roots || 3 }, w / h), hand = card.off || card.lost || card.made.newton === null;
-    const light = Math.min(0.9, 0.6 + 0.2 * sound.kick * trippy.kickLight + 0.2 * flow.drop); // (as the journey has it, with the kick's share turned down to pay for the trip)
+    const light = Math.min(0.9, 0.6 + 0.16 * kickGlow(newtonKick, 0.07, 0.3) * trippy.kickLight + 0.2 * flow.drop); // (the kick's share a little smaller than it was, and a swell that comes up over about a tenth of a second instead of a jump, see kickGlow: the picture is already bright, and the kick lit a third of it at once, three or more times a second; the owner's rule: never more than three large flashes a second) (as the journey has it, with the kick's share turned down to pay for the trip)
     const world = (F) => { // one world over the whole picture, or over as much of it as the canvas is clipped to
       const n = F.P.n, glow = (V.glow ?? 1) * (F.world ? 2 / (n - 1) : 1), wide = (R.inner ? 900 : 1280) * (n > 4 ? 0.75 : n > 3 ? 0.875 : 1); // a bead world with more roots is all fine lines: less glow, or it goes pale, and fewer dots, which it has no use for and which cost the most there. Two pictures at once, while a ring opens, are drawn smaller too
       if (onCard("newton", NEWTON_SUM, { light: [1, [light]], glow: [1, [glow]], view: [2, F.view], mid: [2, leanView(F.mid[0], F.mid[1], F.view[0], F.view[1])], lean: [2, F.P.lean], bendQ: [2, F.q], bendK: [2, F.k], roots: [1, [n]], rate: [1, [F.P.rate]], turn: [1, [F.P.bend]], ahead: [1, [F.ahead]], world: [1, [F.world]] }, 1, wide)) return;
@@ -4899,8 +4942,9 @@ window.Effects = (() => {
     g.lineWidth = Math.max(1, h / 700);
     for (let i = -12; i <= 12; i++) { const far = w / 2 + i * w * 0.02 + bend, near = w / 2 + i * w * 0.25 + handKept.lane; g.strokeStyle = rgba(grid, lit * 0.7); g.beginPath(); g.moveTo(near, h); g.quadraticCurveTo((near + far) / 2 + bend * 0.1, (h + horizon) / 2, far, horizon); g.stroke(); }
   }
+  const auroraKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9 }; // the kick as the curtains show it (see kickGlow)
   function aurora() { // the northern lights over dark mountains, their curtains rising with the bass and lit by the bands
-    const { t, kick, bass, bands } = sound, tones = mood ? moodColors(3) : [[60, 255, 160], [120, 140, 255], [255, 90, 200]];
+    const { t, bass, bands } = sound, kick = kickGlow(auroraKick, 0.06, 0.45), tones = mood ? moodColors(3) : [[60, 255, 160], [120, 140, 255], [255, 90, 200]]; // the kick lit every curtain at once in one frame, a third of the picture on every kick (the owner's rule: never more than three large flashes a second): now the curtains breathe with it instead, brightening about as much as they did at their peak and rising a little, but over a few frames, and settling slower
     const sky = g.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, "#020611");
     sky.addColorStop(1, "#071526");
@@ -4912,11 +4956,11 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     const pl = overOf("lake"), lake = pl < 1 ? (V.lake ? pl : 1 - pl) : V.lake ? 1 : 0, N = countOf("curtains"); // (how much lake there is, and how many curtains, while they go over)
     for (let band = 0; band < Math.ceil(N - 1e-6); band++) {
-      const tone = tones[band % 3], share = shareOf(band, N), base = h * (0.34 + band * (0.24 / N) - 0.05 * lake), top = (u) => auroraLift(u) + base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
+      const tone = tones[band % 3], share = shareOf(band, N), base = h * (0.34 + band * (0.24 / N) - 0.05 * lake), top = (u) => auroraLift(u) + base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.04 * kick + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
       const red = clamp((tone[0] / (tone[0] + tone[1] + tone[2] + 1) - 0.5) / 0.3); // how much this curtain is a saturated red (the hard mood's): such a curtain hardly brightens on the kick, as a big red area flashing on every kick is a red flash, the kind that can hurt
       const curtain = g.createLinearGradient(0, base - h * 0.3, 0, base + h * 0.2);
       curtain.addColorStop(0, rgba(tone, 0));
-      curtain.addColorStop(0.5, rgba(tone, (0.26 + 0.1 * acidLook.knob + 0.2 * kick * (1 - 0.75 * red)) * share));
+      curtain.addColorStop(0.5, rgba(tone, (0.26 + 0.1 * acidLook.knob + 0.24 * kick * (1 - 0.75 * red)) * share));
       curtain.addColorStop(1, rgba(tone, 0));
       g.fillStyle = curtain;
       g.beginPath();
@@ -8170,6 +8214,7 @@ window.Effects = (() => {
   const LIFE_SHAPES = { ship: ["##", "++"], side: ["+#", "+#"], dart: ["##"], pin: ["#", "#"], burst: ["##", "##"], glider: [".#.", "..#", "###"], bloom: [".##", "##.", ".#."], triple: ["###"], seed: ["#.#", ".#.", "###"], corner: ["##", "#."], one: ["#"] }; // what gets planted: "#" a live cell, "+" a fading one
   const LIFE_ANT = [[".h.h.", "l.h.l", ".lbl.", "l.b.l", "..b.."], [".h.h.", "..h..", "llbll", "..b..", "l.b.l"]]; // the ant itself, 5 by 5 dots, in two steps of its legs: h its bright head, the rest dark
   const LIFE_DITHER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // the order in which the dots of a 4 by 4 square come on, for blending two colors without a third
+  const lifeKick = { v: 0, goal: 0, k: 0, at: -1, lit: -1e9 }; // the kick as the living cells show it (see kickGlow)
   function lifeGrid(cols, rows, worldName, ruleName) { // one grid of so many cells, in one world, run by one rule-set. It keeps the cells, moves them on with the song, and paints them into its own picture of 2 by 2 dots a cell
     const world = LIFE_WORLDS[worldName], home = ruleName === world.rule, R = LIFE_RULES[ruleName], kind = R.kind, sands = kind === "sand", coral = R.chance < 1, N = cols * rows, dotsW = cols * 2, dotsH = rows * 2;
     const st = new Uint8Array(N), nx = new Uint8Array(N), ink = new Uint8Array(N), fuel = new Uint8Array(N), fuel2 = new Uint8Array(N), age = new Uint16Array(N), lum = new Float32Array(N), tgt = new Float32Array(N), far = new Float32Array(N); // each cell's state, its next state, which ink it is, how much it can still pass on, how old it is, how brightly it shows, how brightly it should, and how far from the middle it lies
@@ -8468,7 +8513,7 @@ window.Effects = (() => {
     }
     function paint(dt) { // each cell's light eases to where it should be (quickly up, slowly down: the trail) and picks its color from the ramp: the top left dot a shade up and the bottom right a shade down, which makes the bead
       const up = 1 - Math.exp(-dt / R.up), down = 1 - Math.exp(-dt / (R.down * trail * (1 + 0.8 * flow.calm))), hi = 0.3 + 0.3 * bead, lo = 0.05 + 0.05 * bead, rest = dt * 2;
-      const P = K.pulse, band = 3.5, ringLight = 0.65 * K.pulseOf * T.react, kickLight = 0.2 * clamp(sound.kick) * T.react; // the kick, shown in the light only: a ring three or four cells wide, bright at its front and fading behind it, and a flash of the living cells
+      const P = K.pulse, band = 3.5, ringLight = 0.65 * K.pulseOf * T.react, kickLight = 0.06 * (sound.kick > 0 ? kickGlow(lifeKick) : 0) * T.react; // the kick, shown in the light only: a ring three or four cells wide, bright at its front and fading behind it, and the living cells a little brighter. Only a little, under a third of what it was, and over a few frames with no more than three full ones a second however high the Reacts slider (see kickGlow; an old garden fading out, drawn with the kick taken away, gets none of it): the cells' light comes in steps, so the old lift took many of them up a whole step at once, half the picture on every kick (the owner's rule: never more than three large flashes a second). The ring, which only lights a band of cells as it runs out, carries the kick
       for (let y = 0, i = 0; y < rows; y++) for (let x = 0, o = y * 2 * dotsW; x < cols; x++, i++, o += 2) {
         const aim = tgt[i], F = tired[i]; let L = lum[i];
         if (F > 0) tired[i] = F > rest ? F - rest : 0;
