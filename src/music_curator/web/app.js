@@ -2388,23 +2388,151 @@ const fxShowing = () => !!FX && !!fxName && !calm.matches && (fxEverywhere || on
 /* Sliders for the effect showing. 100% is how it was designed, each style remembers its own, and only what's been moved is saved. */
 let fxTuning = {}, fxAdjusting = false;
 try { fxTuning = JSON.parse(store("curator-fx-tuning") || "{}") || {}; } catch { fxTuning = {}; }
+/* The settings every effect shares, kept as curator-effects: On the beat, Color tricks, Company and Dreamy lights. What each may be is in packs.js (Packs.EFFECTS), so a pack and
+   this browser keep them alike. effects.js is still handed one flat list of sliders (tuningNow below), so it needs no change for any of this.
+   Their ten sliders each have one value for every effect, which starts as designed. An effect that had one of them set before keeps its own (beside the shared settings, in
+   the group's list for that slider: beat.own, beat.shine, beat.hear, tricks.play, tricks.hold, tricks.force, company.visit, company.sing, company.crowd and lights.glow), so the
+   carry-over never draws any effect with other values than it had: a slider set higher, or lower, than an effect had was measured making some effects flash more often.
+   "Back to default" in Adjust lets the effect follow the one for every effect. The old values also stay in curator-fx-tuning, unused here, where an older copy of the app reads them.
+   An effect's own values are never lost on the way: a pack without own sliders leaves them here, and if curator-effects can no longer be read they are carried again from there. */
+const FX_SHARED = { punch: ["beat", "punch", "own"], spark: ["beat", "spark", "shine"], sounds: ["beat", "sounds", "hear"], tricks: ["tricks", "often", "play"], stay: ["tricks", "long", "hold"], bold: ["tricks", "strong", "force"], dream: ["lights", "dream", "glow"], folk: ["company", "folk", "visit"], acid: ["company", "acid", "sing"], band: ["company", "band", "crowd"] }; // each shared slider of effects.js, where it is kept now, and where each effect's own value of it is kept
+const QUICK_USUAL = 0; // Quick colors for anyone who has not moved their slider: none until they have passed the light counts, then 1 ("Sometimes"). Kept as null until moved, so this reaches them
+const plainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const hadShared = (tuning) => Object.values(plainObject(tuning) ? tuning : {}).some((knobs) => plainObject(knobs) && Object.keys(knobs).some((key) => FX_SHARED[key])); // was one of the ten ever set on an effect
+const ownOnly = (tuning) => Object.fromEntries(Object.entries(plainObject(tuning) ? tuning : {}).map(([style, knobs]) => [style, plainObject(knobs) ? Object.fromEntries(Object.entries(knobs).filter(([key]) => !FX_SHARED[key])) : knobs]).filter(([, knobs]) => !plainObject(knobs) || Object.keys(knobs).length)); // each effect's own sliders without the shared ones (an effect left with none is left out)
+function tuningFor(shared, own, style = "") { // what the picture is handed for a style: its own sliders, then the shared ones as they act now. A group switched off gives 0, and each kind of company is How often times its own share
+  const { beat, tricks, company, lights } = shared, out = {};
+  const mine = (key) => { const [group, field, apart] = FX_SHARED[key]; return Object.hasOwn(shared[group][apart], style) ? shared[group][apart][style] : shared[group][field]; }; // the style's own value where it kept one, else the one for every effect
+  const kind = (on, key) => (company.on && on ? Math.min(Packs.EFFECTS.company[key][2], company.often * mine(key)) : 0);
+  if (plainObject(own)) for (const [key, v] of Object.entries(own)) if (!FX_SHARED[key]) out[key] = v; // (a shared one still kept on an effect, for an older copy of the app, is not used here)
+  return Object.assign(out, {
+    punch: beat.on ? mine("punch") : 0, spark: beat.on ? mine("spark") : 0, sounds: beat.on ? mine("sounds") : 0,
+    tricks: tricks.on ? mine("tricks") : 0, stay: mine("stay"), bold: mine("bold"), quick: tricks.on ? (tricks.quick ?? QUICK_USUAL) : 0,
+    cover: tricks.on ? tricks.cover : Math.min(1, tricks.cover), // (with Color tricks off, the record's colors are as they always were: only on songs without a mood)
+    folk: kind(company.folkOn, "folk"), acid: kind(company.acidOn, "acid"), band: kind(company.bandOn, "band"),
+    many: company.many, wild: company.wild, specs: company.specs, wins: company.on && company.windows ? 1 : 0, season: company.on && company.season ? 1 : 0,
+    dream: lights.on ? mine("dream") : 0,
+  });
+}
+function carryShared({ tuning, fx = "", last = "", morph = false, order = [], lastOf = () => "" }) { // the carry-over: once for this browser (below), and for a pack made before it.
+  // Each shared slider for every effect starts as designed, and every effect that had one of them at another value keeps its own, read exactly as effects.js read it.
+  // It also names the effect that was set up the most (from), for a pack made while a recipe shows
+  const kept = plainObject(tuning) ? tuning : {}, raw = {};
+  const setUp = order.filter((style) => plainObject(kept[style]) && Object.keys(kept[style]).length);
+  const score = (style) => Object.keys(kept[style]).length + (style === fx && !morph ? 2 : 0) + (style === last ? 0.5 : 0) + (lastOf(style) === style ? 0.25 : 0); // sliders moved, and a little more for the one showing (unless Morph chose it), the last one picked and the style last used of its effect
+  const ranked = setUp.map((style, i) => [style, score(style), i]).sort((a, b) => b[1] - a[1] || a[2] - b[2]).map(([style]) => style); // set up the most first; a draw goes to the first in the app's own order
+  const styles = [...order, ...Object.keys(kept).filter((style) => !order.includes(style))].filter((style) => plainObject(kept[style])); // the styles in the app first, then ones that are gone (a list keeps 100 at most)
+  for (const [key, [group, field, apart]] of Object.entries(FX_SHARED)) {
+    const [, low, high] = Packs.EFFECTS[group][field];
+    const read = (style) => { const n = Number(kept[style][key]); return Number.isFinite(n) ? Math.min(high, Math.max(low, n)) : 1; }; // left out (or words) is 1, a number is held to its range and not rounded, a kept null or "" is 0: exactly as effects.js read them
+    raw[group] = { ...raw[group], [apart]: Object.fromEntries(styles.map((style) => [style, read(style)]).filter(([, v]) => v !== 1)) };
+  }
+  return { effects: Packs.cleanEffects({ ...raw, from: ranked[0] || "" }), from: ranked[0] || "" };
+}
+function forPack(shared, tuning, showing) { // what a pack is given: the shared settings, each effect's own sliders, and on each effect the shared sliders as the picture is handed them where they are not 1 (an older copy of the app reads only those)
+  const own = ownOnly(tuning), at = [showing, shared.from].find((style) => /^[a-z]{2,20}$/.test(style || "")), now = tuningFor(shared, {}, at); // (a recipe's name is never kept in a pack: then the effect they were carried from)
+  const add = Object.fromEntries(Object.keys(FX_SHARED).map((key) => [key, now[key]]).filter(([, v]) => v !== 1));
+  if (at && Object.keys(add).length) own[at] = { ...(plainObject(own[at]) ? own[at] : {}), ...add };
+  for (const [key, [group, , apart]] of Object.entries(FX_SHARED)) for (const style of Object.keys(shared[group][apart])) { const v = tuningFor(shared, {}, style)[key]; if (style !== at && /^[a-z]{2,20}$/.test(style) && v !== 1) own[style] = { ...(plainObject(own[style]) ? own[style] : {}), [key]: v }; } // (and on every other effect, its own ones)
+  const order = [...new Set([...Object.keys(plainObject(tuning) ? tuning : {}), ...Object.keys(own)])].filter((style) => Object.hasOwn(own, style)); // in the order they were kept, as before, so a pack's limit of 60 effects leaves out the same ones
+  return { effects: Packs.cleanEffects(shared), tuning: Object.fromEntries(order.map((style) => [style, own[style]])) };
+}
+function fromPack(s, order) { // a pack's settings in this shape: a newer pack's shared settings as they are, an older pack's carried over the way this browser's were. Its own sliders as they are (null: none, the ones here stay)
+  const tuning = plainObject(s.tuning) ? s.tuning : null; // (the shared ones on them are not used here, but an older copy of the app reads them)
+  if (!s.effects) return { effects: carryShared({ tuning: s.tuning, fx: s.effect || "", last: s.effect || "", morph: !!s.morph, order }).effects, tuning };
+  return { effects: Packs.cleanEffects(s.effects), tuning };
+}
+function usePackEffects(s) { // a pack's shared settings, and its own sliders for each effect when it has them, kept here. A copy: the sliders must never write into the pack itself
+  const got = fromPack(JSON.parse(JSON.stringify(s)), fxOrder());
+  if (!got.tuning) for (const [group, , apart] of Object.values(FX_SHARED)) got.effects[group][apart] = { ...fxShared[group][apart], ...got.effects[group][apart] }; // a pack with no own sliders leaves each effect's own values here, as it leaves its other own sliders
+  fxShared = Packs.cleanEffects(got.effects);
+  store("curator-effects", JSON.stringify(fxShared));
+  if (got.tuning) fxTuning = got.tuning;
+}
+const fxOrder = () => (FX ? FX.names.flatMap(([k]) => (fxStyles[k] || []).map(([style]) => style)) : []); // every style, in the app's own order
+let fxShared = (() => { // read once as the app starts. The first time this version starts (no curator-effects yet) the shared sliders are carried over, once
+  const kept = store("curator-effects");
+  if (kept !== null) {
+    const old = store("curator-fx-tuning");
+    if (old !== null && store("curator-fx-tuning-v1") === null && hadShared(fxTuning)) store("curator-fx-tuning-v1", old); // (put aside now only if a full storage refused it then)
+    let saved = null;
+    try { saved = JSON.parse(kept); } catch { saved = null; }
+    if (!plainObject(saved)) saved = {}; // unreadable (a broken storage or a hand edit)
+    const lacking = Object.values(FX_SHARED).filter(([group, , apart]) => !plainObject(saved[group]) || !plainObject(saved[group][apart])); // each effect's own values it cannot give: none as this app writes it, all of them when it is unreadable
+    if (lacking.length) { // they are carried again from curator-fx-tuning, which still has them (not written back, and nothing said); what it could give stays as it is
+      const again = carryShared({ tuning: fxTuning, order: fxOrder() }).effects;
+      for (const [group, , apart] of lacking) saved[group] = { ...(plainObject(saved[group]) ? saved[group] : {}), [apart]: again[group][apart] };
+      if (!saved.from) saved.from = again.from;
+    }
+    return Packs.cleanEffects(saved);
+  }
+  const old = store("curator-fx-tuning");
+  if (store("curator-fx-tuning-v1") === null) store("curator-fx-tuning-v1", old ?? "{}"); // first of all, the old sliders are put aside whole, and never written over ("{}" when there were none, so no later start puts other values aside as the old ones)
+  if (!FX) return carryShared({ tuning: fxTuning }).effects; // no pictures this time (effects.js did not load): carried here only, not kept and not said, so a pack used or made now still has each effect's own values. A start with the pictures carries over for good
+  const got = carryShared({ tuning: fxTuning, fx: fxName, last: store("curator-fx-last") || "", morph: fxMorph, order: fxOrder(), lastOf: (style) => store(`curator-fx-${familyOf(style)}`) || "" });
+  store("curator-effects", JSON.stringify(got.effects)); // (curator-fx-tuning is left as it is: this version no longer reads the shared sliders there, an older copy still does)
+  if (store("curator-effects") !== null && hadShared(fxTuning)) setTimeout(() => { // said once, when it was kept (a full browser storage refuses a write without a word): the next start finds curator-effects
+    toast("Visitors, Color tricks, Hard kicks and Dreamy lights are now one setting for every effect. Effects where you had changed them keep yours.");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => ($("#toast").hidden = true), 10000); // (up for 10 seconds, not the usual 4: it is said only once)
+  }, 1500);
+  return got.effects;
+})();
+const tuningNow = () => tuningFor(fxShared, fxTuning[fxName], fxName); // what the picture is handed for the effect showing
+function saveShared() {
+  store("curator-effects", JSON.stringify(fxShared));
+  if (FX) FX.tuning(tuningNow());
+}
+/* How long each style has been shown while music plays, in seconds (curator-fx-used), so "the effect used most" is known from now on. 80 styles at most: past that the least used goes. */
+const fxUsed = (() => {
+  let kept = {};
+  try { kept = JSON.parse(store("curator-fx-used") || "{}"); } catch { kept = {}; }
+  return Object.fromEntries(Object.entries(plainObject(kept) ? kept : {}).filter(([, s]) => typeof s === "number" && s >= 0 && s < 1e9).sort((a, b) => b[1] - a[1]).slice(0, 80));
+})();
+let usedAt = 0, usedSaved = 0, usedNew = false;
+const saveUsed = () => { if (usedNew) store("curator-fx-used", JSON.stringify(Object.fromEntries(Object.entries(fxUsed).map(([style, s]) => [style, Math.round(s * 10) / 10])))); usedNew = false; };
+function countUsed(now) { // from the sound's frame, while a picture shows and music plays
+  const step = (now - usedAt) / 1000;
+  usedAt = now;
+  if (!fxName || !(step > 0 && step < 0.5)) return; // the first frame after a pause or a sleep counts nothing
+  if (!Object.hasOwn(fxUsed, fxName) && Object.keys(fxUsed).length >= 80) delete fxUsed[Object.keys(fxUsed).reduce((a, b) => (fxUsed[b] < fxUsed[a] ? b : a))];
+  fxUsed[fxName] = (fxUsed[fxName] || 0) + step;
+  usedNew = true;
+  if (now - usedSaved > 20000) { usedSaved = now; saveUsed(); } // written now and then, not on every frame
+}
+window.addEventListener("pagehide", saveUsed); // and as the page closes, so its last seconds are kept too
 function saveTuning() {
   store("curator-fx-tuning", JSON.stringify(fxTuning));
-  if (FX) FX.tuning(fxTuning[fxName] || {});
+  if (FX) FX.tuning(tuningNow());
 }
-function fxAdjust() {
-  const reset = el("button", { class: "btn small", type: "button", disabled: !fxTuning[fxName], onclick: () => { delete fxTuning[fxName]; saveTuning(); paintFxBar(); } }, "Back to default");
-  return el("div", { class: "card fx-adjust" }, FX.knobs(fxName).map(([key, label, min, max]) => {
-    const value = (fxTuning[fxName] || {})[key] ?? 1, shown = el("span", { class: "fx-value" }, `${Math.round(value * 100)}%`);
-    return el("label", { class: "fx-knob" }, el("span", {}, label), el("input", { type: "range", min, max, step: 0.05, value, oninput: (e) => {
-      const v = +e.target.value, set = (fxTuning[fxName] = fxTuning[fxName] || {});
+function fxAdjust() { // the effect's own sliders, then the ones for every effect (they write to the shared settings), then the picture behind the page
+  const apart = (key) => { const [group, , map] = FX_SHARED[key] || []; return !!map && Object.hasOwn(fxShared[group][map], fxName); }; // a shared slider it keeps a value of its own of, which it had before they were one setting
+  const anyApart = () => Object.keys(FX_SHARED).some(apart);
+  const reset = el("button", { class: "btn small", type: "button", disabled: !fxTuning[fxName] && !anyApart(), onclick: () => { if (anyApart()) { for (const [group, , map] of Object.values(FX_SHARED)) if (map) delete fxShared[group][map][fxName]; saveShared(); } delete fxTuning[fxName]; saveTuning(); paintFxBar(); } }, "Back to default");
+  const knobs = FX.knobs(fxName), handed = tuningFor(fxShared, {}), own = ([key]) => !(key in handed) || apart(key), shared = knobs.filter((knob) => FX_SHARED[knob[0]] && !own(knob)); // (handed: every slider the shared settings give the picture, so none of them shows as the effect's own, unless it keeps a value of its own of it)
+  const working = (key) => { const [group] = FX_SHARED[key], set = fxShared[group]; return set.on && (group !== "company" || set[`${key}On`]); }; // a group switched off (a pack can do that) rests its sliders until it is on again, and they say Off
+  const every = ([key, label, min, max]) => { // only the ones this effect has
+    const [group, field] = FX_SHARED[key], set = fxShared[group], on = working(key), shown = el("span", { class: "fx-value" }, on ? `${Math.round(set[field] * 100)}%` : "Off");
+    return el("label", { class: "fx-knob" }, el("span", {}, label), el("input", { type: "range", min, max, step: 0.05, value: set[field], disabled: !on, title: on ? null : "Switched off for every effect", oninput: (e) => {
+      set[field] = +e.target.value;
+      shown.textContent = `${Math.round(set[field] * 100)}%`;
+      saveShared();
+    } }), shown);
+  };
+  return el("div", { class: "card fx-adjust" }, knobs.filter(own).map(([key, label, min, max]) => {
+    const mine = apart(key) ? fxShared[FX_SHARED[key][0]][FX_SHARED[key][2]] : null, on = !mine || working(key); // (its own values of shared sliders are kept with the shared settings, until "Back to default")
+    const value = mine ? mine[fxName] : (fxTuning[fxName] || {})[key] ?? 1, shown = el("span", { class: "fx-value" }, on ? `${Math.round(value * 100)}%` : "Off");
+    return el("label", { class: "fx-knob" }, el("span", {}, mine ? `${label}, this effect only` : label), el("input", { type: "range", min, max, step: 0.05, value, disabled: !on, title: on ? null : "Switched off for every effect", oninput: (e) => {
+      const v = +e.target.value;
       shown.textContent = `${Math.round(v * 100)}%`;
+      if (mine) { mine[fxName] = v; saveShared(); return; }
+      const set = (fxTuning[fxName] = fxTuning[fxName] || {});
       if (Math.abs(v - 1) < 0.001) delete set[key]; else set[key] = v;
       if (!Object.keys(set).length) delete fxTuning[fxName];
       saveTuning();
-      reset.disabled = !fxTuning[fxName];
+      reset.disabled = !fxTuning[fxName] && !anyApart();
     } }), shown);
-  }), reset, el("div", { class: "fx-behind" }, "Behind the page, for every effect"), ...behindKnobs("fx-knob")); // (not for this effect alone, and not put back by "Back to default")
+  }), reset, shared.length ? el("div", { class: "fx-every" }, "For every effect") : null, shared.map(every), el("div", { class: "fx-behind" }, "Behind the page, for every effect"), ...behindKnobs("fx-knob")); // (not for this effect alone, and not put back by "Back to default")
 }
 const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
   el("div", { class: "fx-picks", role: "group", "aria-label": "Effects" }, el("span", { class: "fx-label" }, "Effect"), [["", "None"], ...FX.names].map(([k, t]) => {
@@ -2547,7 +2675,7 @@ function syncFx() { // after anything that changes whether a picture should be s
   const on = fxShowing(), here = onNowPage();
   document.body.classList.toggle("fx-on", on);
   document.body.classList.toggle("fx-around", on && !here); // behind the other pages it's fainter, because there's more to read
-  FX.tuning(fxTuning[fxName] || {});
+  FX.tuning(tuningNow());
   if (on) FX.show(fxName); else { FX.hide(); if (recorder) recorder.stop(); } // with the picture gone there's nothing left to record, so what was recorded is saved
   if (fxFull && !(on && here)) fullFx(false);
   startSound();
@@ -3084,7 +3212,7 @@ function setVibe(s) {
   if (vibe !== "acid" && vibe !== "psy") $("#play").style.filter = "";
 }
 /* Packs: a way to share how you've set the app up, and try how others have. The rules are in packs.js. */
-const packSettingsNow = () => ({ surprises, tuning: fxTuning, accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName, morph: fxMorph });
+const packSettingsNow = () => ({ surprises, ...forPack(fxShared, fxTuning, fxName), accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName, morph: fxMorph });
 function usePackSettings(s) {
   if (s.surprises) {
     store("curator-surprises", JSON.stringify({ ontop: surprises.ontop, ...s.surprises })); // (a pack does not say whether things may come over the app: that stays as it is on this device)
@@ -3094,7 +3222,7 @@ function usePackSettings(s) {
     logoAfter = performance.now() + waitFor("logo", true);
     visitAfter = performance.now() + waitFor("visitors", true);
   }
-  if (s.tuning) { fxTuning = JSON.parse(JSON.stringify(s.tuning)); saveTuning(); } // a copy: the sliders must never write into the pack itself
+  if (s.tuning || s.effects) { usePackEffects(s); saveTuning(); } // the settings every effect shares, and each effect's own sliders
   if (s.accent !== undefined) { store("curator-accent", s.accent); paintAccent(); }
   if (s.moodStrength !== undefined) { moodStrength = s.moodStrength; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); }
   if (s.vibes !== undefined) { vibesOn = s.vibes; store("curator-vibes", vibesOn ? "on" : "off"); }
@@ -3487,6 +3615,7 @@ function soundFrame(now) {
   if (hit >= 0) logoNow(now, hit);
   if (hit >= 0) visitNow(now, hit);
   if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture, low, audio.currentTime); // where the song is, last: the effects keep the beat by the song's own time, so a pause or a seek does not throw it off
+  if (picture && hearing) countUsed(now); // how long each style is shown with music (curator-fx-used)
   if ((guests || rolling) && mouseAt.here) shooAt(mouseAt, "still"); // a mouse lying still: whoever has come to it over the app leaves, as if it had just moved there (see "Things on top"); acid's smiley on the play bar too
 }
 async function startSound() {

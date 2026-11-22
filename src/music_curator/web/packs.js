@@ -49,6 +49,31 @@ window.Packs = (() => {
     return Object.fromEntries(Object.entries(object(raw)).slice(0, 400).map(([genre, mood]) => [text(genre, 60), mood]).filter(([genre, mood]) => genre && (MOODS.includes(mood) || mood === "none")));
   }
   const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "acid", "band", "pit", "tilt", "vary", "dream", "falls", "color", "echo", "breathe", "sounds", "tricks", "stay", "bold", "punch", "hand"]);
+  /* The settings every effect shares (app.js keeps them as curator-effects, and a pack may carry them): each group, and in it each setting's usual value and, for a number,
+     how low and how high it may go (each slider's range is the one effects.js gives it). A yes or no has true or false. Quick colors' usual is null: "as the app suggests".
+     A word names a slider of the group: there each effect that keeps its own value of that slider has it (the style's name and its value, in that slider's range):
+     beat.own Hard kicks, beat.shine Glints, beat.hear Answers to sounds, tricks.play, tricks.hold and tricks.force Color tricks' how often, how long and how strong,
+     company.visit Visitors, company.sing the 303 singer, company.crowd Crowd and dancers, lights.glow Dreamy lights. None to begin with. */
+  const EFFECTS = {
+    beat: { on: true, punch: [1, 0, 2], spark: [1, 0, 2], sounds: [1, 0, 2], own: "punch", shine: "spark", hear: "sounds" },
+    tricks: { on: true, often: [1, 0, 2], long: [1, 0, 2], strong: [1, 0, 2], quick: [null, 0, 2], cover: [1, 0, 3], play: "often", hold: "long", force: "strong" }, // cover, the record's colors: 0 never, 1 only on songs without a mood (as always), 2 sometimes, 3 always
+    company: { on: true, often: [1, 0, 2], folk: [1, 0, 3], acid: [1, 0, 2], band: [1, 0, 2], folkOn: true, acidOn: true, bandOn: true, many: [1, 0, 2], wild: [1, 0, 2], specs: [1, 0, 2], windows: true, season: true, visit: "folk", sing: "acid", crowd: "band" },
+    lights: { on: true, app: true, dream: [1, 0, 2], glow: "dream" },
+  };
+  function cleanEffects(raw) { // every key there, each a number in its range or a yes or no: anything missing or odd is its usual value
+    const given = object(raw), out = { v: 2 };
+    for (const [group, rules] of Object.entries(EFFECTS)) {
+      const g = object(given[group]);
+      out[group] = Object.fromEntries(Object.entries(rules).map(([key, rule]) => {
+        if (typeof rule === "boolean") return [key, flag(g[key]) ?? rule];
+        if (typeof rule === "string") { const [, low, high] = rules[rule]; return [key, Object.fromEntries(Object.entries(object(g[key])).filter(([style, v]) => /^[a-z][a-z0-9-]{1,79}$/.test(style) && number(v) !== undefined).slice(0, 100).map(([style, v]) => [style, Math.min(high, Math.max(low, v))]))]; } // a style's own value of that slider: 100 styles at most
+        const [usual, low, high] = rule, v = number(g[key]);
+        return [key, v === undefined ? usual : Math.min(high, Math.max(low, key === "cover" ? Math.round(v) : v))];
+      }));
+    }
+    out.from = typeof given.from === "string" && /^[a-z0-9-]{1,80}$/.test(given.from) ? given.from : ""; // the effect they were carried over from
+    return out;
+  }
   function cleanSurprise(raw, sized) {
     const s = object(raw), out = {};
     if (["off", "rare", "some", "often", "always"].includes(s.often)) out.often = s.often;
@@ -59,8 +84,9 @@ window.Packs = (() => {
     const s = object(raw), out = {}, surprises = object(s.surprises), tuning = object(s.tuning);
     if (Object.keys(surprises).length) {
       out.surprises = { dance: cleanSurprise(surprises.dance, true), bob: cleanSurprise(surprises.bob, true), logo: cleanSurprise(surprises.logo, false), visitors: cleanSurprise(surprises.visitors, false) };
-      for (const key of ["clock", "notes", "falling"]) if (flag(surprises[key]) !== undefined) out.surprises[key] = surprises[key];
+      for (const key of ["clock", "notes", "falling", "on"]) if (flag(surprises[key]) !== undefined) out.surprises[key] = surprises[key]; // (on: Surprises' own main switch)
     }
+    if (Object.keys(object(s.effects)).length) out.effects = cleanEffects(s.effects); // the settings every effect shares
     const styles = Object.entries(tuning).slice(0, 60).filter(([style]) => /^[a-z]{2,20}$/.test(style)).map(([style, knobs]) => [style, Object.fromEntries(Object.entries(object(knobs)).filter(([k, v]) => KNOBS.has(k) && number(v) !== undefined))]).filter(([, knobs]) => Object.keys(knobs).length);
     if (styles.length) out.tuning = Object.fromEntries(styles);
     if (s.accent === "" || s.accent === "cover" || color(s.accent, "")) out.accent = s.accent;
@@ -109,7 +135,7 @@ window.Packs = (() => {
     return [count(Object.values(w.banter || {}).flat().length, "line"), count((w.signs || []).length, "sign"), count(Object.keys(w.told || {}).length + Object.keys(w.empty || {}).length + Object.keys(w.notes || {}).length, "message"), count(Object.keys(pack.genres).length, "genre"), Object.keys(pack.settings).length ? "settings" : ""].filter(Boolean).join(", ");
   }
   return {
-    VERSION, MOODS, FILE_LIMIT,
+    VERSION, MOODS, FILE_LIMIT, EFFECTS, cleanEffects,
     words: () => now().words,
     moodOf: (genre) => now().genres.get(genre) || "",
     builtInMood: (genre) => GENRES.get(genre) || "",
