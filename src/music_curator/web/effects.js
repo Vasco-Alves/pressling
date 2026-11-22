@@ -13,7 +13,7 @@ window.Effects = (() => {
   const paintFilter = () => { canvas.style.filter = [aside.lit === 1 ? "" : `brightness(${aside.lit})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); }; // the picture's Brightness and its softness behind the page, both on the picture itself (a blur laid over the window from outside would cost far more)
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
   const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [], touch: false, near: 0, much: 1, over: 0, sx: 0, sy: 0, vx: 0, vy: 0, lx: 0, ly: 0, cx: 0, cy: 0, aimX: 0, aimY: 0, aimTill: -1, fresh: null, pokes: [], since: 99, dt: 0, frames: 0 }; // the mouse over the picture, in the picture's own dots (what comes after rings belongs to the mouse block, which says what each is): on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, punch: 1, hand: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, stay: 1, bold: 1, punch: 1, hand: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -31,7 +31,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], punch: ["Hard kicks", 0, 2], hand: ["Answers to the mouse", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], stay: ["Color tricks, how long", 0, 2], bold: ["Color tricks, how strong", 0, 2], punch: ["Hard kicks", 0, 2], hand: ["Answers to the mouse", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), HEADS = 9;
   let peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS); // (let: while one effect changes into another, each can have its own)
@@ -13606,18 +13606,58 @@ window.Effects = (() => {
      (grey and turned over, in a cold light), the record's two strongest colors (the lights in one, the shadows in the other), night vision (green, with lines across and
      a little grain), a glitch (small pieces of the picture knocked sideways and its colors pulled apart, cut again on the hi-hats and claps), a mirror (one half folded over
      onto the other), and every color turned halfway round the wheel (the same light, the opposite colors).
+     And six more, each of which can be drawn at any strength from 0 (the plain picture, exactly) to 1 (the look in full), so that it comes and goes by growing and shrinking, with no edge:
+     a lens (the colors drawn a little apart, as a cheap lens does: hardly at all in the middle, more toward the edges, an orange rim on the side of each bright thing that faces the middle
+     and a blue one on the side that faces out, and the blue thrown further out on every kick); 3D glasses (the picture in grey, and the red of its bright parts moved a little to one side
+     of their blue-green, as in an old red-and-blue 3D picture: the brighter a thing, the further it stands off); and four more kinds of glitch: blocks (squares of the picture knocked
+     sideways, or repeated like a stuck tile), a tear (a few thin bands right across the picture pulled sideways, drifting slowly down it), split colors (in a few wide bands the blue is pulled
+     away from the rest, and jumps to a new side on each hi-hat), and a stutter (on each beat the picture sticks for half a beat, then catches up).
+     And glitch bursts: for a fraction of a second one thin band across the picture (a twentieth of it at most) is torn into strips, on a snare roll, a drum fill or the end of a riser; rarer
+     than the moments, never while one is showing, never in the first second of a drop (one still on when a drop lands ends there), and never on the busiest pictures.
      When: mostly after a drop lands (a bar after it, once the drop's own flash has come and gone); sometimes at the start of a phrase deep in a long groove; now and then a soft one in a breakdown.
      Never often: about one in half a minute at most, as designed. The "Color tricks" slider makes them rarer or more frequent, or stops them (at 0 nothing here does anything at all).
      How one comes and goes is chosen to suit it, and in time with the beat: a wipe across the picture (down it, on a phone), a circle opening out from the middle,
      slices swept open round the middle like a clock's hands, a fold out from the middle line, a fade, or in a breakdown the picture tilting slowly while it lasts.
+     Two more sliders go with Color tricks (see momentLonger). "How long": a look holds longer (two to four bars at the usual setting, by the music: longest in a breakdown and deep in a
+     long groove; a build or a drop sends it away early), comes and goes more slowly, and now and then two to four looks follow one another before the picture is itself again (a chain:
+     after a drop half the time, in a groove more often the busier the music, seldom in a breakdown). Each hands over straight to the next (see momentNext), never two in full in one place,
+     never quicker than a bar, and the chain ends early when a drop lands or the effect changes. A look that changes the whole picture's light or colors goes as soon as the kick has been gone a
+     second, or (one from a groove) as soon as the music has gone quiet, since a drop may be next; it does not begin in a quiet groove; and when a drop lands or the effect changes while it shows it goes by a fade, never by an edge. One sent away while still coming by an edge goes back the way it came (see momentAway). "How strong": each look starts faint and grows over its first bar or two to a stronger
+     peak than the first pass's (momentSet's most), then eases away. Both at 0: the first pass's short, plain looks, drawn exactly as it drew them (only the few places and moods measured since are refused, a look eases away when the effect changes to one it may not come on, and the tear and the blocks keep their new margins: see momentTear and momentBlocks). Longer and stronger never means more flashes: what changes the light
+     a lot still does it once as the look comes and once as it goes (in a chain, once at each hand-over, two bars or more apart), and the build itself is too slow to count as one: the looks whose
+     change is the light itself come in full and grow by less than a tenth of full (momentSteady), the ones that change the whole picture's light or colors come and go over two bars (momentBroad),
+     no edge sweeps the picture in less than 4.4 seconds (momentSweep), a circle opens evenly over the picture (momentRadius), and bolder glitch pieces are cut again at most three times a second.
+     Measured and kept away besides: the first glitch from Strings and from chains, everything from Neon city in the hard mood, and the eclipse is one of the busiest pictures; the blocks, the tear,
+     the 3D glasses, the first glitch and the mirror from red and warm records and from the hard mood, as the lens (there a whole-picture look also never comes or goes by a fade of its own, and never in
+     less than 4.4 seconds, at every setting: each takes the red away from the whole picture); night vision from chains beside the newer looks; and on Space's pictures a chain hands over only by crossing (see each);
+     the colors turned round from the Aero pictures (their blue sea and sky would turn a strong orange-red); a look showing when the effect changes to one it may not come on leaves with the old picture
+     (see momentPin);
+     and the blocks' pieces and the tear's bands come one at a time. The peaks (momentSet's most) are where the measured flashes allowed.
      It is never spun round, nor turned over like a card: both were tried, and on a busy picture that pulses with the kick (a fractal, the kaleidoscope) they flicker.
      Spun round, even once in eight seconds, its light and dark sweep past every place; turned over, half of it is the look and half is not for a second or more, and
      on every kick one half goes lighter while the other goes darker.
      Safe for the eyes: what changes the light of the picture a lot (a negative, an x-ray) does it once as the moment comes and once as it goes, a bar or more apart,
      and never up to white, whatever the Brightness slider says; each place in the picture changes once as a moment comes and once as it goes; the glitch only ever moves small pieces of the picture, never the
-     whole of it; no strong red is made. The busiest pictures (the fractals, the kaleidoscope, the plasma, the forms and the faces) already pulse with the kick about as much as is
+     whole of it (knocked further with "How strong" up, but never more of them); no strong red is made. The busiest pictures (the fractals, the kaleidoscope, the plasma, the forms, the faces and the eclipse) already pulse with the kick about as much as is
      safe, so there only the mirror may come (it moves what is there, and changes nothing's light): even the colors turned round, which keep their lightness to the eye, make the
-     greens and yellows lighter and the blues darker by enough to count, and on those pictures that was one flash a second too many.
+     greens and yellows lighter and the blues darker by enough to count, and on those pictures that was one flash a second too many. (The lens and the split colors were tried there too: on the
+     kaleidoscope in orange the lens came to two flashes more in four seconds, so they stay off those pictures as well, and so do the bursts.)
+     The six newer looks keep to the same rules in their own ways. Five of them leave the picture's light much as it is: they move its colors apart, or move small pieces of it, or hold it still.
+     The 3D glasses do change it, since they take the picture's colors away (in grey a strong green or blue-green is about half as light to the eye): slowly, once as they come and once as they go,
+     never in less than a second and a half each way.
+     Red is the one color that must never flash, so on anything white, grey, yellow, green or blue no rim is ever a strong red: the lens keeps most of the green with the red (its rim is orange), and the 3D
+     glasses' red is a pale one, with a little green and blue left in it, made from the picture's lightness alone whatever its colors (a pure red rim beside every line of a finely drawn picture,
+     brightening with each kick, would be a red flash over much of it). A warm color is another matter: take the blue and some of the green out of an orange, a pink or a purple and what is left is a
+     strong red, and on pictures drawn in such colors, pulsing with the kick, the lens's rims were measured as red flashes. So the lens looks at the record's colors first (momentLensMay): it never comes
+     where one of them is a red, an orange, a pink or a purple (the mood's own colors as well as the record's), nor in the hard mood, which paints in red whatever the record, nor for psytrance, which paints in every color; and the warmer the colors, the less of the green it moves (none for a peach
+     or a deep yellow, whose rim would otherwise come out red). The split colors move the blue alone, and measured on those same pictures they added no red.
+     Two more were measured and kept away: the stutter while the punch is on (it takes hold on a kick, just as the punch flashes the picture, and holding that flash made more changes of light), and the
+     3D glasses on Strings (every one of its fine lines, shaking with the music, became two, and more of the picture changed many times a second than Strings alone makes).
+     What a glitch moves stays a small part of the picture. The blocks are four small pieces (about a twenty-fifth of the picture together as a rule, a ninth at the very most) and the tear's three
+     bands are thin (a tenth of the picture's height together at the most); on a hi-hat or a clap only ONE piece is thrown anew, never more than four times a second, and only one band of the tear gets a new pull where it is, never more than once a second (twice a second, measured, a tear meeting a change of effect or late frames still came to one large flash more than the effect alone in a second; its bands drift down and back up, never jumping from the bottom to the top). (With six bigger pieces all
+     cut again at once, two cuts inside half a second changed a quarter of a picture that has one big bright shape, the eclipse, and that counted as large flashes.) The split colors' three bands are
+     wide, about a third of the picture, but only their blue moves. The stutter only ever holds the picture as it was a moment ago, and never goes back to an older one (after a gap, the picture hidden
+     or the tab asleep, it lets go of what it held), so it cannot make more changes of light than the effect itself makes. While one effect changes into another the moments go over both, as over the visitors, and neither effect keeps any of it.
      It goes over everything in the picture, visitors and all, for that one frame: the picture as it was is put back before the next frame is drawn (by the same clean
      copy the effects that fade in place use), so an effect that keeps its last frame never gets the look baked into it. */
   const momentKinds = { // how likely each look is: on a drop, at the start of a phrase in a long groove, and in a breakdown
@@ -13628,27 +13668,83 @@ window.Effects = (() => {
     glitch: { drop: 0, groove: 3, calm: 0 },
     mirror: { drop: 0, groove: 2, calm: 1 },
     hue: { drop: 3, groove: 1, calm: 2 },
+    lens: { drop: 3, groove: 3, calm: 2 },
+    threed: { drop: 1, groove: 2, calm: 2 },
+    blocks: { drop: 0, groove: 2, calm: 0 },
+    tear: { drop: 0, groove: 2, calm: 0 },
+    split: { drop: 2, groove: 2, calm: 0 },
+    stutter: { drop: 0, groove: 2, calm: 0 },
   };
   const momentWays = { // and how it may come and go there: [the way in, the way out]. (No way spins the picture, or turns it over like a card: see the top)
-    drop: { negative: [["circle", "fade"]], xray: [["circle", "fade"]], duo: [["slices", "fade"]], hue: [["circle", "circle"]] }, // (a drop has a flash of its own, so what comes after it only opens out and eases back)
-    groove: { negative: [["wipe", "wipe"], ["slices", "fade"]], xray: [["wipe", "wipe"], ["circle", "fade"]], duo: [["slices", "slices"], ["wipe", "fade"]], night: [["wipe", "wipe"]], glitch: [["strips", "strips"]], mirror: [["fold", "fold"]], hue: [["circle", "circle"], ["slices", "fade"]] },
-    calm: { xray: [["slow", "slow"]], duo: [["slow", "slow"]], night: [["fade", "fade"]], mirror: [["fold", "fold"]], hue: [["slow", "slow"]] },
+    drop: { negative: [["circle", "fade"]], xray: [["circle", "fade"]], duo: [["slices", "fade"]], hue: [["circle", "circle"]], lens: [["grow", "grow"]], threed: [["grow", "grow"]], split: [["grow", "grow"]] }, // (a drop has a flash of its own, so what comes after it only opens out and eases back)
+    groove: { negative: [["wipe", "wipe"], ["slices", "fade"]], xray: [["wipe", "wipe"], ["circle", "fade"]], duo: [["slices", "slices"], ["wipe", "fade"]], night: [["wipe", "wipe"]], glitch: [["strips", "strips"]], mirror: [["fold", "fold"]], hue: [["circle", "circle"], ["slices", "fade"]],
+      lens: [["grow", "grow"]], threed: [["grow", "grow"]], blocks: [["grow", "grow"]], tear: [["grow", "grow"]], split: [["grow", "grow"]], stutter: [["grow", "grow"]] }, // ("grow": the look itself, growing from nothing and shrinking back to nothing)
+    calm: { xray: [["slow", "slow"]], duo: [["slow", "slow"]], night: [["fade", "fade"]], mirror: [["fold", "fold"]], hue: [["slow", "slow"]], lens: [["grow", "grow"]], threed: [["grow", "grow"]] },
   };
   const momentPixel = { circle: "wipe", slices: "wipe", slow: "fade" }; // a pixel world is never tilted or cut on a slant, so its dots stay square
   const momentLeast = { fold: 1.3 }; // the seconds a fold takes at the least, so the picture never moves fast enough to flicker
-  const momentBusy = new Set(["kaleido", "plasma", "forms", "faces"]); // with the fractals: pictures that pulse with the kick about as much as is safe already. Any look that changes their light would take them over
+  const momentSlow = { threed: 1.6 }; // and the seconds a look takes to come, and to go, at the least, whichever way it comes: the 3D glasses bring colored rims, and those must never arrive or leave quickly
+  const momentSet = { lens: { full: 1, long: 1, most: 2.2 }, threed: { full: 1, long: 1, most: 1.8 }, blocks: { full: 1, long: 1, most: 1.8 }, tear: { full: 1, long: 1, most: 1.6 }, split: { full: 1, long: 1, most: 2.4 }, stutter: { full: 1, long: 0.5, most: 1.6 }, burst: { full: 1, long: 1, most: 1.5 },
+    negative: { full: 1, long: 1, most: 1.15 }, xray: { full: 1, long: 1, most: 1.2 }, duo: { full: 1, long: 1, most: 1.5 }, night: { full: 1, long: 1, most: 1 }, glitch: { full: 1, long: 1, most: 1.3 }, mirror: { full: 1, long: 1, most: 1 }, hue: { full: 1, long: 1, most: 1 } };
+  // how strong each of the newer looks is at its fullest (full: 0 to 1; 0 is the plain picture, and anything in between is that much of the look), and how long it stays, next to the others (long: 1 is the usual
+  // bar or two; the stutter stays half as long, a burst's is its fraction of a second). most: how far past that full look it may grow at the top of the "How strong" slider (its usual setting goes halfway there):
+  // the lens's colors drawn that many times further apart, the glitches' pieces knocked that much further, the 3D glasses' red that much further off, a negative's and an x-ray's light that much brighter
+  // (kept well short of white), the duo that much deeper. 1: never stronger than the first pass made it (the night vision, the mirror and the colors turned round have no stronger). A full is for the newer looks only.
+  // These numbers are all that need changing to make a look milder, stronger, shorter or longer: its drawing takes any strength
+  const momentSweep = 4.4; // with "How long" on, the fewest seconds an edge (a wipe, a circle, slices) takes to sweep the whole picture: eased, its quickest part sweeps half as fast again as its average,
+  // and anything quicker crossed a quarter of the picture in half a second, which the counters take for a flash where the change it brings is large (a negative, or one look handing over to another).
+  // At 3.2 s, an x-ray wiping away down a phone over the eclipse still came to five in a second on the fine grid with the eclipse's own pulsing, where the effect alone made three at the most
+  const momentBroad = new Set(["negative", "xray", "duo", "night", "hue"]); // the looks that change the light or the colors of the whole picture: with "How long" on, they come and go over two bars (a bar and a half at half the usual
+  // setting), and so does a chain's hand-over to or from one. An edge or a fade quicker than that, on a dark picture, crossed more than a quarter of it in half a second, and the counters took it for a flash each time
+  const momentSteady = new Set(["negative", "xray", "night", "hue", "mirror"]); // the looks whose change is a change of light: they come in full by their way, as in the first pass, never faint first. A slow build of
+  // their light would cross a tenth of full in every place at the same moment, and the counters take that for a flash (a negative brought in at three fifths and brightening did, on Tunnel: three in a fifth of a second).
+  // So their build only takes them a little past their full look (momentSet's most), by less than a tenth of full in light, never enough to count
+  const momentLooks = { lens: momentLens, threed: momentThreed, blocks: momentBlocks, tear: momentTear, split: momentSplit, stutter: momentStutter }; // the newer looks' drawing: each is handed the picture as it was, a strength from 0 to 1 and the size of a pixel world's dots
+  const momentOwn = new Set(["night", "lens", "threed", "blocks", "tear", "split", "stutter"]); // the looks that never read a copy of the picture as it was: the spare canvas is theirs to work on
+  const momentEye = [255, 110, 110]; // the 3D glasses' red: pale enough (a little green and blue in it) that no rim it leaves is a strong red
+  const momentBusy = new Set(["kaleido", "plasma", "forms", "faces", "sun"]); // with the fractals: pictures that pulse with the kick about as much as is safe already. Any look that changes their light would take them over.
+  // (The eclipse is one of them, by measurement: its corona pulses with every kick, and the tear, the blocks, the split colors, an x-ray going and a chain each came to one large flash more in a second than its own most there)
   const momentGentle = new Set(["mirror"]); // the only look the busy pictures get: it moves what is there, and leaves the light as it was
-  const momentWhole = new Set(["kaleido", "tunnel", "mirror", "mandala"]); // mirrored by design already: folding one over would show nothing
+  const momentWhole = new Set(["kaleido", "tunnel", "mirror", "mandala", "sun"]); // mirrored by design already: folding one over would show nothing. (The eclipse is round about its middle: folded, it showed next to nothing, and its two halves pulsed with the kick together, measured as more large flashes)
   const momentGlow = [[6, 0.05], [2.5, 0.12], [1, 0.45]]; // the line of light at the edge of a wipe or a circle: three strokes, wide and faint to thin and bright
-  const momentNow = { kind: "", why: "", come: "", go: "", age: 0, inFor: 1, holdFor: 1, outFor: 1, goAt: -1, peak: 1, x: 0.5, y: 0.5, turn: 1, cutAt: -9, grain: 1, grainAt: -9, // the moment showing (kind is "" while none is): how it comes and goes, how long each part lasts, when it began to go and how far in it was then; and night vision's grain
+  const momentNow = { kind: "", why: "", come: "", go: "", age: 0, inFor: 1, holdFor: 1, outFor: 1, goAt: -1, peak: 1, x: 0.5, y: 0.5, turn: 1, cutAt: -9, grain: 1, grainAt: -9, heldAt: -9, // the moment showing (kind is "" while none is): how it comes and goes, how long each part lasts, when it began to go and how far in it was then; and night vision's grain
     rest: 0, wait: 20, last: "", was: 0, kicks: 0, calmFor: 0, calmTried: false, bar: -1, seed: 0 }; // and for choosing the next: seconds since the last began, how long to wait before another, kicks since the groove began, how long the breakdown has lasted; and the dice
-  const momentCuts = new Float32Array(5 * 5); // the glitch's pieces: for each, how far down the picture it is, how tall, where across it starts, how long it is and how far it is knocked sideways, all as parts of the picture
-  let momentArt = null, momentArtLines = 0; // the one spare canvas, kept while the size stays the same: a copy of the picture without the look (only when the clean copy already holds something else), or night vision's lines and darker edges (then the spacing of its lines, 0 otherwise)
+  Object.assign(momentNow, { cutN: 0, zapAge: -1, zapFor: 0.25, zapRest: 0, zapWait: 45, zapX: 0, zapY: 0, zapW: 0.3, zapH: 0.1, hitAgo: 9, hitBefore: 9 }); // heldAt (above): when the stutter last took hold; cutN: which piece of the blocks, or band of the tear, was thrown anew last. A burst: how long it has been on (under 0 while none is), how long it lasts, the seconds since the last one and the wait before another, and its patch, as parts of the picture; and the seconds since the last hi-hat or clap, and from the one before it to that one
+  Object.assign(momentNow, { links: 0, of: "", top: 1, from: 1, build: 0, back: false, stillFor: 0, withMorph: false, parted: false, pinWay: "", pinComing: true, pinOn: 0, pinE: 0 }); // parted: the effect has changed to one it may not come on, and it is leaving with the old one; pinWay: then the edge it stopped at ("" for none; see momentPin), and where; withMorph: going with the old effect as the change crosses (see momentShow); back: going back the way it came (see momentAway), and stillFor: how long it has stood still while the effect changed (see momentShow); links: how many more looks follow this one in a chain (0: the picture goes back to itself after it); of: the effect it began on; top: how strong it grows at its peak (1 is the full look of the first pass);
+  // from: how strong it is as it starts to come, when it comes by an edge or a fade (then it grows to top over build seconds: the slow build). Coming by growing, the build is its own coming
+  const momentWas = { kind: "", cross: false, top: 1, age: 0, cutAt: -9, cutN: 0, grain: 1, grainAt: -9, heldAt: -9, turn: 1 }; // in a chain, the look handing over while the next one comes (kind is "" when none is), with its own numbers kept apart from the new one's
+  const momentTheirs = ["age", "cutAt", "cutN", "grain", "grainAt", "heldAt", "turn"]; // the numbers each look keeps for itself (how long it has been on, when its pieces were cut, its grain, which way it leans), swapped in while the one handing over is drawn
+  const momentCutsWas = new Float32Array(8 * 6); // and its pieces (see momentCuts)
+  const momentCuts = new Float32Array(8 * 6); // the pieces a glitch moves. The first glitch's five, five numbers each: how far down the picture each is, how tall, where across it starts, how long it is and how far it is knocked sideways, all as parts of the picture. The newer kinds keep six numbers a piece, and say what they are where they throw them
+  let momentArt = null, momentArtLines = 0; // the one spare canvas, kept while the size stays the same: a copy of the picture without the look (only when the clean copy already holds something else), or night vision's lines and darker edges (then the spacing of its lines, 0 otherwise), or what a newer look is working on, or the picture the stutter holds
   const momentRed = ([r, gr, b]) => r / (r + gr + b + 1); // how much of a color is red: from about 0.8 it is a strong red
   const momentCalm = (rgb, from = 0.45, most = 0.7) => { const red = momentRed(rgb), grey = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]; return red > from ? mix(rgb, [grey, grey, grey], Math.min(most, (red - from) * 2)) : rgb; }; // a red taken part of the way to grey, so no big patch of strong red is ever made
+  const momentLensMay = () => { // what the lens may do with the record's colors as they are now: [how much of the lens at all, 0 to 1; how much of the picture's green it may move, 0 to 0.41].
+    // The lens leaves each thing's red where it is and moves its blue and part of its green away, so on one side the thing is left redder than it was. On a white, a yellow, a green or a blue that is an orange rim.
+    // On a color that is already more red than green (an orange, a red, a pink, a purple) it is a strong red, and red must never flash: with any such color the lens stays away altogether (easing off if the colors
+    // turn that way while it shows), and with a color nearly there (a peach, a deep yellow) it moves less of the green, or none, so that what is left keeps enough green not to be a red
+    if (mood === "hard" || mood === "psy") return [0, 0]; // (the hard mood paints in red whatever the record, and psytrance in every color round the wheel, red among them)
+    let red = 0, least = 9; // the reddest of the colors, and the least green any of them has for its red (these moods paint in colors of their own as well as the record's: acid has an orange, euphoric and nightcore a pink)
+    for (const c of mood === "acid" || mood === "euphoric" || mood === "nightcore" ? colors.concat(moodColors(3)) : colors) { red = Math.max(red, momentRed(c)); if (c[0] > 40) least = Math.min(least, c[1] / c[0]); }
+    return [clamp((0.6 - red) * 10) * clamp((least - 0.5) * 10), Math.max(0, Math.min(0.41, 1 - 0.6 / least))];
+  };
   const momentTop = (rgb, top) => { const most = Math.max(1, rgb[0], rgb[1], rgb[2]); return rgb.map((c) => (c * top) / most); }; // the same color, with its brightest part at top
   const momentDot = () => (FAMILY[name] === "pixel" && pixelLast ? w / pixelLast.across : 1); // the size of a pixel world's dots, so that what moves moves by whole dots
   const momentSnap = (x, dot) => Math.round(x / dot) * dot;
+  const momentBounce = (p) => { p %= 2; return p > 1 ? 2 - p : p; }; // a place that drifts on and on, from 0 to 1 and back again, never jumping
+  function momentRadius(on, cx, cy, far) { // how far a circle about (cx, cy) has opened, for how far its look has come (on, 0 to 1). With "How long" on, so that it covers that share of the picture: it then sweeps the
+    // picture evenly. (By its radius it swept the middle of a wide picture far faster than the rest, more than a quarter of it in half a second, which counts as a flash; by its own area, still nearly twice as fast)
+    if (!(T.stay > 0)) return on * far;
+    if (on >= 1) return far; // (all of it: right into the corners. The strips below are measured at their middles, so their answer stops a few dots short of the corners)
+    let lo = 0, hi = far;
+    for (let k = 0; k < 14; k++) { // halving the gap fourteen times: to a sixteen-thousandth of the way
+      const r = (lo + hi) / 2;
+      let sum = 0;
+      for (let i = 0; i < 48; i++) { const x = ((i + 0.5) * w) / 48, d = r * r - (x - cx) * (x - cx); if (d > 0) { const s = Math.sqrt(d); sum += Math.max(0, Math.min(h, cy + s) - Math.max(0, cy - s)); } } // the share inside the circle, by 48 upright strips
+      if (sum / (48 * h) < on) lo = r; else hi = r;
+    }
+    return hi;
+  }
   function momentDice(a, b) { // a number between a and b, from the moments' own dice: taking them from Math.random would change what every effect itself does from the first moment on
     const M = momentNow;
     if (!M.seed) M.seed = (Math.floor(realNow * 1000) ^ 0x9e3779b9) >>> 0 || 1; // thrown first from the clock of the first frame that asks
@@ -13663,11 +13759,27 @@ window.Effects = (() => {
     if (flow.part !== "calm") M.calmTried = false;
     const bar = flow.bpm ? Math.floor(((flow.clock - flow.kickAt) * flow.bpm) / 240) : 0, onBar = bar !== M.bar; // with no kick, the beat goes on by the clock from the last one
     M.bar = bar;
-    if (hearing) M.rest = Math.min(600, M.rest + step);
-    if (M.kind && M.why === "calm" && M.goAt < 0 && M.age > 0 && (flow.part === "build" || flow.dropHit)) { // a soft one from a breakdown goes as the build begins, in its usual time, so it is gone before the drop and its flash
-      M.peak = M.age < M.inFor ? eased(M.age / M.inFor) : 1; // (and if the drop comes with no build before it, it goes then, still in its usual time, never all at once on top of the drop's flash)
-      M.goAt = M.age;
+    if (hearing) { M.rest = Math.min(600, M.rest + step); M.zapRest = Math.min(600, M.zapRest + step); }
+    M.hitAgo = Math.min(9, M.hitAgo + step);
+    const quick = sound.hatHit || flow.clap ? M.hitAgo + M.hitBefore < 0.4 : false; // three hi-hats or claps within four tenths of a second: a fill (or hats that always run that fast)
+    if (sound.hatHit || flow.clap) { M.hitBefore = M.hitAgo; M.hitAgo = 0; }
+    if (often && hearing && !M.kind && M.zapAge < 0 && M.zapRest >= M.zapWait && flow.drop <= 0.9 && !flow.dropHit && !FRACTALS.has(name) && !momentBusy.has(name) && !(name === "city" && mood === "hard") && (flow.riserGone || flow.rollHit > 0 || (quick && (flow.barSure <= 0.3 || flow.bar === 3)))) {
+      if (momentDice(0, 1) < Math.min(0.9, 0.5 * often)) momentZapBegin(); else M.zapRest = Math.max(0, M.zapWait - 6); // a burst on a riser's end, a hit of a snare roll or a fill (in the bar's last beat, when the clock knows the bar), never on a busy picture; if the dice say no, not for six seconds more
     }
+    if (M.kind && M.of !== name) { // the effect has changed: no more looks follow in this chain (the one showing finishes in its own time, over both, as before)
+      M.links = 0;
+      if (!M.parted && (!momentOdds(M.kind, M.why, "") || M.top > momentMost(M.kind) + 1e-9)) { // and a look that may not come on the new effect goes now, in its own time (the blocks begun on LEDs ran on into the eclipse: four large flashes in a second where the effect alone made two, or three on the fine grid with both sliders at 0),
+        // and so does one grown stronger than the new effect allows (a lens begun elsewhere and carried onto Space's pictures, where it is held at its first-pass strength: see momentMost)
+        if (momentWas.kind && M.age <= 0.1) momentRevert(); // (a chain's next look that has only just begun to take over is dropped, and the one handing over goes: see momentRevert)
+        else if (M.age <= 0 && !momentWas.kind) M.kind = ""; // (one still waiting for its bar never comes: nothing of it has shown yet. One that has only just begun to take over in a chain is let finish taking over, then goes: cleared at once, the look handing over, all there, would vanish in one frame)
+        else momentPin(); // (anything else leaves with the old picture, from where it stands: see momentPin)
+      }
+    }
+    const kickGone = T.stay > 0 && M.why !== "calm" && momentBroad.has(M.kind) && (flow.since > 1 || (M.why === "groove" && flow.intensity < 0.45)); // (a look that changes the whole picture's light or colors, and the kick gone a second: see below)
+    if (M.kind && (M.why === "calm" || T.stay > 0) && M.goAt < 0 && M.age > 0 && (flow.part === "build" || flow.dropHit || kickGone)) momentAway(flow.dropHit); // a soft one from a breakdown goes as the build begins, in its usual time, so it is gone before the drop and its flash.
+    // With "How long" on, so does any other, and its chain ends: a longer look must never run on into the drop (if the drop comes with no build before it, it goes then, still in its own time, never all at once
+    // on top of the drop's flash). And a look that changes the whole picture's light or colors goes sooner, as soon as the kick has been gone a second, before the next kick can be a drop (see momentAway),
+    // and one from a groove as soon as the music goes quiet (under 0.45): before a drop the kick may run on to the last moment while the rest falls away (hard_12, from 34 s to its drop at 38.8 s: a negative still on in the drop's first second made it six large flashes where Neon road alone makes four)
     if (M.kind || !often || !hearing || M.rest < M.wait) return;
     let why = "";
     if (flow.dropHit) why = momentDice(0, 1) < Math.min(0.95, 0.6 * often) ? "drop" : "";
@@ -13676,49 +13788,210 @@ window.Effects = (() => {
     const kind = why ? momentPick(why) : "";
     if (kind) momentBegin(kind, why);
   }
-  function momentPick(why) { // which look, by its odds for this part of the song: seldom the same twice running, never a fold over a picture already folded, never the colors turned to a strong red
+  function momentAway(fade) { // the look showing is sent away early (by a build, the kick gone, the music gone quiet, a drop, or a change of effect it may not come on): no more looks follow it, and it goes in
+    // its own time, never all at once:
+    // - one still coming by an edge (a wipe, a circle, slices) goes back the way it came, from where it had got to and at the same pace, so each place it reached changes back once. (Going by an edge's
+    //   own going way, which starts from the whole picture, the part not yet reached turned to the look in one frame: 43% of Frutiger Aero went negative in a thirtieth of a second. And finishing its
+    //   coming first, then going, an x-ray still wiped away over hard_12's drop on LEDs: seven large flashes in a second where LEDs alone makes six at the most)
+    // - in the middle of a chain's hand-over, that is finished first, then the new look goes at once
+    // - anything else goes from as far as it had come, which never jumps (a fade, a fold, growing and shrinking, a tilt)
+    // fade: sent away by a drop landing or by a change of effect, a look that changes the whole picture's light or colors goes by a fade, never by an edge. With half the picture still turned over while
+    // the drop's first kicks pulse, each pulse went lighter in one half and darker in the other (an x-ray wiping away on LEDs over hard_12's drop: seven in a second where LEDs alone makes six at the
+    // most), and a negative wiping away over the slow change from Aqua to the eclipse made four large flashes in a second where the effect alone made one. Sent away before a drop it goes its own way
+    // (an edge, or as it came): a fade brings the picture's own colors back to every place at once, and on LEDs with a red record an x-ray fading back to the red came to one red flash where LEDs alone
+    // made none, which an edge, one place after another, did not
     const M = momentNow;
+    M.links = 0;
+    if (!momentWas.kind && M.age < M.inFor && (M.come === "wipe" || M.come === "circle" || M.come === "slices")) {
+      M.peak = eased(M.age / M.inFor); // (how much of the picture it had reached)
+      M.back = true;
+      M.go = M.come;
+      M.outFor = Math.max(0.05, M.inFor * M.peak);
+      M.goAt = M.age;
+      return;
+    }
+    if (fade && momentBroad.has(M.kind) && M.go !== "slow") M.go = "fade";
+    if (momentWas.kind) { M.holdFor = 0; return; }
+    M.peak = M.age < M.inFor ? eased(M.age / M.inFor) : 1;
+    M.goAt = M.age;
+  }
+  function momentPin() { // the effect has changed to one this look may not come on (see momentWhen): it leaves with the old picture, as part of what crosses over, so the new one comes in clean.
+    // Where it stands as the change begins, it stays: an edge on its way (coming, going, or going back the way it came) stops where it is, and a chain's hand-over stops part way, each look on its own
+    // side of it. From there it only fades, never more of it than is left of the old picture (see momentShow), and it is gone when the change is over. (Going back the way it came over the new picture,
+    // a negative's band over Julia, the kaleidoscope or the plasma came to one to three large flashes more in a second than the new picture alone made; fading on its own over the kaleidoscope after
+    // the change, a duo came to seven where the kaleidoscope alone made four. And a band that stood whole and then went in one frame as the change ended was four where the change alone made one)
+    const M = momentNow, W = momentWas, edge = (way) => way === "wipe" || way === "circle" || way === "slices";
+    M.links = 0;
+    M.parted = true;
+    M.withMorph = !!morph;
+    if (W.kind && M.goAt < 0 && M.age < M.inFor) { const e = eased(M.age / M.inFor); Object.assign(M, { pinWay: W.cross ? "grow" : M.come, pinComing: true, pinOn: e, pinE: e }); } // (a chain's hand-over: see momentHand)
+    else {
+      W.kind = ""; // (a hand-over already over: the look handed over from is all gone)
+      if (M.goAt < 0 && M.age < M.inFor && edge(M.come)) { const e = eased(Math.max(0, M.age) / M.inFor); Object.assign(M, { pinWay: M.come, pinComing: true, pinOn: e, pinE: e }); }
+      else if (M.goAt >= 0 && edge(M.go)) { const e = eased(Math.min(1, (M.age - M.goAt) / M.outFor)), on = M.peak * (1 - e); Object.assign(M, { pinWay: M.go, pinComing: M.back, pinOn: on, pinE: M.back ? on : e }); }
+      else { if (M.goAt < 0) momentAway(true); return; } // (all there, or coming or going with no edge: it goes from as far as it had come, a look of the whole picture's light by a fade)
+    }
+    Object.assign(M, { go: "fade", goAt: M.age, peak: 1, back: false, outFor: Math.max(momentSweep, M.outFor) }); // (with no change crossing, it would fade over 4.4 seconds at the least)
+  }
+  function momentFaint(kind, src, soft, dot, lvl, f) { // one look of a hand-over stopped by a change of effect (see momentPin), all there but faded to f: the looks that keep the picture as it was faded by laying it back
+    // over them (as a fade does), the others drawn at that strength (they never need it)
+    if (f >= 1) momentPaint(kind, src, soft, 1, soft, false, dot, 0, lvl);
+    else if (momentOwn.has(kind)) momentPaint(kind, src, soft * f, f, soft, true, dot, 0, lvl);
+    else { momentPaint(kind, src, soft, 1, soft, false, dot, 0, lvl); momentLay(src, "source-over", 1 - f, 0); }
+  }
+  function momentPick(why, chain = false) { // which look, by its odds for this part of the song: seldom the same twice running, never a fold over a picture already folded, never the colors turned to a strong red
+    const M = momentNow, last = chain ? M.kind : M.last; // (in a chain: the next look, never the one showing now)
     let all = 0;
-    for (const kind in momentKinds) all += momentOdds(kind, why, M.last);
+    for (const kind in momentKinds) all += momentOdds(kind, why, last, chain);
     let r = momentDice(0, 1) * all;
-    for (const kind in momentKinds) if ((r -= momentOdds(kind, why, M.last)) < 0) return kind;
+    for (const kind in momentKinds) if ((r -= momentOdds(kind, why, last, chain)) < 0) return kind;
     return "";
   }
-  function momentOdds(kind, why, last) {
+  function momentZapBegin() { // a burst begins: a thin band somewhere down the picture, for a fraction of a second, and then a long wait
+    const M = momentNow;
+    M.zapW = momentDice(0.6, 1); M.zapH = momentDice(0.03, 0.05); M.zapX = momentDice(0, 1 - M.zapW); M.zapY = momentDice(0.05, 0.95 - M.zapH); // most or all of the way across and thin: at most a twentieth of the picture, and it nearly always crosses something (a small patch anywhere mostly landed where there was nothing to tear)
+    M.zapFor = momentDice(0.18, 0.34) * momentSet.burst.long * (1 + 0.3 * Math.min(2, T.stay)); // (a little longer with "How long" up: still a fraction of a second, half a second at the most)
+    M.zapAge = 0;
+    M.cutAt = -9;
+    M.zapRest = 0;
+    M.zapWait = momentDice(50, 80) / Math.max(0.1, T.tricks);
+  }
+  function momentOdds(kind, why, last, chain = false) {
     if ((FRACTALS.has(name) || momentBusy.has(name)) && !momentGentle.has(kind)) return 0; // a busy picture only gets the mirror
+    if (name === "city" && mood === "hard") return 0; // and Neon city in the hard mood gets nothing: its red already changes many times a second, and the duo and the colors turned round, coming there, made two to five more large flashes in a second than it alone; folded by the mirror, its red flashed.
+    // (So nothing more is moved over it there either: the 3D glasses, the blocks and the tear, which the first pass's check found adding red changes on it, and the lens, kept off all the hard mood)
     if (kind === "mirror" && (V.fold || trippy.fold > 0.02 || momentWhole.has(name))) return 0;
     if (kind === "hue" && colors.some((c) => momentRed(turnHue(c, 180)) > 0.5)) return 0; // turned halfway, one of the record's colors would come out a strong red
+    if (kind === "hue" && FAMILY[name] === "aero") return 0; // and so would the Aero pictures' own blue sea and sky: on Frutiger Aero, as the colors turned round went, that orange-red came to one large red flash where the picture alone made none
+    if (kind === "lens" && momentLensMay()[0] < 1) return 0; // beside a red, an orange, a pink or a purple the lens would leave a strong red
+    if (kind === "stutter" && T.punch > 0 && punchKind() > 0) return 0; // the punch flashes the picture on the kicks, and the stutter takes hold on a kick: it would hold the flash for half a beat
+    if ((kind === "threed" || kind === "glitch") && name === "strings") return 0; // Strings is all fine lines shaking with the music: the 3D glasses, or the first glitch's colors pulled apart, would make every one of them two
+    if ((kind === "blocks" || kind === "tear" || kind === "threed" || kind === "glitch" || kind === "mirror") && momentLensMay()[0] < 1) return 0; // and where the lens may not come (a red, an orange, a pink or a purple in play, the hard mood, psytrance), no blocks, no tear, no 3D glasses, no first glitch and no mirror:
+    // on a picture drawn in a red, every piece knocked sideways or folded over is a piece of red moved, and taking the colors away is a change of red over the whole picture. (The first glitch on LEDs with a red record in the hard mood: five to seven red flashes in a second on the fine red grid
+    // where LEDs alone made one or two, for four seconds; the mirror there, red flashes on the coarse red grid in seconds where LEDs alone made none) With a red record, pieces of Strings' fine red lines came to one or two red flashes more in a second than Strings alone
+    // for six to eight seconds (and in the hard mood to one large change of light more), the blocks on LEDs to two red flashes in a second where LEDs alone made none, and the 3D glasses on LEDs to one red flash as they came and one as they went
+    if (T.stay > 0 && why === "groove" && momentBroad.has(kind) && flow.intensity < 0.45) return 0; // with "How long" on, a look that changes the whole picture's light or colors does not begin in a groove gone quiet (a drop may be near: see momentWhen)
+    if (kind === "split" && !momentBlue()) return 0; // the split colors move the blue alone: with no blue to move they would show nothing
+    if (chain && (kind === "stutter" || kind === "glitch" || kind === last || (kind === "threed" ? !momentLooks[last] : last === "threed" && !momentLooks[kind]) || (kind === "night" ? !!momentLooks[last] : last === "night" && !!momentLooks[kind]) || (FAMILY[name] === "space" && !(momentLooks[kind] && momentLooks[last])))) return 0; // in a chain: never the same look twice running, never the stutter (it holds the picture on the spare canvas, which the other look in a hand-over works on), never the first glitch (see momentNext),
+    // and the 3D glasses only next to another of the newer looks, so they always come and go by growing and shrinking (handed over by an edge, their colored rims would arrive at once where it passes); night vision never next to a newer look (both want the spare canvas: night vision's lines would be drawn
+    // anew on it every frame of the hand-over); and on Space's pictures only two newer looks one after the other, crossing (an edge sweeping round over a galaxy that pulses on the kick, the mirror handing over to the split colors on Orbit, came to five large flashes in a second on the fine grid where Orbit alone makes three)
     return (momentKinds[kind][why] || 0) * (kind === last ? 0.25 : 1);
   }
-  function momentBegin(kind, why, come = "", go = "") { // one begins, on the beat it was called on: in beats while the tempo is known, else in seconds
+  function momentBlue() { // whether any of the colors in play has much blue (a white has; a yellow, an orange, a red or a green has not): the record's colors, and the mood's when it paints in its own (the hard mood in nothing else; psytrance goes round every color)
+    const list = mood === "psy" ? null : mood === "hard" ? moodColors(3) : mood === "acid" || mood === "euphoric" || mood === "nightcore" ? colors.concat(moodColors(3)) : colors;
+    return !list || list.some(([r, gr, b]) => b >= 110 && b >= 0.6 * Math.max(r, gr));
+  }
+  function momentBegin(kind, why, come = "", go = "", link = false) { // one begins, on the beat it was called on: in beats while the tempo is known, else in seconds. link: the next look of a chain, taking over from the one showing
     const M = momentNow, list = momentWays[why][kind], beat = flow.bpm ? 60 / flow.bpm : 0, beats = (n, seconds) => (beat ? n * beat : seconds), least = (s, at) => (s >= at ? s : beat ? Math.ceil(at / beat) * beat : at); // (least: never quicker than at, still in whole beats)
+    const slow = momentSlow[kind] || 0, long = momentSet[kind] ? momentSet[kind].long : 1;
     if (!come) [come, go] = list[Math.floor(momentDice(0, 1) * list.length)];
     if (FAMILY[name] === "pixel") { come = momentPixel[come] || come; go = momentPixel[go] || go; }
+    if (momentBroad.has(kind) && momentLensMay()[0] < 1) { if (come === "fade") come = "wipe"; if (go === "fade") go = "wipe"; } // on a red or warm record (or the hard mood) a whole-picture look never comes or goes by a fade of its own, but by a wipe: a fade brings the red back
+    // to every place at once, and an x-ray or a duo fading away on LEDs with a red record came to one red flash where LEDs alone made none (a drop landing or a change of effect still sends it by a fade: see momentAway)
     if (quality < 1) { if (come === "slow") come = "fade"; if (go === "slow") go = "fade"; } // on a machine the app has already found slow (it has turned the picture's quality down), no tilt: turning the whole picture is the costliest way, and a slower frame still would make the app turn it down again, which starts the picture afresh
-    Object.assign(M, { kind, why, come, go, age: 0, goAt: -1, peak: 1, cutAt: -9, grainAt: -9, turn: momentDice(0, 1) < 0.5 ? 1 : -1, x: why === "drop" ? 0.5 : momentDice(0.35, 0.65), y: why === "drop" ? 0.5 : momentDice(0.35, 0.65) });
-    M.inFor = least(why === "drop" ? beats(1, 0.45) : why === "calm" ? beats(4, 2) : beats(2, 0.9), momentLeast[come] || 0); // a drop's opens out in a beat; a breakdown's comes in over a bar
-    M.holdFor = why === "calm" ? beats(8, 4) : why === "drop" ? beats(4, 1.8) : beats(momentDice(0, 1) < 0.5 ? 4 : 8, 2.5);
-    M.outFor = least(why === "groove" ? beats(2, 0.9) : beats(4, 1.8), momentLeast[go] || 0); // a drop's eases back over a bar
-    if (why === "drop") M.age = -Math.max(1.05, beats(4, 1.8)); // a drop's waits a bar, and at least a second: the drop's own flash goes up and comes down again in its first second, and the look coming in that same second would be one flash too many
+    Object.assign(M, { kind, why, come, go, of: name, age: 0, goAt: -1, peak: 1, back: false, stillFor: 0, withMorph: false, parted: false, pinWay: "", cutAt: -9, grainAt: -9, heldAt: -9, zapAge: -1, turn: momentDice(0, 1) < 0.5 ? 1 : -1, x: why === "drop" ? 0.5 : momentDice(0.35, 0.65), y: why === "drop" ? 0.5 : momentDice(0.35, 0.65) });
+    M.inFor = least(why === "drop" ? beats(1, 0.45) : why === "calm" ? beats(4, 2) : beats(2, 0.9), Math.max(momentLeast[come] || 0, slow)); // a drop's opens out in a beat; a breakdown's comes in over a bar
+    M.holdFor = (why === "calm" ? beats(8, 4) : why === "drop" ? beats(4, 1.8) : beats(momentDice(0, 1) < 0.5 ? 4 : 8, 2.5)) * long;
+    M.outFor = least(why === "groove" ? beats(2, 0.9) : beats(4, 1.8), Math.max(momentLeast[go] || 0, slow)); // a drop's eases back over a bar
+    if (momentBroad.has(kind) && momentLensMay()[0] < 1) { M.inFor = least(M.inFor, momentSweep); M.outFor = least(M.outFor, momentSweep); } // on a red or warm record, a look that changes the whole picture's colors comes and goes slowly at every setting: it takes the red from the whole picture,
+    // and the duo wiping in over three quarters of a second on LEDs with a red record was one red flash where LEDs alone made none
+    if (why === "drop" && !link) M.age = -Math.max(1.05, beats(4, 1.8)); // a drop's waits a bar, and at least a second: the drop's own flash goes up and comes down again in its first second, and the look coming in that same second would be one flash too many
     M.rest = 0;
     M.wait = momentDice(30, 42) / Math.max(0.1, T.tricks);
+    if (T.stay > 0 || T.bold > 0) momentLonger(kind, why, link, least); // the two sliders beside Color tricks (both at 0: the first pass's looks, exactly, and not one more throw of the dice)
+    else { M.top = M.from = 1; M.build = 0; M.links = 0; }
+  }
+  function momentLonger(kind, why, link, least) { // "How long" (T.stay) and "How strong" (T.bold), from 0 to 2; 1 is their usual setting.
+    // How long: the look holds longer, by the music (two to four bars at the usual setting: longer deep in a long groove and in a breakdown; a build or a drop sends it away early, see momentWhen),
+    // and comes and goes more slowly, its own way. And now and then (often after a drop, more often the busier the music, seldom in a breakdown) two to four looks follow one another before
+    // the picture is itself again: a chain, each handing over to the next (see momentNext). How strong: the look starts faint and grows over its first bar or two to a stronger peak than
+    // the first pass's (momentMost), then eases away as before. Coming by growing, its coming is that slow build; coming by an edge or a fade, it comes in faint and deepens behind the edge
+    const M = momentNow, L = Math.min(2, T.stay), S = Math.min(2, T.bold), beat = flow.bpm ? 60 / flow.bpm : 0, bar = beat ? 4 * beat : 1.8, whole = (s) => (beat ? Math.max(beat, Math.round(s / beat) * beat) : s);
+    const long = momentSet[kind].long, slow = Math.max(momentSlow[kind] || 0, momentLeast[M.come] || 0, momentLeast[M.go] || 0);
+    if (L > 0) {
+      if (!link) { // a chain or not, thrown once at its first look: after a drop half the time at the usual setting; in a groove from about one in eight in a quiet stretch to two in five in a busy one; in a breakdown one in sixteen
+        const busy = clamp((flow.intensity - 0.45) * 3), chance = Math.min(0.85, (why === "drop" ? 0.45 : why === "groove" ? 0.12 + 0.3 * busy : 0.06) * L);
+        M.links = kind !== "stutter" && momentDice(0, 1) < chance ? Math.min(3, 1 + Math.floor(momentDice(0, 1.5 + L))) : 0; // one to three more looks: two looks in all two times in five, three two in five, four one in five (more at the top)
+      }
+      const add = why === "calm" ? 2 : why === "drop" ? 1 : M.kicks > 128 ? 2 : 1; // bars added to the first pass's: two in a breakdown and deep in a long groove (past thirty-two bars), one after a drop and early in a groove
+      M.holdFor = link || M.links > 0 ? whole(bar * long * (1 + Math.floor(momentDice(0, 1 + L)))) : whole(M.holdFor + add * L * bar * long); // (in a chain each look holds one or two bars at the usual setting, so a chain of four is not four times as long)
+      const broad = momentBroad.has(kind) ? Math.max(momentSweep, bar * Math.min(2, 1 + L)) : 0; // (see momentBroad and momentSweep)
+      M.inFor = least(whole(Math.max(broad, M.inFor * (1 + 0.5 * L))), Math.max(slow, broad)); // and it comes and goes half as slowly again (twice as slowly at the top), in whole beats (rounded up, never under the floors: rounded to the nearest beat, 4.4 s came out as 4.22 at 128 beats a minute)
+      M.outFor = least(whole(Math.max(broad, M.outFor * (1 + 0.5 * L))), Math.max(slow, broad));
+    } else M.links = 0;
+    M.top = S > 0 ? momentMost(kind) : 1;
+    M.from = S > 0 && !momentSteady.has(kind) ? 1 - 0.4 * Math.min(1, S) : 1; // (an edge or a fade brings it in at three fifths of its full look at the usual setting, then it deepens; see momentSteady for those that come in full)
+    M.build = S > 0 ? whole(bar * Math.min(1, S) * (M.holdFor >= 3 * bar ? 2 : 1)) : 0; // a bar, or two when it holds three bars or more
+    if (S > 0 && (M.come === "grow" || M.come === "strips") && !link) M.inFor = least(Math.max(M.inFor, M.build), slow); // coming by growing, the build is the coming (a hand-over's coming is set by momentNext)
+  }
+  function momentMost(kind) { // how strong a look grows at its peak: 1 is the first pass's full look; at the top of "How strong" it is the look's own most (momentSet), at the usual setting halfway there
+    let most = momentSet[kind].most;
+    if (kind === "lens" && FAMILY[name] === "space") most = 1; // capped on Space's pictures (a dark sky and a big bright galaxy pulsing on the kick): its wider rims spread the galaxy's light over more of the picture, and on Orbit in a chain at the top that came to six large flashes in a second where Orbit alone makes five at the most (at 2.2 and at 1.8 alike; none at 1)
+    return 1 + (Math.min(2, T.bold) / 2) * (most - 1);
+  }
+  function momentLevel(come) { // how far the slow build has got for the look showing: from (faint) to top (its peak) over build seconds from when it began to come. A look that comes by growing has its build in its own coming, so it is at top all along; once it begins to go, it keeps what it had
+    const M = momentNow;
+    if (come === "grow" || come === "strips" || !(M.build > 0)) return M.top;
+    return M.from + (M.top - M.from) * eased(Math.min(1, Math.max(0, M.goAt >= 0 ? M.goAt : M.age) / M.build));
+  }
+  function momentNext() { // a chain: instead of going, the look showing hands over to the next, which comes in as it goes. False when no next look may come here (then this one simply goes, its own way)
+    // Two of the newer looks hand over by growing and shrinking: the next grows in as the last fades, over the same bar or two. Any other pair, by one edge sweeping across (a wipe, a circle opening out, or slices
+    // swept round; after a drop always the circle, as a drop's looks open out from the middle): behind the edge the next look, ahead of it the last, so each place changes once, from one look straight to the other.
+    // Never both in full at once in one place, and never quicker than a bar
+    const M = momentNow, A = M.kind;
+    if (!(T.stay > 0) || M.come === "slow" || A === "glitch" || M.of !== name) return false; // ("How long" set to 0 while a chain runs: it ends there) // (a look that came by tilting ends its chain: the picture would have to tilt back at once. And the first glitch is never in a chain: handing over to the split colors by a wipe over three and a half seconds, on the eclipse, it still made four large flashes in a second where the effect alone made none; its own strips are the only way it was measured safe)
+    const B = momentPick(M.why, true);
+    if (!B) return false;
+    const cross = !!momentLooks[A] && !!momentLooks[B], ways = M.why === "drop" ? ["circle"] : ["wipe", "circle", "slices"], how = cross ? "grow" : ways[Math.floor(momentDice(0, ways.length))];
+    const list = momentWays[M.why][B], go = list[Math.floor(momentDice(0, list.length))][1], links = M.links - 1, beat = flow.bpm ? 60 / flow.bpm : 0, bar = beat ? 4 * beat : 1.8;
+    Object.assign(momentWas, { kind: A, cross, top: momentLevel(M.come) });
+    for (const k of momentTheirs) momentWas[k] = M[k];
+    momentCutsWas.set(momentCuts);
+    momentBegin(B, M.why, how, go === "slow" ? "fade" : go, true); // (it goes later by its own way, but never by tilting: it never tilted in)
+    M.links = links;
+    const over = cross ? bar * Math.max(1, 0.5 + 0.5 * Math.min(2, T.stay)) : Math.max(momentSweep, bar * Math.min(2, 1 + T.stay)), least = Math.max(momentSlow[A] || 0, momentSlow[B] || 0, momentLeast[M.come] || 0); // growing and shrinking, the hand-over takes a bar at the usual setting (a bar and a half at the top); by an edge, two bars and never under momentSweep; and never less than either look must take
+    M.inFor = Math.max(over, beat ? Math.ceil(least / beat) * beat : least, cross ? M.build : 0); // (growing in, the next look's slow build is its coming, as always)
+    return true;
+  }
+  function momentRevert() { // a chain's hand-over that has only just begun (a tenth of a second at most, so the next look has shown next to nothing: a fifteen-hundredth of its way) when the effect changes to one
+    // the next look may not come on: the next look is dropped, and the look handing over, still all there, goes from where it is, in its own way (a look of the whole picture's light by a fade). Letting the
+    // hand-over finish drew the next look over a picture it is kept off: a drop's lens handed over to on the kaleidoscope came to seven large flashes in a second where the kaleidoscope alone made four
+    const M = momentNow, W = momentWas, beat = flow.bpm ? 60 / flow.bpm : 0.5;
+    momentSwap(); // (its own numbers and pieces back: how long it has been on, its cuts, its grain, which way it leans)
+    Object.assign(M, { kind: W.kind, top: W.top, come: "grow", back: false, links: 0, build: 0, peak: 1, goAt: M.age, withMorph: !!morph, parted: true, pinWay: "" });
+    W.kind = "";
+    M.go = momentBroad.has(M.kind) || M.kind === "night" ? "fade" : M.kind === "mirror" ? "fold" : "grow";
+    M.outFor = Math.max(momentBroad.has(M.kind) ? momentSweep : 4 * beat, momentSlow[M.kind] || 0, momentLeast[M.go] || 0);
+  }
+  function momentSwap() { // the look handing over and the one taking over trade their own numbers and pieces: before the one handing over is drawn, and again after
+    const M = momentNow, W = momentWas, C = momentCuts, D = momentCutsWas;
+    for (const k of momentTheirs) { const v = M[k]; M[k] = W[k]; W[k] = v; }
+    for (let i = 0; i < C.length; i++) { const v = C[i]; C[i] = D[i]; D[i] = v; }
   }
 
   function momentShow() { // from drawFrame(), after everything else in the picture: whether one begins, and while one is on, the look over the whole picture
     const M = momentNow, step = Math.min(0.1, Math.max(0, (realNow - M.was) / 1000)); // its own clock, in real seconds, so beats stay beats whatever the Speed slider says
+    if (realNow - M.was > 250) M.heldAt = -9; // after a gap (the picture hidden and shown again, a tab that slept) the stutter lets go: what it held is from before
     M.was = realNow;
     if (g !== stage) return;
     momentWhen(step);
-    if (!M.kind) return;
-    if (!T.tricks) { if (M.age < 0) { M.kind = ""; return; } M.holdFor = 0; } // turned off: one still waiting for its beat never comes, and one showing goes as soon as it is all in, in its usual way, so the picture never jumps back
-    M.age += step;
+    if (!M.kind) { momentZap(step); return; } // (no moment: a burst, if one is on)
+    if (!T.tricks) { if (M.age < 0) { M.kind = momentWas.kind = ""; return; } M.holdFor = 0; M.links = 0; } // turned off: one still waiting for its beat never comes, and one showing goes as soon as it is all in, in its usual way, so the picture never jumps back (and no more follow it)
+    if (M.back && morph && morph.live && M.stillFor < 12) M.stillFor += step; else M.age += step; // (going back the way it came, it stands still while one effect changes into another: moving across the two pictures as they crossed, a negative's band on Frutiger Aero
+    // changing to the eclipse came to five large flashes in that second where the change alone made one. Twelve seconds in all at the most, so nothing is ever held without end)
     if (M.age < 0) return; // (a drop's, waiting for its bar)
     const held = M.inFor + M.holdFor, beat = flow.bpm ? 60 / flow.bpm : 0.5;
-    if (M.goAt < 0 && M.age >= held && (sound.kickHit || M.why === "calm" || !hearing || M.age >= held + beat)) M.goAt = M.age; // it goes on a kick: it was timed from one, so the kick is about due
+    if (M.goAt < 0 && M.age >= held && (sound.kickHit || M.why === "calm" || !hearing || M.age >= held + beat)) { if (!(M.links > 0 && momentNext())) M.goAt = M.age; } // it goes on a kick: it was timed from one, so the kick is about due (or, in a chain, hands over to the next look then)
     const coming = M.goAt < 0, q = coming ? Math.min(1, M.age / M.inFor) : (M.age - M.goAt) / M.outFor;
-    if (!coming && q >= 1) { M.last = M.kind; M.kind = ""; return; }
-    const way = coming ? M.come : M.go, e = eased(q), on = coming ? e : M.peak * (1 - e), soft = (alone ? 1 : 0.75) * (M.why === "calm" ? 0.7 : 1); // softer behind the page, where words sit over it, and in a breakdown
-    const moving = way === "fade" || way === "slow", much = moving ? on * soft : soft, clip = way === "wipe" || way === "circle" || way === "slices", dot = momentDot(), src = momentKeep(M.kind !== "night");
+    const left = M.withMorph ? (morph ? 1 - clamp(morph.live ? morph.p : (realNow - morph.from) / morph.long) : 0) : 1; // (sent away by a change of effect while the two effects cross: never more of it than is left of the old picture,
+    // so it leaves with the effect it came on and the new one comes in clean. Fading on its own over a busy picture, a duo over the kaleidoscope came to seven large flashes in a second where the kaleidoscope alone made four)
+    if (!coming && (q >= 1 || left <= 0)) { M.last = M.kind; M.kind = momentWas.kind = ""; return; }
+    if (momentWas.kind && !(coming && q < 1) && !M.pinWay) momentWas.kind = ""; // (the look handed over from is all gone once the next is all in; one stopped part way by a change of effect fades with the next)
+    if (momentWas.kind) momentWas.age += step;
+    const way = coming ? M.come : M.go, e = eased(q), on = coming ? e : Math.min(M.peak * (1 - e), left), soft = (alone ? 1 : 0.75) * (M.why === "calm" ? 0.7 : 1); // softer behind the page, where words sit over it, and in a breakdown
+    const pin = M.pinWay, moving = way === "fade" || way === "slow", much = moving ? on * soft : soft, clip = !!pin || way === "wipe" || way === "circle" || way === "slices", dot = momentDot(); // (pin: stopped at an edge, fading: see momentPin)
+    if (momentLooks[M.kind] && !momentWas.kind && !((clip && !pin ? 1 : on) * soft * momentSet[M.kind].full > 0)) return; // a newer look at strength 0 (not yet come, all gone, or set to nothing): nothing at all is done, and the picture is exactly as the effect left it
+    const src = momentKeep(!momentOwn.has(M.kind) || (!!momentWas.kind && !momentOwn.has(momentWas.kind)));
     const angle = way === "slow" && src ? M.turn * on * Math.min(0.2, 0.05 + 0.025 * M.age) : 0; // (the tilt: by about a degree and a half a second while it lasts, and back as it goes)
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -13727,11 +14000,32 @@ window.Effects = (() => {
     g.shadowColor = "transparent";
     if ("filter" in g) g.filter = "none";
     if (dot > 1) g.imageSmoothingEnabled = false;
-    if (angle) momentLay(src, "source-over", 1, angle); // the picture tilted first, then the look over it
-    if (clip) { g.save(); momentClip(way, coming, on, e, dot); g.clip(); }
-    if (much > 0 && (!clip || on > 0)) momentPaint(M.kind, src, much, clip ? 1 : on, soft, moving, dot, angle);
-    if (clip) { g.restore(); momentEdge(way, coming, on, e, dot, soft); }
+    if (momentWas.kind) momentHand(src, pin ? M.pinE : e, soft, dot, pin ? on : 1); // a chain's hand-over: the last look and the next, see there (stopped part way by a change of effect, both fading)
+    else {
+      if (angle) momentLay(src, "source-over", 1, angle); // the picture tilted first, then the look over it
+      if (clip) { g.save(); if (pin) momentClip(pin, M.pinComing, M.pinOn, M.pinE, dot); else momentClip(way, coming || M.back, on, M.back ? on : e, dot); g.clip(); } // (going back the way it came: its coming, run backwards from where it had got to)
+      if (much > 0 && (!clip || on > 0)) momentPaint(M.kind, src, much, clip && !pin ? 1 : on, soft, moving, dot, angle, momentLevel(M.come));
+      if (clip) { g.restore(); if (pin) momentEdge(pin, M.pinComing, M.pinOn, M.pinE, dot, soft * on); else momentEdge(way, coming || M.back, on, M.back ? on : e, dot, soft); }
+    }
     g.restore();
+  }
+  function momentHand(src, e, soft, dot, f) { // a chain's hand-over, e of the way through: the last look (momentWas) going and the next (momentNow) coming. Whichever reads the clean copy of the picture is drawn first,
+    // since the other may work on the spare canvas, and the clean copy may be there. Each is drawn with its own numbers (momentSwap), so neither's pieces or timing jump as the other comes or goes
+    const M = momentNow, W = momentWas, lvl = momentLevel(M.come), newFirst = !momentOwn.has(M.kind) && momentOwn.has(W.kind);
+    for (let n = 0; n < 2; n++) {
+      const last = (n === 0) !== newFirst;
+      if (W.cross) { // growing and shrinking: the last fades as the next grows, the next drawn over the last
+        if (last) { momentSwap(); momentPaint(W.kind, src, soft, (1 - e) * f, soft, false, dot, 0, W.top); momentSwap(); }
+        else momentPaint(M.kind, src, soft, e * f, soft, false, dot, 0, lvl);
+        continue;
+      }
+      g.save(); // by an edge: the next look behind it, the last ahead of it, the two never in one place
+      momentClip(M.come, true, e, e, dot);
+      if (last) { g.rect(0, 0, w, h); g.clip("evenodd"); momentSwap(); momentFaint(W.kind, src, soft, dot, W.top, f); momentSwap(); }
+      else { g.clip(); if (e > 0) momentFaint(M.kind, src, soft, dot, lvl, f); }
+      g.restore();
+    }
+    if (!W.cross) momentEdge(M.come, true, e, e, dot, soft * f);
   }
   function momentKeep(need) { // the picture as it is now, before the look: drawScene() puts it back before the next frame (unless a clean copy without the visitors is already waiting there), and the looks that need it read it
     if (!dirty) { clean = copyOf(clean); dirty = true; return clean; }
@@ -13756,7 +14050,7 @@ window.Effects = (() => {
     if (way === "wipe") { // across the picture, or down it when it is taller than wide (a phone). Coming, the look is behind the edge; going, it is ahead of it, and the picture as it was follows on behind
       const edge = momentSnap(e * L, dot), from = coming ? 0 : edge, to = coming ? edge : L, a = M.turn > 0 ? from : L - to, b = M.turn > 0 ? to : L - from;
       if (tall) g.rect(0, a, w, b - a); else g.rect(a, 0, b - a, h);
-    } else if (way === "circle") g.arc(cx, cy, Math.max(0.5, on * far), 0, TAU); // opening out from the middle, and closing back into it
+    } else if (way === "circle") g.arc(cx, cy, Math.max(0.5, momentRadius(on, cx, cy, far)), 0, TAU); // opening out from the middle, and closing back into it
     else { // six slices of a round cake, swept open by six hands going round like a clock's, and swept shut again by them going on round, so each place changes once coming and once going
       const slice = TAU / 6, start = coming ? 0 : e * slice, stop = coming ? e * slice : slice;
       for (let i = 0; i < 6; i++) {
@@ -13773,17 +14067,19 @@ window.Effects = (() => {
     const M = momentNow, tall = h > w, L = tall ? h : w, cx = w * M.x, cy = h * M.y, far = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) * 1.02, thin = Math.max(dot, Math.min(w, h) / 300);
     g.beginPath();
     if (way === "wipe") { const edge = momentSnap(e * L, dot), at = M.turn > 0 ? edge : L - edge; if (tall) { g.moveTo(0, at); g.lineTo(w, at); } else { g.moveTo(at, 0); g.lineTo(at, h); } }
-    else g.arc(cx, cy, Math.max(0.5, on * far), 0, TAU);
+    else g.arc(cx, cy, Math.max(0.5, momentRadius(on, cx, cy, far)), 0, TAU);
     g.globalCompositeOperation = "lighter";
     g.strokeStyle = rgba(mix(momentCalm(colors[0]), [255, 255, 255], 0.5), 1);
     for (const [wide, light] of momentGlow) { g.globalAlpha = light * soft * Math.sin(Math.PI * e); g.lineWidth = thin * wide; g.stroke(); }
     g.globalAlpha = 1;
   }
   function momentFill(how, paint) { g.globalCompositeOperation = how; g.fillStyle = paint; g.fillRect(0, 0, w, h); } // one color over the whole picture, laid on the way how says (inside the clip, if there is one)
-  function momentPaint(kind, src, much, on, soft, moving, dot, angle) { // the look itself. much: how much of it (the picture as it was is laid back over the rest); on: how far it has come (and how far a fold or a glitch has got); moving: a fade or the tilt, on its way in or out
+  function momentPaint(kind, src, much, on, soft, moving, dot, angle, lvl = 1) { // the look itself. much: how much of it (the picture as it was is laid back over the rest); on: how far it has come (and how far a fold or a glitch has got); moving: a fade or the tilt, on its way in or out
+    // lvl: how strong it is by the slow build (see momentLevel): 1 is the first pass's full look; under 1 the colors are only that much of the way there (a negative's or an x-ray's light that much dimmer), over 1 stronger than that
     g.globalAlpha = 1;
+    const some = much * Math.min(1, lvl); // (how much of the duo, the night vision or the colors turned round: under its full look while the build is faint)
     if (kind === "negative" || kind === "xray") { // light turns dark and dark turns light: the picture times the light's color, then that taken away from the light, so black becomes the light itself (never brighter than top) and white becomes black
-      const top = (96 * soft) / Math.max(1, T.light), light = rgba(momentTop(kind === "xray" ? [170, 205, 240] : mix(momentCalm(colors[0]), [255, 255, 255], 0.75), top), 1); // softer by a dimmer light, not by laying the picture back over it: a negative mixed with its own picture is a flat grey. (Brightness above 1 lifts the whole canvas, so the light is lowered to match.) The negative's light is nearly white, only touched by the record's color: any more and every negative comes out in that one color
+      const top = ((96 * soft) / Math.max(1, T.light)) * lvl, light = rgba(momentTop(kind === "xray" ? [170, 205, 240] : mix(momentCalm(colors[0]), [255, 255, 255], 0.75), top), 1); // softer by a dimmer light, not by laying the picture back over it: a negative mixed with its own picture is a flat grey. (Brightness above 1 lifts the whole canvas, so the light is lowered to match.) The negative's light is nearly white, only touched by the record's color: any more and every negative comes out in that one color
       // (96 of 255 at most: most pictures are dark, and a dark picture turned over is a light sheet, so the sheet is kept a mid grey: a change, not a glare)
       g.globalCompositeOperation = "screen"; // the picture laid over itself first, by screen: its dim parts come up about twice as bright, and nothing goes past white, so once it is turned over its lines show clearly dark on the sheet instead of as a ghost
       if (angle) g.drawImage(g.canvas, 0, 0); else g.drawImage(src, 0, 0); // (tilting, the canvas already holds the picture tilted, so it is laid over itself as it is)
@@ -13794,18 +14090,26 @@ window.Effects = (() => {
       if (moving && on < 1) momentLay(src, "source-over", 1 - on, angle); // (only while a fade is on its way: then it does go through grey, briefly)
       return;
     }
+    if (momentLooks[kind]) { // a newer look: drawn at a strength, which is how far it has come (or all of it, inside a wipe or a circle), times how soft it is here, times how strong it is set to be, times the build.
+      // Up to 1 that is how much of the look there is; past 1 (only with "How strong" up) the look is all there and its distances grow: big, how many times further its colors or pieces are moved than in the full look
+      const strength = Math.max(0, (moving ? much : on * much) * momentSet[kind].full * lvl);
+      if (strength > 0) momentLooks[kind](src, Math.min(1, strength), dot, Math.max(1, strength));
+      return;
+    }
     if (kind === "duo") { // every color in the record's second color at the same lightness (its first is used more by most effects), and the shadows no darker than a dark first color
       let tone = colors[1] || colors[0];
       if (momentRed(tone) > 0.45) for (const c of colors) if (momentRed(c) < momentRed(tone)) tone = c; // a reddish second color gives way to the record's least red one: the whole picture in red would be a large red patch
-      momentFill("color", rgba(momentCalm(tone, 0.4, 0.85), 1));
+      const calm = momentCalm(tone, 0.4, 0.85);
+      momentFill("color", rgba(calm, 1));
+      if (lvl > 1) momentFill("multiply", rgba(mix([255, 255, 255], momentTop(calm, 255), Math.min(0.5, lvl - 1)), 1)); // deeper (past its full look, "How strong" up): what the tone has least of taken down further, so its color is stronger. Mostly the parts already darkest, and slowly, by the build
       momentFill("lighten", rgba(momentTop(momentCalm(colors[0]), 26), 1)); // (only just: a black picture stays nearly black)
-    } else if (kind === "night") { momentNight(much, dot); return; }
+    } else if (kind === "night") { momentNight(some, dot); return; }
     else if (kind === "hue") { // every color halfway round the wheel at the same lightness: turned over (which turns both the color and the light), then the light as it was laid back on
       momentFill("difference", "#fff");
       momentLay(src, "luminosity", 1, angle);
-    } else if (kind === "glitch") { momentGlitch(src, on * much, on, dot); return; }
+    } else if (kind === "glitch") { momentGlitch(src, on * much * lvl, on, dot); return; } // (its pieces and colors knocked further with the build)
     else if (kind === "mirror") { momentMirror(src, on, dot); return; }
-    if (much < 1) momentLay(src, "source-over", 1 - much, angle);
+    if (some < 1) momentLay(src, "source-over", 1 - some, angle);
   }
   function momentNight(much, dot) { // night vision: every color in green at the same lightness, the shadows lifted a little, lines across, darker edges and a little grain. Softer by laying each on more lightly, so the picture as it was is never needed
     const step = Math.max(3, dot * 2), grain = Math.max(1.5, dot), M = momentNow;
@@ -13849,6 +14153,7 @@ window.Effects = (() => {
     g.fill();
     g.globalAlpha = 1;
   }
+  function momentRecut() { return momentNow.cutAt < 0 || (momentNow.age - momentNow.cutAt > 0.25 + 0.1 * Math.min(1, T.bold) && (sound.hatHit || flow.clap || (sound.kickHit && momentNow.age - momentNow.cutAt > 0.5))); } // whether a glitch's pieces are cut again now: at its start, then on a hi-hat or a clap (or a kick, if neither has come for half a second), never more than four times a second (three, with "How strong" on: the pieces are bolder then)
   function momentCut() { // new pieces for the glitch: five at most, each a thin piece of a strip across part of the picture, so that together they never cover more than about a twentieth of it
     const C = momentCuts;
     momentNow.cutAt = momentNow.age;
@@ -13856,7 +14161,7 @@ window.Effects = (() => {
   }
   function momentGlitch(src, much, on, dot) { // the green and blue a little to one side of the red, and a few pieces of the picture knocked sideways, cut again on a hi-hat or a clap, never more than four times a second
     const M = momentNow, dx = Math.max(dot, momentSnap(w * 0.01 * much, dot)), C = momentCuts;
-    if (M.cutAt < 0 || (M.age - M.cutAt > 0.25 && (sound.hatHit || flow.clap || (sound.kickHit && M.age - M.cutAt > 0.5)))) momentCut();
+    if (momentRecut()) momentCut();
     momentFill("multiply", "#f00"); // the red stays where it is
     g.globalCompositeOperation = "lighten"; // and the green and blue come back a little to the side
     g.drawImage(src, 0, 0, w - dx, h, dx, 0, w - dx, h);
@@ -13875,6 +14180,222 @@ window.Effects = (() => {
     if (tall) { g.setTransform(1, 0, 0, -1, 0, 2 * half); g.drawImage(src, 0, half - k, w, k, 0, half - k, w, k); }
     else { g.setTransform(-1, 0, 0, 1, 2 * half, 0); g.drawImage(src, half - k, 0, k, h, half - k, 0, k, h); }
     g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  /* The newer looks. Each is handed a strength from 0 to 1 and draws that much of itself: at 0 it would leave the picture exactly as it is (it is not even called), at 1 it is the look in full,
+     and everything in between is in between, so it comes and goes by growing and shrinking. What is not said here about why is said at the top. */
+  const momentFrom = (src) => (momentWas.kind && !momentWas.cross && src ? src : g.canvas); // where the blocks, the tear and the split colors take their pieces from: the canvas as it stands, or in a hand-over by an edge the picture as it was,
+  // so no piece of the other look, on the far side of the edge, is knocked across it (small grey tiles of an x-ray handing over to the blocks showed inside the blocks' side)
+  function momentSpare() { // the spare canvas at the picture's size, for a look to work on: whatever was on it is gone
+    if (!momentArt || momentArt.width !== w || momentArt.height !== h) momentArt = paper(w, h)[0];
+    momentArtLines = 0;
+    return momentArt;
+  }
+  function momentPart(tint) { // onto the spare canvas: the picture as it stands now, times a color, so that only that much of its red, its green and its blue is left
+    const c = momentSpare(), x = c.getContext("2d");
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "copy";
+    x.drawImage(g.canvas, 0, 0);
+    x.globalCompositeOperation = "multiply";
+    x.fillStyle = tint;
+    x.fillRect(0, 0, w, h);
+    x.globalCompositeOperation = "source-over"; // (left as it was found: the copies of the picture are drawn onto this canvas too)
+    return c;
+  }
+  function momentPull(from, far, dot) { // a picture laid over the canvas, its light added to what is there, stretched outward from the middle: nothing moves at the middle, and what is half the picture's longer side away from it moves far dots outward
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 1;
+    if (dot <= 1) {
+      const k = 1 + far / (Math.max(w, h) / 2);
+      g.setTransform(k, 0, 0, k, (w / 2) * (1 - k), (h / 2) * (1 - k));
+      g.drawImage(from, 0, 0);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return;
+    }
+    // a pixel world is not stretched, so its dots stay square: upright bands of it (level ones on a phone) move outward by whole dots, the further from the middle the further
+    const tall = h > w, mid = momentSnap((tall ? h : w) / 2, dot), steps = Math.max(1e-6, far / dot); // steps: how many dots the outermost band moves
+    for (let j = 0, a = 0; a < mid + dot; j++) { // band j starts a dots from the middle, ends b dots from it, and moves j dots outward (the last one reaches past the edge)
+      const b = j + 0.5 >= steps ? mid + dot : Math.max(a + dot, momentSnap(((j + 0.5) / steps) * mid, dot)), wide = b - a, move = j * dot;
+      if (tall) { g.drawImage(from, 0, mid + a - move, w, wide, 0, mid + a, w, wide); g.drawImage(from, 0, mid - b + move, w, wide, 0, mid - b, w, wide); }
+      else { g.drawImage(from, mid + a - move, 0, wide, h, mid + a, 0, wide, h); g.drawImage(from, mid - b + move, 0, wide, h, mid - b, 0, wide, h); }
+      a = b;
+    }
+  }
+  function momentLens(src, s, dot, big = 1) { // the lens: most of the picture stays where it is (all its red and most of its green), the rest of its green is drawn a little bigger about the middle, and its blue bigger still.
+    // So nothing parts in the middle, and toward the edges every bright thing gets an orange rim on its inner side and a blue one on its outer side. On a kick (or a swell of the bass) the blue is thrown
+    // further out and comes back with the kick's own fading: blue is the color the eye takes least light from, so the rims can jump without the picture's light changing
+    const [may, green] = momentLensMay(), half = Math.max(w, h) / 2, pump = Math.min(1, Math.max(sound.kick, 0.7 * sound.bass)), unit = dot > 1 ? Math.max(1.5 * dot, 0.008 * half) : 0.008 * half; // unit: how far the green moves, half the longer side from the middle, at full strength
+    const share = Math.round(255 * green); // how much of the green moves, of 255: 105 with cool colors, less with warm ones, none with a peach or a deep yellow (then the rim is yellow, not orange)
+    s *= may; // (colors that have turned warm since it began: it eases away)
+    if (!(s > 0)) return;
+    let part = momentPart("#0000ff"); // the blue alone,
+    momentFill("multiply", "#ffff00"); // taken out of the picture,
+    momentPull(part, s * unit * (2 * big + 2 * pump), dot); // and put back further out: twice as far as the green, and as far again on a kick (big: the rims further apart with "How strong" up, but the kick's throw never bigger: more of a bright thing jumping on each kick was measured as more flashes)
+    if (!share) return;
+    part = momentPart("rgb(0," + share + ",0)"); // then part of the green alone (the blue is where it will stay by now, and is left out of this)
+    momentFill("multiply", "rgb(255," + (255 - share) + ",255)"); // what stays where it is: all the red and the rest of the green (together an orange, never a strong red), and the blue, which is already further out
+    momentPull(part, s * unit * big, dot);
+  }
+  function momentThreed(src, s, dot, big = 1) { // 3D glasses: the picture goes grey, and the red of its bright parts is moved to one side. The red is made from the picture's lightness, whatever its colors were and however far the look has come.
+    // Bright parts only, and the brighter the further: a thing as bright as can be moves all of its red, a dim one next to none, so bright lines stand off the picture and the dark between them stays clean.
+    // At less than full strength the picture is less grey, the red is fainter, and it is moved less far
+    const M = momentNow, full = Math.max(dot, 0.0045 * (w + h)) * big, near = dot > 1 ? Math.floor((s * full) / dot) * dot : s * full, part = dot > 1 ? (s * full - near) / dot : 0, c = momentSpare(), x = c.getContext("2d");
+    g.globalAlpha = s;
+    momentFill("saturation", "#808080"); // toward grey, by as much as the look is on
+    g.globalAlpha = 1;
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "copy";
+    x.drawImage(g.canvas, 0, 0);
+    if (s < 1) { x.globalCompositeOperation = "saturation"; x.fillStyle = "#808080"; x.fillRect(0, 0, w, h); } // on the spare canvas the picture goes all the way to grey: its lightness alone, so a red picture gives no redder a rim than a blue one
+    x.globalCompositeOperation = "multiply"; // that times itself: its bright parts stay nearly as bright, its dim parts all but go
+    x.drawImage(c, 0, 0);
+    x.fillStyle = "rgb(" + momentEye.map((v) => Math.floor(v * s)).join(",") + ")"; // and of those, the red (a pale red: see the top), as much of it as the look is on. (Never more red than the picture has there: a grey's red times less than itself)
+    x.fillRect(0, 0, w, h);
+    x.globalCompositeOperation = "source-over";
+    g.globalCompositeOperation = "difference"; // that red is taken out of the picture where it is, which leaves the bright parts blue-green there,
+    g.drawImage(c, 0, 0);
+    g.globalCompositeOperation = "lighter"; // and is put back a little to one side. (Where nothing has moved, what was taken out and what is put back make the picture as it was)
+    for (const [far, some] of [[near, 1 - part], [near + dot, part]]) { // (a pixel world's red only ever lands on whole dots: it is shared between the two nearest places, so it still grows smoothly, and no rim cuts in a dot at a time)
+      if (!(some > 0)) continue;
+      const strip = Math.floor(far), at = M.turn > 0 ? w - strip : 0;
+      g.globalAlpha = some;
+      g.drawImage(c, -M.turn * far, 0);
+      if (strip >= 1) g.drawImage(c, at, 0, strip, h, at, 0, strip, h); // (the strip at the edge that the moved red has left gets its own red back, so no edge is left a different color)
+    }
+    g.globalAlpha = 1;
+  }
+  function momentBlocks(src, s, dot, big = 1) { // blocks: four pieces of the picture, cut along a grid of squares (32 along its longer side), knocked sideways by one to three squares, or up or down by half as much; or repeated twice over beside themselves, like a stuck tile. At less than full strength they are knocked less far
+    const M = momentNow, C = momentCuts, cell = Math.max(dot, momentSnap(Math.max(w, h) / 32, dot)), c = momentSpare(), x = c.getContext("2d");
+    if (momentRecut()) { // all four at the start; after that one piece at a time is thrown anew, in turn, so that a cut never changes more than one small place and one more. For each: where it is across and down, how many squares wide (2 to 4) and tall (1 or 2), how many squares it is knocked and which way, and which kind (under 0.3 repeated, over 0.85 up or down)
+      const all = M.cutAt < 0;
+      M.cutAt = M.age;
+      M.cutN = all ? 0 : M.cutN + 1;
+      for (let i = 0; i < 4; i++) if (all || i === M.cutN % 4) { C[i * 6] = momentDice(0, 1); C[i * 6 + 1] = momentDice(0, 1); C[i * 6 + 2] = Math.floor(momentDice(2, 4.999)); C[i * 6 + 3] = Math.floor(momentDice(1, 2.999)); C[i * 6 + 4] = (momentDice(0, 1) < 0.5 ? -1 : 1) * Math.floor(momentDice(1, 3.999)); C[i * 6 + 5] = momentDice(0, 1); }
+    }
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+    g.globalCompositeOperation = "source-over";
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < Math.min(4, 1 + Math.floor(M.age / 0.34)); i++) { // (the pieces come one at a time, a third of a second apart: all four at once, even faint, tipped the counters into a large flash more than the effect alone made.) First each piece of the picture as it stands onto the spare canvas (whole dots of it), then from there to where it is knocked: a small piece copied once is far less work than pieces taken from a copy of the whole picture
+      const wide = Math.min(w, C[i * 6 + 2] * cell), tall = Math.min(h, C[i * 6 + 3] * cell), left = Math.min(w - wide, momentSnap(C[i * 6] * (w - wide), cell)), top = Math.min(h - tall, momentSnap(C[i * 6 + 1] * (h - tall), cell)), knock = C[i * 6 + 4], kind = C[i * 6 + 5];
+      const shift = momentSnap((kind < 0.3 ? Math.sign(knock) * wide : kind > 0.85 ? knock * cell * 0.5 : knock * cell) * s * big, dot);
+      if (!shift) continue;
+      if (!pass) { const l = Math.floor(left), t = Math.floor(top), r = Math.ceil(left + wide), b = Math.ceil(top + tall); x.drawImage(momentFrom(src), l, t, r - l, b - t, l, t, r - l, b - t); continue; }
+      if (kind > 0.85) g.drawImage(c, left, top, wide, tall, left, top + shift, wide, tall);
+      else { g.drawImage(c, left, top, wide, tall, left + shift, top, wide, tall); if (kind < 0.3) g.drawImage(c, left, top, wide, tall, left + 2 * shift, top, wide, tall); }
+    }
+  }
+  function momentTear(src, s, dot, big = 1) { // a tear: three thin bands right across the picture pulled sideways, each torn into three strips pulled less and less, like a page ripped along a ruler. What leaves at one side comes back in at the other, so no gap shows. The bands drift slowly down the picture, by the clock
+    const M = momentNow, C = momentCuts, c = momentSpare(), x = c.getContext("2d");
+    if (M.cutAt < 0 || (M.age - M.cutAt > 1 && momentRecut())) { // all three at the start. For each band: how far down it starts, how tall (1.2 to 3 hundredths of the picture), how far pulled (3 to 9 hundredths of its width, either way), how fast it drifts down (parts of the picture a second), and when it was thrown
+      const all = M.cutAt < 0; // after that, on a hi-hat or a clap but never more than once a second, one band at a time, in turn, gets a new pull where it is: it is not moved, since a band that jumps to a new place changes two places at once, and across one big bright shape that was measured as a flash
+      M.cutAt = M.age;
+      M.cutN = all ? 0 : M.cutN + 1;
+      for (let i = 0; i < 3; i++) {
+        if (all) { C[i * 6] = momentDice(0, 1); C[i * 6 + 1] = momentDice(0.012, 0.03); C[i * 6 + 3] = momentDice(0.02, 0.06); C[i * 6 + 4] = M.age; }
+        if (all || i === M.cutN % 3) C[i * 6 + 2] = (momentDice(0, 1) < 0.5 ? -1 : 1) * momentDice(0.03, 0.09);
+      }
+    }
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+    g.globalCompositeOperation = "source-over";
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < Math.min(3, 1 + Math.floor(M.age)); i++) { // (the bands come one at a time, a second apart: all three at once, even at a third of its strength, tipped the counters into a large flash more than the effect alone made, on LEDs and on the eclipse.) First each band of the picture as it stands onto the spare canvas (whole rows of it), then the strips from there: a thin band copied once is far less work than strips taken from a copy of the whole picture
+      const strip = Math.max(dot, momentSnap(C[i * 6 + 1] * h / 3, dot)), tall = 3 * strip, top = momentSnap(momentBounce(C[i * 6] + C[i * 6 + 3] * Math.max(0, M.age - C[i * 6 + 4])) * (h - tall), dot); // (drifting down, and back up from the bottom: never jumping from the bottom to the top, which would change two places at once)
+      if (!pass) { const from = Math.max(0, Math.floor(top)), to = Math.min(h, Math.ceil(top + tall)); if (to > from) x.drawImage(momentFrom(src), 0, from, w, to - from, 0, from, w, to - from); continue; }
+      for (let j = 0; j < 3; j++) {
+        const shift = momentSnap(C[i * 6 + 2] * w * s * big * (1 - j / 3), dot), y = top + j * strip, a = Math.abs(shift);
+        if (!a || a >= w || y >= h) continue;
+        if (shift > 0) { g.drawImage(c, 0, y, w - a, strip, a, y, w - a, strip); g.drawImage(c, w - a, y, a, strip, 0, y, a, strip); }
+        else { g.drawImage(c, a, y, w - a, strip, 0, y, w - a, strip); g.drawImage(c, 0, y, a, strip, w - a, y, a, strip); }
+      }
+    }
+  }
+  function momentSplit(src, s, dot, big = 1) { // split colors: in three wide bands across the picture the blue is pulled sideways, away from the red and green, which stay together (so the rims are blue and yellow; only a pink or purple thing, which is red once its blue has gone, gets a red one).
+    // On each hi-hat or clap there are new bands and the blue is thrown to a new side; then it settles back to under half as far, in about a tenth of a second by the clock
+    const M = momentNow, C = momentCuts, c = momentSpare(), x = c.getContext("2d");
+    if (momentRecut()) { // for each band: how far down it starts, how tall (8 to 16 hundredths of the picture), and how far its blue is thrown (0.6 to 1.6 hundredths of the picture's width, either way)
+      M.cutAt = M.age;
+      for (let i = 0; i < 3; i++) { C[i * 6] = momentDice(0, 1); C[i * 6 + 1] = momentDice(0.08, 0.16); C[i * 6 + 2] = (momentDice(0, 1) < 0.5 ? -1 : 1) * momentDice(0.006, 0.016); }
+    }
+    const settle = 0.4 + 0.6 * Math.exp(-Math.max(0, M.age - M.cutAt) / 0.12);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    for (let i = 0; i < 3; i++) {
+      const tall = Math.round(Math.max(dot, momentSnap(C[i * 6 + 1] * h, dot))), top = Math.round(momentSnap(C[i * 6] * (h - tall), dot)), shift = momentSnap(C[i * 6 + 2] * w * s * big * settle, dot), a = Math.abs(shift); // (whole rows of the picture: a half-covered row would keep some of what was on the spare canvas before, and show as a bright hairline)
+      if (!a || a >= w) continue;
+      x.globalCompositeOperation = "source-over"; // onto the spare canvas: this band of the picture as it stands, and of it the blue alone
+      x.drawImage(momentFrom(src), 0, top, w, tall, 0, top, w, tall);
+      x.globalCompositeOperation = "multiply";
+      x.fillStyle = "#0000ff";
+      x.fillRect(0, top, w, tall);
+      g.globalCompositeOperation = "multiply"; // the band without its blue,
+      g.fillStyle = "#ffff00";
+      g.fillRect(0, top, w, tall);
+      g.globalCompositeOperation = "lighter"; // and the blue back, to one side (what leaves at one end comes back in at the other)
+      if (shift > 0) { g.drawImage(c, 0, top, w - a, tall, a, top, w - a, tall); g.drawImage(c, w - a, top, a, tall, 0, top, a, tall); }
+      else { g.drawImage(c, a, top, w - a, tall, 0, top, w - a, tall); g.drawImage(c, 0, top, a, tall, w - a, top, a, tall); }
+    }
+    x.globalCompositeOperation = "source-over";
+  }
+  function momentStutter(src, s, dot, big = 1) { // a stutter: on each beat the picture sticks. It is kept as it is on that frame and shown for half a beat (never under 0.14 s nor over 0.3), then let go, and the picture catches up.
+    // Only ever the picture of a moment ago, shown once: never an older one again, so nothing flips back and forth. While it sticks, two thin bands of it are pulled sideways, as on a tape that has caught
+    const M = momentNow, C = momentCuts, beat = flow.period || (flow.bpm ? 60 / flow.bpm : 0.46), long = Math.max(0.14, Math.min(0.3, beat / 2));
+    let held = M.heldAt >= 0 && M.age - M.heldAt < long && !!momentArt && momentArt.width === w && momentArt.height === h;
+    if (!held && (M.heldAt < 0 || M.age - M.heldAt > Math.max(0.3, long + 0.06)) && (sound.kickHit || (flow.beatSure > 0.6 && flow.beatHit))) { // a beat (the kick, or the clock's beat when it is sure): it sticks from here
+      const x = momentSpare().getContext("2d");
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.globalAlpha = 1;
+      x.globalCompositeOperation = "copy";
+      x.drawImage(g.canvas, 0, 0);
+      x.globalCompositeOperation = "source-over";
+      M.heldAt = M.age;
+      for (let i = 0; i < 2; i++) { C[i * 6] = momentDice(0, 1); C[i * 6 + 1] = momentDice(0.02, 0.045); C[i * 6 + 2] = (momentDice(0, 1) < 0.5 ? -1 : 1) * momentDice(0.02, 0.06); } // the two bands: how far down, how tall, how far pulled, as parts of the picture
+      held = true;
+    }
+    if (!held) return;
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = s; // (at less than full strength the held picture lies over the moving one like a ghost)
+    g.drawImage(momentArt, 0, 0);
+    g.globalAlpha = 1;
+    for (let i = 0; i < 2; i++) {
+      const tall = Math.max(dot, momentSnap(C[i * 6 + 1] * h, dot)), top = momentSnap(C[i * 6] * (h - tall), dot), shift = momentSnap(C[i * 6 + 2] * w * s * big, dot), a = Math.abs(shift);
+      if (!a || a >= w) continue;
+      if (shift > 0) { g.drawImage(momentArt, 0, top, w - a, tall, a, top, w - a, tall); g.drawImage(momentArt, w - a, top, a, tall, 0, top, a, tall); }
+      else { g.drawImage(momentArt, a, top, w - a, tall, 0, top, w - a, tall); g.drawImage(momentArt, 0, top, a, tall, w - a, top, a, tall); }
+    }
+  }
+  function momentZap(step) { // a burst, while one is on: its thin band of the picture torn into five strips knocked sideways, cut again every eighth of a second by the clock. In over a twenty-fifth of a second, out over a twelfth
+    const M = momentNow, C = momentCuts;
+    if (M.zapAge < 0) return;
+    M.zapAge += step;
+    if (!T.tricks || flow.dropHit || M.zapAge >= M.zapFor) { M.zapAge = -1; return; } // (a drop landing ends it: the drop's first second is the drop's own)
+    const s = Math.max(0, Math.min(1, M.zapAge / 0.04, (M.zapFor - M.zapAge) / 0.08) * (alone ? 1 : 0.75) * momentSet.burst.full), dot = momentDot(), big = momentMost("burst"); // (softer behind the page, as the moments are)
+    if (!(s > 0)) return;
+    if (M.cutAt < 0 || M.zapAge - M.cutAt > 0.125) { // for each strip: how far down the band, how tall (as a part of the band), and how far knocked (1.2 to 4 hundredths of the picture's width, either way)
+      M.cutAt = M.zapAge;
+      for (let i = 0; i < 5; i++) { C[i * 6] = momentDice(0, 1); C[i * 6 + 1] = momentDice(0.2, 0.5); C[i * 6 + 2] = (momentDice(0, 1) < 0.5 ? -1 : 1) * momentDice(0.012, 0.04); }
+    }
+    const wide = Math.max(dot, momentSnap(M.zapW * w, dot)), high = Math.max(dot, momentSnap(M.zapH * h, dot)), left = momentSnap(M.zapX * w, dot), up = momentSnap(M.zapY * h, dot);
+    const c = momentSpare(), x = c.getContext("2d"), l = Math.max(0, Math.floor(left)), t = Math.max(0, Math.floor(up)), r = Math.min(w, Math.ceil(left + wide)), b = Math.min(h, Math.ceil(up + high));
+    momentKeep(false); // (the picture as it is, kept to be put back before the next frame)
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+    x.drawImage(g.canvas, l, t, r - l, b - t, l, t, r - l, b - t); // the band as it stands, onto the spare canvas (whole dots of it): the strips are taken from there
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    g.shadowColor = "transparent";
+    if ("filter" in g) g.filter = "none";
+    if (dot > 1) g.imageSmoothingEnabled = false;
+    for (let i = 0; i < 5; i++) {
+      const tall = Math.max(dot, momentSnap(C[i * 6 + 1] * high, dot)), top = up + momentSnap(C[i * 6] * Math.max(0, high - tall), dot), shift = momentSnap(C[i * 6 + 2] * w * s * big, dot);
+      if (shift) g.drawImage(c, left, top, wide, tall, left + shift, top, wide, tall);
+    }
+    g.restore();
   }
   /* ==== moments: end ==== */
   /* ==== punch: begin ==== */
@@ -16014,7 +16535,7 @@ window.Effects = (() => {
     visiting: () => guest.list.length > 0,
     hover: (x, y, how, by) => (guest.list.length ? guestHover(x, y, how, by) : ""), // the page's own mouse, for whoever is over the app: where it is on the screen, "move", "down" or "still" (lying where it was: said on every frame while somebody is there), and what it is ("mouse", "pen" or "touch"). If it came on the visitor or near it, the visitor leaves quickly, and its kind is given back ("" if nobody went)
     shoo() { for (const o of guest.list) guestGo(o); }, // whoever is over the app leaves quickly, each in its own way (the page's "Things on top" was turned off)
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "dream", "folk", "hand", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "stay", "bold", "dream", "folk", "hand", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       changeKnobs(); // the sliders the picture was drawn with, kept for an effect that goes on beside the next one (see the live change)
