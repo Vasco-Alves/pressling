@@ -70,8 +70,9 @@ window.Effects = (() => {
     return [r * same + gr * back + b * on, r * on + gr * same + b * back, r * back + gr * on + b * same].map((x) => Math.max(0, Math.min(255, x)));
   }
 
-  function fit() { // the picture is soft, so it needs far fewer pixels than the window has
-    const across = Math.round(Math.min(innerWidth, 1600) * quality), down = Math.round((across * innerHeight) / innerWidth);
+  const boxed = { w: 0, h: 0 }; // the box of the page the picture is drawn for, in points (the Effects page shows it in a window of its own beside its settings: see box()). 0 by 0 is the whole window, and Full view always has the whole window
+  function fit() { // the picture is soft, so it needs far fewer pixels than the window has (or than its box has, when it is drawn into one)
+    const wide = (!alone && boxed.w) || innerWidth, high = (!alone && boxed.h) || innerHeight, across = Math.round(Math.min(wide, 1600) * quality), down = Math.round((across * high) / wide);
     if (across === w && down === h) return;
     handFit(across, down); // (the mouse's places move with it: see the mouse block)
     w = canvas.width = spare.width = across;
@@ -10006,7 +10007,7 @@ window.Effects = (() => {
 
   function bandPlace() { // where everybody stands. The floor is the bottom of the picture in Full view; otherwise the top of the play bar, which covers the bottom of the picture
     const P = bandAt, much = company.much;
-    P.floor = alone ? h : Math.max(h * 0.6, h - ((innerWidth <= 820 ? 156 : 100) * w) / Math.max(1, innerWidth)); // the play bar is 84 points high and stands 12 off the bottom; in a window 820 points wide or less (a phone) it is 144 high, with 8 more under it in the glass look
+    P.floor = alone || boxed.w ? h : Math.max(h * 0.6, h - ((innerWidth <= 820 ? 156 : 100) * w) / Math.max(1, innerWidth)); // the play bar is 84 points high and stands 12 off the bottom; in a window 820 points wide or less (a phone) it is 144 high, with 8 more under it in the glass look. In a box of its own (see box()) the play bar is not over the picture, so the floor is the box's bottom edge
     P.tall = h > w;
     P.m = Math.min(w, P.floor);
     P.size = 0.85 + 0.15 * Math.min(2, much);
@@ -17152,6 +17153,7 @@ window.Effects = (() => {
       return true;
     },
     light: () => aside.lit, // the Brightness on the picture now: while one effect changes into another it glides from the old one's to the new one's (the app's flash on the kick starts from it)
+    box(across, down) { const wide = Math.round(+across), high = Math.round(+down), fits = (v) => Number.isFinite(v) && v >= 16 && v <= 16384; [boxed.w, boxed.h] = fits(wide) && fits(high) && wide <= high * 20 && high <= wide * 20 ? [wide, high] : [0, 0]; if (name) fit(); return boxed.w > 0; }, // the picture drawn for a box of the page so many points across and down (in whole points), in place of the whole window (the Effects page's own window for it). 0, 0 gives it the whole window again, and so do sizes that make no sense (under 16 points, over 16384, or one side more than twenty times the other). Says whether it took the box. The mouse's places move with it, and the crowd stands on the box's bottom edge. Full view always has the whole window, but full() does not change the picture's size: give the box back (0, 0) before Full view, and tell it again after. A new size wipes the picture's trails, as a new window size does, so tell it only when the size really changes (the same size again costs nothing)
     soft(px) { pageSoft = Math.max(0, Math.min(40, +px || 0)); paintFilter(); }, // how soft the picture is behind the page, in dots (0 is sharp)
     filterAt: (k) => `brightness(${k * aside.lit})${pageSoft ? ` blur(${pageSoft}px)` : ""}`, // the picture's filter with its Brightness times k, for the page's flash on the kick, which must keep the softness
     cover(img) { // the colors come from the record
