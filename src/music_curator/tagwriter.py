@@ -185,6 +185,9 @@ def probe(path):
                           "--", path], capture_output=True, text=True, encoding="utf-8").stdout
     d = json.loads(out or "{}")
     tags = {k.lower(): v for k, v in (d.get("format", {}).get("tags") or {}).items()}
+    for k in sorted(tags):  # ffprobe 9 names a comment by its language when that isn't "und" ("comment-eng", as this app writes it): it is still the comment
+        if k.startswith("comment-") and "comment" not in tags:
+            tags["comment"] = tags[k]
     streams = d.get("streams", [])
     return {"tags": tags, "secs": round(float(d.get("format", {}).get("duration", 0) or 0), 2),
             "codec": next((s.get("codec_name") for s in streams if s.get("codec_type") == "audio"), None),
