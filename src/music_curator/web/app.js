@@ -2365,7 +2365,7 @@ let myRecipes = {};
 try { myRecipes = JSON.parse(store("curator-recipes") || "{}") || {}; } catch { myRecipes = {}; }
 if (FX) for (const [key, raw] of Object.entries(myRecipes)) if (FX.recipes.keep(key, raw) && !FX.recipes.raw(key)) delete myRecipes[key]; // one that can't be read at all is left out
 const saveRecipes = () => store("curator-recipes", JSON.stringify(myRecipes));
-let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0, fxMorph = store("curator-fx-morph") === "1", fxSeen = [];
+let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0, fxMorph = store("curator-fx-morph") === "1";
 let fxKeep = store("curator-full-keep") === "1"; // in full view the controls stay on screen when the mouse rests
 const shareKept = (key, fallback) => { const v = parseFloat(store(key)); return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback; }; // a share from 0 to 1 kept on this device, or what it is when nothing was kept
 let fxShow = shareKept("curator-fx-show", 0.5), fxBlur = shareKept("curator-fx-blur", 0); // the picture behind the page, for every effect: how much of it shows on Now Playing (behind the other pages three fifths of that) and how soft it is there. Full view always shows it whole and sharp
@@ -2688,7 +2688,6 @@ function setFxEverywhere(on) {
 }
 function setFx(name) {
   if (!familyOf(name)) name = ""; // a name that is no style (an old saved one, a family's own name) means no effect, never a page that can't be drawn
-  if (fxName && fxName !== name) fxSeen = [...fxSeen.filter((s) => s !== fxName), fxName].slice(-6); // so Morph doesn't go straight back to one
   fxName = name;
   store("curator-fx", name);
   if (name) { store(`curator-fx-${familyOf(name)}`, name); store("curator-fx-last", name); } // the style you come back to it with next time
@@ -2696,20 +2695,31 @@ function setFx(name) {
   paintFxBar();
   syncFx();
 }
-/* Morph: the effect changes into another by itself now and then, on the beat. effects.js says when; this picks which: a style of another effect than the one showing (two styles of one effect can be so alike that the change looks like the effect fading into itself), and not one just seen. */
-function morphFx() {
-  if (fxWriting && familyOf(fxName) === "recipes") return; // not while a recipe is being written: the editor would go with the effect
-  const all = FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style)), fresh = all.filter((s) => s !== fxName && !fxSeen.includes(s)), away = fresh.filter((s) => familyOf(s) !== familyOf(fxName)), pool = away.length ? away : fresh;
-  FX.slow();
-  setFx(pool[Math.floor(Math.random() * pool.length)] || all.find((s) => s !== fxName));
+/* Morph: the effect changes into another by itself now and then, in time with the music. effects.js says when, and which (what suits the song comes up more often: see its Morph block); this makes the change.
+   Its settings and the starred styles are kept in this browser (of the settings, only what differs from the usual value), and handed to the picture. */
+let morphSettings = {}, fxStars = [];
+try { const kept = JSON.parse(store("curator-fx-morph-set") || "{}"); morphSettings = kept && typeof kept === "object" && !Array.isArray(kept) ? kept : {}; } catch { morphSettings = {}; }
+try { const kept = JSON.parse(store("curator-fx-stars") || "[]"); fxStars = Array.isArray(kept) ? kept.filter((s) => typeof s === "string") : []; } catch { fxStars = []; }
+function saveMorph() { // after a setting or a star changes: kept, and handed to the picture
+  store("curator-fx-morph-set", JSON.stringify(morphSettings));
+  store("curator-fx-stars", JSON.stringify(fxStars));
+  if (FX) FX.morphSet({ ...morphSettings, stars: fxStars });
+}
+function morphFx(choice) { // the change Morph picked, { style, lead }: says whether it was made
+  if (fxWriting && familyOf(fxName) === "recipes") return false; // not while a recipe is being written: the editor would go with the effect (Morph asks again later)
+  if (!choice || !familyOf(choice.style)) return false;
+  FX.slow(choice.lead);
+  setFx(choice.style);
+  return true;
 }
 function setMorph(on, now = true) {
   fxMorph = on;
   store("curator-fx-morph", on ? "1" : "");
   if (FX) FX.wander(on ? morphFx : null);
-  if (on && now && FX) morphFx(); // straight away, so you see what it does
-  else paintFxBar();
+  const choice = on && now && FX ? FX.morphNow() : null; // straight away, so you see what it does
+  if (!choice || !morphFx(choice)) paintFxBar();
 }
+if (FX) FX.morphSet({ ...morphSettings, stars: fxStars });
 if (FX && fxMorph) FX.wander(morphFx);
 function wakeFx() { // in full view the controls and the pointer go away until the mouse moves, unless they're kept
   if (!fxFull) return;

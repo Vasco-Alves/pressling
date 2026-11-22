@@ -5864,7 +5864,7 @@ window.Effects = (() => {
       if (vary.over[key] >= 1) overDone(key);
     }
     if (!dials || !T.vary || !hearing || pending || morph) return;
-    if (flow.dropHit) {
+    if (flow.dropHit && morphSet.versions) { // (a new version comes by itself only while Morph's "Versions change too" is on, with Morph on or off; a slow one already on its way still finishes)
       vary.on = 0;
       vary.due = phrase();
       setVersion(Object.fromEntries(Object.entries(dials).map(([key, list]) => [key, anyOf(list)])), Math.random() < 0.5 ? "zoom" : "iris");
@@ -5872,7 +5872,7 @@ window.Effects = (() => {
       const step = trip.steps[0];
       if (step && trip.at >= step.at && (sound.kickHit || trip.at >= step.at + 0.06)) { trip.steps.shift(); setVersion(step.pick, "fade", trip); }
       else if (!step && trip.at >= 1) { vary.trip = null; vary.on = 0; vary.due = phrase(); }
-    } else if ((vary.on += real) > vary.due && (flow.beatSure > 0.6 && flow.barSure > 0.3 ? flow.barHit && flow.gone < 1.4 : sound.kickHit)) { // on the start of a bar while the song's clock is sure of it, or else on a kick (and in a break, never)
+    } else if (morphSet.versions && (vary.on += real) > vary.due && (flow.beatSure > 0.6 && flow.barSure > 0.3 ? flow.barHit && flow.gone < 1.4 : sound.kickHit)) { // on the start of a bar while the song's clock is sure of it, or else on a kick (and in a break, never)
       vary.on = 0;
       vary.due = phrase();
       if (Math.random() < 0.45 && drift(dials)) return;
@@ -15431,9 +15431,9 @@ window.Effects = (() => {
     return fit >= n * 0.75 ? beat : 0;
   }
   function wayFor(going, coming, slow, beat) { // how it goes over, by the moment: quickly and calmly when picked by hand, in big square dots into or out of a pixel world, gently in a breakdown, on the beat in the groove
-    const list = !slow ? ["fade", "zoom"] : FAMILY[going] === "pixel" || FAMILY[coming] === "pixel" ? ["pixels", "tv"] : flow.part === "calm" ? ["fade", "melt", "record"] : beat ? ["kicks", "iris", "tiles", "record", "melt", "kicks"] : ["iris", "tiles", "record", "melt", "fade"];
+    const list = waysTicked(slow, !slow ? ["fade", "zoom"] : FAMILY[going] === "pixel" || FAMILY[coming] === "pixel" ? ["pixels", "tv"] : flow.part === "calm" ? ["fade", "melt", "record"] : beat ? ["kicks", "iris", "tiles", "record", "melt", "kicks"] : ["iris", "tiles", "record", "melt", "fade"]); // (Morph's changes keep to the ways ticked in its settings: see the Morph block)
     const ways = list.filter((k) => k !== wayWas);
-    wayWas = ways[Math.floor(Math.random() * ways.length)];
+    wayWas = ways.length ? ways[Math.floor(Math.random() * ways.length)] : list[0]; // (only one way ticked, and it was the last one: that one again)
     return wayWas;
   }
   function changeOver() { // a change starts: the effect showing moves onto a picture of its own, with everything that is its own, and the new one starts on the real picture from its first frame
@@ -15482,7 +15482,7 @@ window.Effects = (() => {
     snap = A.c;
     for (let i = 0; i < 64; i++) A.seeds[i] = Math.random();
     const lag = slow && beat && flow.since < 4 * beat ? flow.since / beat : 0; // how long ago the last kick was, in beats: the change's beats fall where the kicks do from its very start
-    morph = { live: true, p: 0, way: wayFor(going, coming, slow, beat), seeds: A.seeds, x: rnd(0.3, 0.7), y: rnd(0.3, 0.7), beat: slow ? beat : 0, beats: slow && beat ? 8 : 0,
+    morph = { live: true, p: 0, way: wayFor(going, coming, slow, beat), seeds: A.seeds, x: rnd(0.3, 0.7), y: rnd(0.3, 0.7), beat: slow ? beat : 0, beats: slow && beat ? morphSet.beats : 0,
       long: slow ? 2.6 : beat ? Math.min(1.3, Math.max(0.8, 2 * beat)) : 1.1, at: 0, b: 0, shift: lag - Math.round(lag), kicks: 0, rush: 0, rushFrom: 0, rushFor: 0, done: false, folkOver: crowd.folk.length > 0 };
     // beat: its length, kept from the start (0: by the clock), beats: how many, long: or how long by the clock (s); at: seconds since it began, b: beats so far, lined up with the kicks,
     // shift: how far the kicks have moved it from the clock (in beats); rush: hurried to its end in rushFor seconds, from where it was (rushFrom); done: nothing of the old one is left to show;
@@ -16550,19 +16550,181 @@ window.Effects = (() => {
     momentShow(); // now and then the whole picture takes on another look for a bar or two: see the moments
   }
 
-  /* Morph: the effect changes into another by itself now and then. Never just after a drop, which is the song's big moment and stays with the effect it landed on; best of all in a breakdown,
-     or on a kick as a build begins, so that the drop lands on the new one; otherwise on a kick, every minute or so. */
-  let wanders = null;
-  const roam = { on: 0, due: 60, sinceDrop: 99 };
-  function wander(real) {
-    const kick = sound.kickHit;
-    roam.sinceDrop = flow.dropHit ? 0 : Math.min(99, roam.sinceDrop + real);
-    if (!wanders || pending || morph || !hearing) return; // only while the music plays
-    roam.on += real;
-    if (roam.sinceDrop < 20) return;
-    const waiting = flow.part === "calm" || (flow.part === "build" && flow.build < 0.55 && kick); // a breakdown, or a build just begun
-    if ((waiting && roam.on > 25) || (kick && roam.on > roam.due) || roam.on > roam.due + 20) { roam.on = 0; roam.due = rnd(40, 80); wanders(); }
+  /* ==== morph: begin ==== */
+  /* Morph: the effect changes into another by itself now and then, in time with the music.
+     What it picks: every style has a number for how well it suits the music right now (the mood, the genre's own words, the part of the song, how hard the music is going, and what else
+     is in it: a tune on top, chords, a 303), and the next one is drawn by lot. With "Follows the music: Yes" a style with twice the number has about three times the chance; with "No" every
+     style has the same. Never the style showing, nor one of the last six seen; a style of the effect showing comes up a little less, so Morph moves about; a starred style three times as often.
+     When: after the stay the setting "How often" asks for (drawn afresh for each effect, between two thirds of it and a third more), on a kick or the start of a bar; sooner in a breakdown or
+     as a build begins, when "Waits for a quiet part" is on (from four tenths of the setting on, for every minute or more often; for every two or four minutes only from 20 s before the stay
+     is up, so that the change still comes about as often as the setting says); at the latest 20 s after the stay. Never in a drop or within 20 s after one: the drop is the song's big moment
+     and stays with the effect it landed on. Never before the shortest stay is over.
+     So that drops land on big pictures: a change made in a breakdown picks a calm picture for it, and books a second change, picked for the drop that is coming, free of the usual wait but
+     at least 8 s after the first began: on the first kick or bar of the build, or as the groove comes back, or as a breakdown with no build in it starts to rise again. A breakdown counts once
+     it has been on for a second; one that is already more than 8 s old when a change falls due is left alone, and the change waits for the build instead (or for its latest moment, in music
+     that never builds; a breakdown already 40 s old books nothing, so music with no kick at all, mostly one long calm, books little). Any change made in a build is picked for the drop that is coming.
+     The second change is booked only when the person's own choices leave room for it: "How often" every minute or more often, and the shortest stay 20 s or less. With a longer setting, or
+     at the song's turns, no change comes sooner than they say: a change that falls due in a breakdown waits for the build instead (or for the breakdown to rise again, or for its latest
+     moment), and is picked for the drop that is coming.
+     With "Follows the music: No" none of this is done (the pick does not look at the music): Morph changes when it always has.
+     The effect showing may speak to Morph through tells: "not now" (hold), while it is in the middle of something. A change that has fallen due then waits for it, 12 s at most, counted once
+     from when the change fell due until a change is made. And "now would be good" (now): a change that has fallen due goes then, even through a "not now".
+     What Morph planned or waited for is forgotten when the effect changes for any reason, when the picture is hidden, when Morph is turned off and when a new song begins.
+     The app keeps the settings and hands them over (Effects.morphSet). The change itself is the app's to make (it is handed { style, lead }), so the app can refuse one: then Morph waits
+     another stay before it asks again (and a second change it had booked is not wanted any more). */
+  const MORPH_USUAL = { every: 60, from: "all", families: Object.keys(STYLES), stars: [], music: 1.5, passages: 0.25, planets: true, ways: "auto", beats: 8, calm: true, stay: 20, afterDrop: true, versions: true };
+  // every: how often (seconds, or "turns": only when the song changes, a breakdown or a build; or "song": once a song); from: "all", "ticked" (only the effects in families) or "starred"
+  // (only the styles in stars, once there are two); music: how much the music decides (0 not at all, 0.75 a little, 1.5 yes, 2.25 a lot); passages, planets: for the changes in which one
+  // effect leads into the next, which come later; ways: "auto" or the ways a change may go; beats: how long a change lasts; calm: waits for a quiet part; stay: the shortest stay, in seconds;
+  // afterDrop: leaves a drop alone; versions: the effect showing also changes its own version by itself (with Morph on or off)
+  const morphSet = { ...MORPH_USUAL }, MORPH_CHOICES = { every: [30, 60, 120, 240, "turns", "song"], from: ["all", "ticked", "starred"], music: [0, 0.75, 1.5, 2.25], passages: [0, 0.25, 0.6], beats: [4, 8, 16], stay: [10, 20, 40, 60] };
+  const MORPH_WAYS = ["fade", "zoom", "record", "melt", "tiles", "iris", "kicks", "tv", "pixels"]; // the ways a person may tick for Morph's changes (see WAYS)
+  const waysTicked = (slow, list) => { // wayFor(): the ways for this moment, kept to the ones ticked for Morph's changes (when none of them is ticked, any ticked one); a change by hand goes as it always has
+    if (!slow || morphSet.ways === "auto") return list;
+    const mine = list.filter((k) => morphSet.ways.includes(k));
+    return mine.length ? mine : morphSet.ways;
+  };
+  /* What each style suits, one line a style. Mood letters: e euphoric, a acid, h hard, p psy, n nightcore (3 belongs there, 2 suits it well, 1.5 suits it, under 1 jars; with no mood
+     every style is 1). Parts of the song: calm (a breakdown), build, drop, groove. at: how hard the music it suits best is going, from 0 (still) to 1 (flat out). And what else it likes:
+     bright (the song lifting above its own usual), hot (harsher than its usual), chords, lead (a tune on top), 303 (an acid line). Anything not said is 1: it neither suits nor jars.
+     A first reading of each style, to be tuned by eye. A recipe, or a style with no line, is 1 for everything. */
+  const SUITS = Object.fromEntries(Object.entries({
+    ribbon: "e1.5 calm1.3 at.45 lead", silk: "e1.5 n1.5 h.6 calm1.8 drop.6 at.3 chords", helix: "a1.5 p1.3 lead", strings: "e1.3 calm1.3 at.45 lead",
+    bars: "h1.5 groove1.2 at.6", mirror: "e1.2 at.55", leds: "h1.5 a1.3 at.6", terrain: "e1.5 p1.2 build1.3", scope: "a2 h1.2 at.45 lead 303",
+    trails: "at.6", tunnel: "p1.5 a1.5 h1.3 build1.5 drop1.3 at.7", vortex: "p1.8 a1.8 build1.3 at.7 303", prism: "p1.5 e1.2 n1.3", ripple: "e1.3 calm1.8 drop.6 at.3 chords", comets: "e1.3 n1.5 lead",
+    stars: "e1.5 p1.3 build1.3 at.55", whirl: "p1.5 h1.2 drop1.3 at.65", dust: "e1.3 n1.3 calm2.2 drop.4 groove.8 at.2 chords", links: "e1.2 p1.2 calm1.8 drop.5 at.3 chords", fireworks: "h1.6 e1.6 n1.4 drop2 calm.4 at.85 hot",
+    halo: "at.55", sun: "e1.6 bright chords", rings: "a1.3", mandala: "p2.2 e1.2 chords", rays: "e1.8 h1.2 build1.4 drop1.4 at.65 bright",
+    space: "p3 e1.5 a1.2 h.9 n.8 at.55", warp: "p2.2 h1.5 e1.3 build1.6 drop1.8 calm.4 at.85", drift: "p2 e1.4 calm2.2 drop.4 at.2 chords", orbit: "p1.8 e1.4 calm2 drop.5 at.25 chords", well: "p2.2 h1.4 a1.3 build1.3", visitors: "p2.5 a1.5 at.55",
+    kaleido: "p2.5 a2 drop1.3 at.65 303", plasma: "a2.5 p2 at.6 303 hot", fractal: "p2.5 a1.5 build1.5 at.65", julia: "p2.5 a1.8 calm1.2 at.55 303", mandel: "p2.5 a1.5 at.55", newton: "p2.2 a1.8 at.55 303",
+    ocean: "e1.6 n1.2 p1.2 calm2 drop.6 at.3 chords", neonroad: "e1.6 h1.4 n1.5 groove1.3 drop1.3 calm.6 at.7", aurora: "e1.8 p1.5 calm2.2 drop.5 at.25 chords",
+    tube: "a2 p1.8 h1.5 build1.5 drop1.6 calm.5 at.8 303 hot", heads: "h2 a1.5 drop1.6 calm.6 at.75 hot", sphere: "e1.3 p1.3 at.55", solids: "p1.4 a1.2", city: "h1.8 e1.4 n1.3 drop1.5 groove1.2 calm.6 at.75 hot",
+    runner: "n2.5 h1.5 e1.2 groove1.3 calm.6 at.7", arcade: "n2.5 h1.6 drop1.3 calm.6 at.7", places: "n2 e1.2 at.45", life: "a1.6 p1.4 n1.5 calm1.2 at.45",
+    faces: "p2.5 a1.5 build1.4", forms: "p2.5 a2.2 at.55 303", beings: "p3.2 a1.3 calm1.3",
+    aero: "e1.8 n2 h.5 calm1.6 drop.7 at.35 bright chords", aqua: "e1.5 n1.8 h.6 calm1.6 drop.7 at.35 bright chords", dorfic: "e1.5 n2 h.7 bright", eco: "e1.6 n1.6 h.5 calm1.6 drop.7 at.35 bright chords",
+    darkaero: "h1.6 a1.4 p1.2 at.55", zen: "e1.3 p1.2 h.5 calm2.5 drop.3 groove.7 at.15 chords",
+  }).map(([style, line]) => [style, suitLine(line)]));
+  function suitLine(line) { // "e1.5 calm1.3 at.45 lead" as { e: 1.5, calm: 1.3, at: 0.45, likes: ["lead"] }: a word with a number is a mood, a part or at; a word without one is a like
+    const out = { likes: [] };
+    for (const word of line.split(" ")) {
+      const at = word.search(/[.0-9]/);
+      if (at > 0) out[word.slice(0, at)] = Number(word.slice(at)); else out.likes.push(word); // ("303" starts with its number: it is a like)
+    }
+    return out;
   }
+  const MOOD_LETTER = { euphoric: "e", acid: "a", hard: "h", psy: "p", nightcore: "n" };
+  const GENRE_SUITS = [ // a little more by the genre's own words, as the song's tags have them: the words, and how much more each style suits that music
+    [[" goa ", " psy ", " psytrance ", " psychedelic "], { space: 1.4, beings: 1.4, visitors: 1.2, forms: 1.2 }],
+    [[" gabber ", " hardcore ", " frenchcore ", " uptempo ", " hardstyle ", " terror "], { heads: 1.4, city: 1.4, bars: 1.3, leds: 1.3 }],
+    [[" acid "], { scope: 1.3, plasma: 1.2, vortex: 1.2 }],
+    [[" trance "], { rays: 1.2, stars: 1.2, aurora: 1.2 }],
+    [[" ambient ", " chill ", " chillout ", " downtempo ", " lounge "], { zen: 1.4, drift: 1.3, dust: 1.3, aurora: 1.2 }],
+    [[" synthwave ", " retrowave ", " outrun ", " italo "], { neonroad: 1.5, city: 1.3, runner: 1.2 }],
+    [[" chiptune ", " 8 bit ", " bitpop ", " game "], { runner: 1.5, arcade: 1.5, places: 1.3, life: 1.2 }],
+    [[" vaporwave ", " future funk "], { aero: 1.4, aqua: 1.3, dorfic: 1.3 }],
+    [[" drum and bass ", " drum n bass ", " jungle ", " dnb "], { tunnel: 1.3, warp: 1.3 }],
+  ];
+  const genreKept = { of: null, by: {} }; // the genre's words, read once for each song: how much more each style suits it
+  function genreSuits() {
+    if (genreKept.of === genre) return genreKept.by;
+    const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ", by = {};
+    for (const [list, more] of GENRE_SUITS) if (list.some((word) => words.includes(word))) for (const style in more) by[style] = (by[style] || 1) * more[style];
+    genreKept.of = genre;
+    genreKept.by = by;
+    return by;
+  }
+  function suitOf(style, part, intensity) { // how well a style suits the music: 1 is neither here nor there, more suits it, less jars. part, intensity: the part of the song to pick for, and how hard it goes
+    const s = SUITS[style];
+    if (!s) return 1;
+    let n = (s[MOOD_LETTER[mood]] ?? 1) * (genreSuits()[style] ?? 1) * (s[part] ?? 1);
+    if (s.at !== undefined) n *= Math.min(1.5, Math.max(0.35, 1.5 - 1.6 * Math.abs(intensity - s.at))); // best at its own intensity, and never less than about a third for it
+    for (const like of s.likes) n *= like === "bright" ? 1 + 0.8 * (flow.lift || 0) : like === "hot" ? 1 + 0.8 * (flow.heat || 0) : like === "chords" ? 1 + 0.8 * (flow.chords || 0) : like === "lead" ? 1 + 0.6 * (flow.lead || 0) : 1 + 1.2 * acidLook.on;
+    return n;
+  }
+  function morphPool() { // the styles Morph may pick from, built afresh from STYLES each time (so a recipe made a moment ago is in it): all, or only the ticked effects', or only the starred styles
+    const all = Object.values(STYLES).flatMap((list) => list.map(([style]) => style));
+    if (morphSet.from === "ticked") { const ticked = all.filter((style) => morphSet.families.includes(FAMILY[style])); if (ticked.length) return ticked; }
+    if (morphSet.from === "starred") { const starred = all.filter((style) => morphSet.stars.includes(style)); if (starred.length >= 2) return starred; }
+    return all; // with nothing ticked or fewer than two starred, from all of them
+  }
+  function morphPick(part, intensity, pool = morphPool()) { // the next style, drawn by lot by how well each suits the music for that part, or "" when there is nothing else to change to
+    const keep = Math.min(6, Math.floor(pool.length / 3)), recent = keep ? roam.seen.slice(-keep) : []; // (the last six seen are left out, fewer when few are allowed: a third of them at most)
+    let left = pool.filter((style) => style !== name && !recent.includes(style));
+    if (!left.length) left = pool.filter((style) => style !== name);
+    if (!left.length) return "";
+    const by = left.map((style) => suitOf(style, part, intensity) ** morphSet.music * (FAMILY[style] === FAMILY[name] ? 0.6 : 1));
+    let all = 0;
+    for (const x of by) all += x;
+    const least = (0.25 * all) / by.length; // every style still comes now and then, whatever the music: never less than a quarter of an even share
+    all = 0;
+    for (let i = 0; i < by.length; i++) all += by[i] = Math.max(least, by[i]) * (morphSet.stars.includes(left[i]) ? 3 : 1);
+    let at = Math.random() * all;
+    for (let i = 0; i < left.length; i++) if ((at -= by[i]) < 0) return left[i];
+    return left[left.length - 1];
+  }
+  const morphFor = (forDrop) => (forDrop || flow.part === "build" ? ["drop", Math.max(0.8, flow.intensity)] : [flow.part, flow.intensity]); // a change made in a build is picked for the drop that is coming
+  let wanders = null;
+  const tells = { hold: 0, now: "", what: "" }; // what the effect showing says to Morph this frame (see above): hold, not now; now, this would be a good moment (and what kind); what, what it is about
+  const roam = { on: 0, due: 60, since: 0, sinceDrop: 99, seen: [], calmFor: 0, calmLow: 1, buildFor: 0, inSong: 0, songDone: false, booked: false, fell: false, forDrop: false, held: 0, plan: null };
+  // on: how long the effect showing has stayed (seconds, while the music plays and no change is on); since: the same, counting its change too; due: its stay for "every minute" (drawn as each effect begins: 40 to 80 s), scaled to the setting;
+  // sinceDrop: seconds since the last drop; seen: the last six styles shown, newest last; calmFor, buildFor: how long the breakdown or the build has been on; calmLow: how quiet the breakdown has been at its quietest; inSong: seconds into the song;
+  // songDone: "Once a song" has had its change; booked: a change made in a breakdown wants another before the drop (only with the quick settings: see above); fell: a change has fallen due (picked for the drop if forDrop) and waits only
+  // for a "not now"; held: how long it has waited for one; plan: what Morph has planned and waits for (for the passages, which come later)
+  const stayOf = () => (morphSet.every === "turns" ? Math.max(20, morphSet.stay) : morphSet.stay); // the shortest stay (changes only at the song's turns are at least 20 s apart too)
+  function roamFresh() { // the effect changed (by Morph or by hand), the picture was hidden, Morph was turned off or a new song began: nothing planned or waited for is kept
+    roam.fell = roam.forDrop = roam.booked = false; // (the time a "not now" has held Morph back is kept until a change is made: an effect cannot start it again)
+    roam.plan = null;
+  }
+  function roamSaw(going) { // show(): the effect is changing from this one (or from nothing), for whatever reason
+    roamFresh();
+    roam.since = roam.held = 0;
+    if (!going) return;
+    const at = roam.seen.indexOf(going);
+    if (at >= 0) roam.seen.splice(at, 1);
+    roam.seen.push(going);
+    if (roam.seen.length > 6) roam.seen.shift();
+  }
+  function roamSong() { // song(): a new song begins
+    roamFresh();
+    roam.inSong = 0;
+    roam.songDone = false;
+  }
+  function wander(real) { // each frame while the picture shows: whether Morph changes the effect now
+    const S = morphSet, part = flow.part, kick = sound.kickHit > 0, bar = flow.barHit > 0 && flow.beatSure > 0.6 && flow.barSure > 0.3; // (a bar line only when the song's clock is sure of the bar)
+    roam.sinceDrop = flow.dropHit ? 0 : Math.min(99, roam.sinceDrop + real);
+    if (hearing) roam.since = Math.min(999, roam.since + real);
+    roam.calmLow = part !== "calm" ? 1 : Math.min(roam.calmFor ? roam.calmLow : 1, flow.intensity);
+    roam.calmFor = part === "calm" ? Math.min(99, roam.calmFor + real) : 0;
+    roam.buildFor = part === "build" ? Math.min(99, roam.buildFor + real) : 0;
+    if (hearing) roam.inSong = Math.min(999, roam.inSong + real);
+    if (flow.dropHit || part === "drop" || roam.since > 60) roam.booked = false; // the drop came first (or the breakdown's change was long ago): the second change is not wanted any more
+    if (!wanders || pending || morph || !hearing) return; // only while the music plays
+    roam.on = Math.min(999, roam.on + real);
+    if (flow.dropHit || (S.afterDrop && (part === "drop" || roam.sinceDrop < 20))) { roam.fell = false; return; } // a drop never starts one, and is left alone (its "not now" count is kept)
+    const follows = S.music > 0, books = follows && typeof S.every === "number" && S.every <= 60 && S.stay <= 20; // books: the person's choices leave room for a second change before the drop (see above)
+    if (!roam.fell) {
+      const building = part === "build" && flow.build < 0.55 && (kick || bar || roam.buildFor > 1), calmNew = part === "calm" && (!follows || (books && roam.calmFor >= 1 && roam.calmFor <= 5)), calmOld = follows && part === "calm" && (!books || roam.calmFor > 8); // a build just begun (on its first kick or bar, or once it surely has); a breakdown that has surely begun and is still new (its first 5 s: so the change it books can come before the drop), or one more than 8 s old (or any breakdown, when no second change can be booked). With "Follows the music: No" the pick does not care what is coming, so a breakdown is a breakdown however old, as it always was
+      const rising = follows && !books && part === "calm" && roam.calmFor > 1 && flow.intensity > roam.calmLow + 0.12; // with nothing to book: a breakdown that starts to rise again, for music in which the follower hears no build before the drop
+      const booked = roam.booked && roam.since >= 8 && (part === "build" ? kick || bar || roam.buildFor > 1 : part === "groove" || flow.intensity > roam.calmLow + 0.12); // the change the breakdown booked (see above)
+      let go = booked;
+      if (!go && roam.on >= stayOf()) {
+        if (S.every === "turns") go = calmNew || building || rising;
+        else if (S.every === "song") go = !roam.songDone && roam.inSong >= 8 && (building || (roam.inSong >= 45 && (kick || bar || roam.inSong >= 60))); // at the first build after its first 8 s, or by the clock if none comes
+        else {
+          const due = (roam.due * S.every) / 60, quietFrom = S.every <= 60 ? 0.4 * S.every : due - 20; // (a quiet part brings a change on sooner, but a long setting stays nearly its whole time)
+          go = (S.calm && roam.on >= quietFrom && (calmNew || building || rising)) || (roam.on >= due && (kick || bar) && !calmOld) || roam.on >= due + 20;
+        }
+      }
+      if (go) { roam.fell = true; roam.forDrop = booked || part === "build" || (follows && !books && part === "calm"); roam.booked = booked; } // (booked stays only for the booked change itself: it books no other. With nothing to book, a change made in a breakdown is the one the drop will land on)
+    }
+    if (!roam.fell) return;
+    if (tells.hold && !tells.now && roam.held < 12) { roam.held += real; return; } // the effect said not now: it waits, but 12 s at most
+    const again = books && !roam.booked && part === "calm" && roam.calmFor < 40, style = morphPick(...morphFor(roam.forDrop)); // again: a change made in a breakdown books the second one (not in a breakdown already 40 s old: music that never kicks at all is mostly one long calm)
+    roam.fell = roam.forDrop = false;
+    if (!style || wanders({ style, lead: "" }) === false) { roam.on = 0; roam.booked = false; return; } // nothing else may be shown, or the app could not change it now: another stay before it asks again (and nothing booked is wanted)
+    if (S.every === "song") roam.songDone = true;
+    roam.booked = again; // (after the change: the app's show() forgot what was planned)
+  }
+  /* ==== morph: end ==== */
 
   /* Visitors on the app itself, now and then: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it,
      somebody hangs on a thread from the top, an astronaut or a jellyfish goes by. They have a layer of their own over the page, shown only while one is there, and clicks go straight through it. */
@@ -16865,6 +17027,7 @@ window.Effects = (() => {
     names: [["ribbon", "Ribbon"], ["bars", "Bars"], ["trails", "Trails"], ["stars", "Stars"], ["halo", "Halo"], ["space", "Space"], ["trip", "Psychedelic"], ["journey", "Journeys"], ["worlds", "3D"], ["visions", "Visions"], ["pixel", "Pixel"], ["aero", "Aero"], ["recipes", "Recipes"]],
     styles: STYLES,
     show(next) {
+      if (next !== name) roamSaw(name); // the effect changes, for whatever reason: Morph keeps the one going in its history and forgets what it planned (see the Morph block)
       if (!canvas.hidden && name) { pending = next === name ? "" : next; if (pending && aside.tuned) changeLight(aside.litWas); return; } // already showing one: it changes on the next frame, from how it looks then
       canvas.hidden = false;
       slowNext = false; // from nothing there's nothing to change from
@@ -16872,6 +17035,7 @@ window.Effects = (() => {
       last = 0;
     },
     hide() {
+      roamFresh(); // nothing Morph planned is kept
       name = pending = "";
       slowNext = false;
       morph = null;
@@ -16885,7 +17049,25 @@ window.Effects = (() => {
       canvas.hidden = true;
     },
     slow() { slowNext = true; }, // the next change takes its time, for when it changes by itself
-    wander(pick) { wanders = pick || null; roam.on = 0; roam.due = rnd(40, 80); }, // Morph: what to call for the next effect now and then, or nothing to stay on this one
+    wander(pick) { wanders = pick || null; roam.on = 0; roam.due = rnd(40, 80); roamFresh(); }, // Morph: what to hand the next effect to ({ style, lead }) when it changes by itself, or nothing to stay on this one
+    morphSet(set) { // Morph's settings from the app (see the Morph block): only what differs from the usual value needs to be there, and anything it cannot use is the usual value
+      const s = set && typeof set === "object" ? set : {}, one = (key) => (MORPH_CHOICES[key].includes(s[key]) ? s[key] : MORPH_USUAL[key]), yes = (key) => (typeof s[key] === "boolean" ? s[key] : MORPH_USUAL[key]);
+      const names = (list, known) => (Array.isArray(list) ? list.filter((k) => typeof k === "string" && known(k)).slice(0, 200) : null), families = names(s.families, (k) => !!STYLES[k]), ways = names(s.ways, (k) => MORPH_WAYS.includes(k));
+      Object.assign(morphSet, { every: one("every"), from: one("from"), music: one("music"), passages: one("passages"), beats: one("beats"), stay: one("stay"), planets: yes("planets"), calm: yes("calm"), afterDrop: yes("afterDrop"),
+        versions: yes("versions"), families: families || MORPH_USUAL.families, stars: names(s.stars, (k) => k.length <= 80) || [], ways: ways && ways.length ? ways : "auto" });
+    },
+    morphNow() { // "Change now": the style Morph would change to at this moment, as { style, lead }, or null when there is none it may change to. It changes nothing: the app does (its morphFx), with Morph on or off
+      const style = morphPick(...morphFor(false));
+      return style ? { style, lead: "" } : null;
+    },
+    morphState() { // what Morph is doing, for the page's line of words (cheap: asked about once a second). wait: "off", "drop" (a drop is being left alone), "stay" (the shortest stay is not over),
+      // "held" (the effect said not now), "door" (waiting for a moment of the effect's own) or "due" (waiting for its moment in the music); left: seconds to go, where known (else null); style, passage: what is planned
+      const S = morphSet, plan = roam.plan, stay = roam.booked ? 8 : stayOf(), stayed = roam.booked ? roam.since : roam.on, dropLeft = 20 - roam.sinceDrop;
+      const wait = !wanders ? "off" : S.afterDrop && (flow.part === "drop" || dropLeft > 0) ? "drop" : stayed < stay ? "stay" : roam.fell && tells.hold && !tells.now ? "held" : plan ? "door" : "due";
+      const left = wait === "drop" ? (flow.part === "drop" ? null : dropLeft) : wait === "stay" ? stay - stayed : wait === "held" ? 12 - roam.held : wait === "due" && typeof S.every === "number" ? (roam.due * S.every) / 60 - roam.on : null;
+      return { wait, left: left === null ? null : Math.max(0, Math.round(left)), style: plan ? plan.style || "" : "", passage: plan ? plan.lead || "" : "" };
+    },
+    suits: (style) => suitOf(style, ...morphFor(false)), // how well a style suits the music now: 1 is neither here nor there, 2 and more suits it well (for a mark on the page)
     full(on) { alone = on; },
     pointer(x, y, how, by) { // the mouse, from the page: where it is on the screen and what it did ("move" or "down"), or "off" when it has left the picture or is over the page's own things. by: what it is ("mouse", "pen" or "touch"): a finger only ever taps
       if (how === "off") { pointer.on = false; return; }
@@ -16899,7 +17081,7 @@ window.Effects = (() => {
       if (how === "down") pointer.tap = { x: pointer.x, y: pointer.y, at: realNow };
     },
     mood(next) { mood = next || ""; }, // what's playing decides who comes by
-    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; flow.grooved = false; bandNewSong(); acidNewSong(); hearMoreNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
+    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; flow.grooved = false; bandNewSong(); acidNewSong(); hearMoreNewSong(); roamSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
     words: ["warp", "stop", "moo", "aliens"],
     word(what) { // typed on the keyboard, while a picture is showing
       if (!name) return;
