@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pressling"
-version = "0.1.9"
+version = "0.1.10"
 description = "Pressling: a player for your own music files with a curator built in. It checks songs against Discogs, settles the exact version, and writes clean tags and covers."
 readme = "README.md"
 license = "MIT"
