@@ -37,6 +37,17 @@ def cmd_init(args):
     with open(target, "w", encoding="utf-8") as f:
         f.write(config.EXAMPLE)
     print(f"Wrote {target}. Edit the paths, then run `pressling doctor`.")
+    usual = config.user_config_path()
+    if os.path.normcase(os.path.abspath(usual)) == os.path.normcase(target):
+        print("This is where your usual settings live, so Pressling uses this file from any folder.")
+    elif os.path.exists(usual):  # a curator.toml in the folder you start from comes before your usual settings
+        print(f"Careful: when Pressling is started from this folder, it now uses this file instead of your usual settings ({usual}). "
+              f"Delete this file to go back to them. From any other folder, use it with: pressling --config \"{target}\" <command>")
+    else:
+        print(f"Pressling uses this file when it's started from this folder, and from anywhere else with: pressling --config \"{target}\" <command>. "
+              f"(The app keeps your usual settings in {usual}, made the first time it opens.)")
+    if os.environ.get("CURATOR_CONFIG"):
+        print(f"Note: CURATOR_CONFIG is set ({os.environ['CURATOR_CONFIG']}), and the file it names comes before this one.")
 
 
 def cmd_doctor(args):
@@ -76,7 +87,8 @@ def main(argv=None, prog="pressling"):
     p = argparse.ArgumentParser(prog=prog, description="Pressling: a player for your own music files with a curator built in. It verifies songs against "
                                 "Discogs (and fallbacks), settles versions by length and fingerprints, and writes clean tags + covers.")
     p.add_argument("--version", action="version", version=f"Pressling {__version__}")
-    p.add_argument("--config", help="path to curator.toml (default: $CURATOR_CONFIG or ./curator.toml)")
+    p.add_argument("--config", help="the settings file to use. Without it: the file $CURATOR_CONFIG names, else a curator.toml in the folder you "
+                   "start from, else your usual settings (" + config.user_config_path().replace("%", "%%") + ")")
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     def add(name, help_, *args):
@@ -85,7 +97,7 @@ def main(argv=None, prog="pressling"):
             sp.add_argument(*a[0], **a[1])
         return sp
 
-    add("init", "write a starter curator.toml in the current folder")
+    add("init", "write an example curator.toml in the current folder, to edit by hand (the app makes your usual settings itself)")
     add("doctor", "check ffmpeg/chromaprint, the Discogs token, paths and yt-dlp")
     add("parse", "parse inbox folders (filenames + existing tags) into an items JSON",
         (["out"], {"help": "items JSON to write"}), (["dirs"], {"nargs": "*", "help": "folders (default: [paths] inbox)"}))

@@ -83,7 +83,9 @@ in a few plain words, skip whatever is already there, and get their OK before in
    opens their library later (the full path to `pressling serve` in `.venv`), and say what they can ask for next.
 
 By hand: the same virtual environment as step 2 (a plain `pip install` is refused on recent Linux and with Homebrew's Python),
-then `pressling init` writes a `curator.toml` in the current folder to edit, or `pressling serve` asks for the folders. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
+then `pressling` (the app) asks for the folders and saves them in the person's usual settings. `pressling init` writes an example
+`curator.toml` in the current folder instead, and that file takes over from the usual settings whenever Pressling starts from that
+folder, so only use it for a separate setup. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
 separate Python, set `[ytdlp] python`.
 
 ## What the person might ask

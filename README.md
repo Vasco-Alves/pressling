@@ -190,8 +190,11 @@ python3 -m venv .venv
 checks that everything is in place. From then on, that full path is how you start the app. If you'd rather type just `pressling`,
 activate the environment first in each new terminal: `.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on macOS and Linux.
 
-Prefer a config file? `pressling init` writes a `curator.toml` in the current folder. `curator`, Pressling's old name, still works as
-a command too.
+You don't need a settings file: the app saves your folders in your usual settings, `%APPDATA%\music-curator\curator.toml` on
+Windows and `~/.config/music-curator/curator.toml` on macOS and Linux. For a second, separate setup, `pressling init` writes an
+example `curator.toml` in the current folder. Pressling uses that one whenever it's started from that folder (it comes before your
+usual settings), and from anywhere with `pressling --config <file> <command>`. `curator`, Pressling's old name, still works as a
+command too.
 
 **How it fits together:** you put downloaded songs in your downloads folder and press **Curate**, or ask your AI app to curate
 them. Finished songs are copied into your library, sorted by genre, and your originals stay in downloads until you say they can

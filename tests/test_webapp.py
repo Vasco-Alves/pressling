@@ -931,5 +931,67 @@ class Command(unittest.TestCase):
             self.assertEqual(tomllib.load(f)["project"]["version"], __version__)  # a release needs both
 
 
+from music_curator import cli, config  # noqa: E402  (for the class below)
+
+
+class InitAndSettings(unittest.TestCase):
+    """`pressling init` writes an example settings file in the current folder, and says how it relates to your usual settings."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(config.load, None)
+        self.here = os.path.join(self.tmp.name, "here")
+        os.makedirs(self.here)
+        env = mock.patch.dict(os.environ, {"APPDATA": os.path.join(self.tmp.name, "appdata"), "XDG_CONFIG_HOME": os.path.join(self.tmp.name, "appdata")})
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop("CURATOR_CONFIG", None)
+        cwd = os.getcwd()
+        os.chdir(self.here)
+        self.addCleanup(os.chdir, cwd)
+
+    def init(self):
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            code = cli.main(["init"])
+        return code, said.getvalue()
+
+    def test_it_warns_when_the_new_file_takes_over_from_your_usual_settings(self):
+        usual = config.user_config_path()
+        os.makedirs(os.path.dirname(usual))
+        with open(usual, "w", encoding="utf-8") as f:
+            f.write("[paths]\n")
+        code, said = self.init()
+        self.assertIn(code, (0, None))
+        self.assertTrue(os.path.exists(os.path.join(self.here, "curator.toml")))
+        self.assertIn("instead of your usual settings", said)
+        self.assertIn(usual, said)
+        self.assertIn("--config", said)
+
+    def test_with_no_usual_settings_it_says_where_they_would_go(self):
+        code, said = self.init()
+        self.assertIn(code, (0, None))
+        self.assertIn(config.user_config_path(), said)
+        self.assertNotIn("Careful", said)
+
+    def test_it_never_writes_over_a_settings_file(self):
+        with open(os.path.join(self.here, "curator.toml"), "w", encoding="utf-8") as f:
+            f.write("# mine\n")
+        with mock.patch("sys.stdout", io.StringIO()), self.assertRaises(SystemExit):
+            cli.main(["init"])
+        with open(os.path.join(self.here, "curator.toml"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "# mine\n")
+
+    def test_the_help_names_the_usual_settings(self):
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said), self.assertRaises(SystemExit):
+            cli.pressling(["--help"])
+        flat, solid = " ".join(said.getvalue().split()), "".join(said.getvalue().split())  # (the help wraps long paths, even at a hyphen)
+        self.assertIn("CURATOR_CONFIG", flat)
+        self.assertIn("in the folder you start from", flat)
+        self.assertIn("".join(config.user_config_path().split()), solid)
+
+
 if __name__ == "__main__":
     unittest.main()
