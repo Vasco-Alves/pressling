@@ -5,6 +5,8 @@ Usage: pressling ost <items.json> <out.json>
 items.json: [{"key","src","game","title","artist"(optional),"mix"(optional)}]
 Same rules as resolve.py (artist as credited, title as listed, album/year/genre rules); the folder is
 always "Game OST". Status: ready | review | notfound | dup.
+With loose (Curate's game cards), a track whose name is the one searched in fewer or more words ("Menu" for "Main Menu") counts too,
+when it's the only such track on the soundtrack and its length agrees with the file's.
 """
 import json
 import os
@@ -28,7 +30,32 @@ def game_ok(game, release_title):
     return bool(g) and len(set(g) & rt) / len(g) >= 0.6
 
 
-def resolve(it, history, library_keys):
+NEAR_S = 6  # how far a track's length may be from the file's when only the words of its name say it's this track
+MAKERS = {"composed by", "created by", "written-by", "written by", "music by", "composer"}  # Discogs credits that say who made a track
+
+
+def _makers(extras):
+    """The different people credited with making a track (composed, created, written, music by; not the lyrics), in order."""
+    names = []
+    for e in extras or []:
+        roles = [re.sub(r"\s*\[[^\]]*\]", "", part).strip().lower() for part in str(e.get("role") or "").split(",") if "lyric" not in part.lower()]
+        if e.get("name") and any(role in MAKERS for role in roles) and e["name"] not in names:
+            names.append(e["name"])
+    return names
+
+
+def _covers(tracks, pos):
+    """Does a credit's list of tracks ("1, 3, 19") name this one? A range ("A1 to A3") isn't read, so it counts as no."""
+    return bool(pos) and str(pos).strip() in [p.strip() for p in str(tracks or "").split(",")]
+
+
+def near_title(listed, wanted):
+    """Is one name the other in fewer words? "Menu" and "Main Menu" are; "Menu" and "Main Theme" aren't. Worth something only with lengths that agree."""
+    a, b = (rv.tokens(re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", t or "")) for t in (listed, wanted))
+    return bool(a and b) and (a <= b or b <= a)
+
+
+def resolve(it, history, library_keys, loose=False):
     out = {"key": it["key"], "src": it["src"], "file": os.path.basename(it["src"]), "secs": secs(it["src"]),
            "status": "notfound", "reasons": [], "notes": []}
     title, game, artist = it["title"], it.get("game", ""), it.get("artist", "")
@@ -38,6 +65,8 @@ def resolve(it, history, library_keys):
         tries.append(dict(artist=artist, track=st))
     if game:
         tries += [dict(q=f"{game} {st}"), dict(release_title=game, track=st)]
+        if loose:  # the soundtrack by the game's name alone, for a track listed under another name ("Menu" for "Main Menu")
+            tries += [dict(release_title=game), dict(q=f"{game} soundtrack")]
     results = []
     for t in tries:
         res = d.search(**t)
@@ -51,29 +80,58 @@ def resolve(it, history, library_keys):
         return out
     results.sort(key=rv.year_of)
     want = d.base_title(st)
-    found = None
+    found, looked, listed = None, [], []
+    weigh = loose and out["secs"]  # Curate's game cards: every record that lists the track is weighed by length, not just the oldest
     for r in results[:6]:
         rel = d.get(f"/releases/{r['id']}")
         if not rel:
             continue
         c = d.cond_release(rel)
+        looked.append((r, c))
         hits = [t for t in c["tracklist"] if t.get("type") in (None, "track") and (rv.same_title(t["title"], st) if want else d.base_title(t["title"]) == want)]  # a title Discogs gives in two alphabets matches by either half
         if it.get("mix"):
             hits = [t for t in hits if rv.mix_matches(it["mix"], t["title"])] or []
-        if hits:
+        if hits and weigh:
+            listed.append((r, c, hits))
+        elif hits:
             found = (r, c, hits)
             break
+    other_length = None
+    if listed:  # the one at the file's length; else one with no length, unless another pressing of that record gives the track one; else another version, said as such
+        timed = lambda x: [rv.secs(t.get("dur")) for t in x[2] if rv.secs(t.get("dur"))]  # noqa: E731
+        same = [x for x in listed if any(abs(s - out["secs"]) <= NEAR_S for s in timed(x))]
+        untimed = [x for x in listed if not timed(x) and not any(y is not x and y[0].get("master_id") and y[0].get("master_id") == x[0].get("master_id") and timed(y) for y in listed)]
+        found = (same or untimed or [None])[0]
+        other_length = None if found else next((x for x in listed if timed(x)), listed[0])  # another version: said with a pressing that gives its length
+    if not found and weigh and not it.get("mix"):  # "Menu" for "Main Menu": the one track whose name is this one in fewer or more words, at the file's length
+        for r, c in looked:
+            near = [t for t in c["tracklist"] if t.get("type") in (None, "track") and near_title(t["title"], st) and rv.secs(t.get("dur")) and abs(rv.secs(t["dur"]) - out["secs"]) <= NEAR_S]
+            if len(near) == 1:
+                found = (r, c, near)
+                out["notes"].append(f'listed on Discogs as "{near[0]["title"]}"')
+                break
+    found = found or other_length  # only another version of it: still worth saying who's credited, and how far the length is off
     if not found:
         out["reasons"].append("soundtrack found on Discogs, but not this track" + (f" ({it['mix']})" if it.get("mix") else ""))
         out["candidates"] = [r["title"] for r in results[:4]]
+        unsure = [(c, t) for _, c in looked for t in c["tracklist"] if loose and t.get("type") in (None, "track") and near_title(t["title"], st) and not rv.secs(t.get("dur"))]
+        if len({rv.norm(t["title"]) for _, t in unsure}) == 1:  # one near name with no length to tell (on however many pressings): worth a mention for a person to weigh, never a credit
+            c, t = unsure[0]
+            makers = _makers(t.get("extra"))
+            out["maybe"] = dict(title=t["title"], release_title=c["title"], artist=rv.credit(t["artists"] or ([{"name": makers[0], "anv": ""}] if len(makers) == 1 else c["artists"])))
         return out
     r, rel, hits = found
     track = hits[0]
     if len({t["title"] for t in hits}) > 1:
         out["status"] = "review"
         out["reasons"].append("several versions: " + "; ".join(f"{t['pos']} {t['title']} [{t['dur'] or '?'}]" for t in hits))
-    arts = track["artists"] or rel["artists"]
+    makers = _makers(track.get("extra"))
+    arts = track["artists"] or ([{"name": makers[0], "anv": ""}] if len(makers) == 1 else rel["artists"])  # the track's own composer says more than the record's artist
     who = rv.credit(arts)
+    if rv.norm(who) == "various" or not who:  # a various-artists soundtrack may still credit one person with all of its music
+        whole = _makers([e for e in rel.get("extra") or [] if not e.get("tracks") or _covers(e["tracks"], track.get("pos"))])
+        if len(whole) == 1:
+            who = rv.credit([{"name": whole[0], "anv": ""}])
     if rv.norm(who) == "various" or not who:
         out["status"] = "review"
         out["reasons"].append("no artist credited for this track on Discogs")

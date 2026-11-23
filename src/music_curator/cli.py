@@ -112,6 +112,8 @@ def main(argv=None, prog="pressling"):
     add("other", "fallback sources for songs Discogs lacks: MusicBrainz, official YouTube uploads",
         (["items"], {}), (["out"], {}))
     add("ost", "game-soundtrack lookup (\"<Game> OST - <Track>\" files)", (["items"], {}), (["out"], {}))
+    add("game", "what Curate would leave on To check for a game or film song: the game, who's credited for the track, and how it can go in (looks things up, changes nothing)",
+        (["file"], {"help": "the song's file"}), (["--game"], {"default": "", "help": "the game, film or show it's from, when its name doesn't say"}))
     add("better", "find better copies (complete, right speed, better quality) and compare them with yours; gives links and keeps no audio; needs yt-dlp",
         (["items"], {}), (["out"], {}))
     reference = (["reference"], {"help": "a file, or a YouTube link (needs yt-dlp; fetched for the comparison, then deleted)"})
@@ -189,6 +191,10 @@ def main(argv=None, prog="pressling"):
     if args.cmd == "ost":
         from . import ost
         return ost.main([args.items, args.out, os.path.join(cache, "discogs"), _need("library")])
+    if args.cmd == "game":
+        from . import games
+        library = config.path("library")
+        return games.main([args.file, "--game", args.game, "--cache", cache] + (["--library", library] if library else []))
     if args.cmd == "better":
         from . import better_copies
         return better_copies.main([args.items, args.out, os.path.join(work, "better"), os.path.join(cache, "discogs")])

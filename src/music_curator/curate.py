@@ -8,6 +8,8 @@ are never changed, and every write is logged.
 
 With comparing audio turned on, To check also says when a file is strongly the same recording as a video on its record. That's for you to
 weigh: a video can be mislabelled, so nothing goes in because of it.
+
+Game and film music never goes in by itself either: Curate leaves a card on To check saying how it would go in, for you to pick (games.py).
 """
 import datetime
 import hashlib
@@ -23,7 +25,7 @@ import time
 import urllib.error
 import urllib.parse
 
-from . import apply, config, discogs, folders, fpcompare, genres, parse, resolve, saving, tagwriter, videos, webapp
+from . import apply, config, discogs, folders, fpcompare, games, genres, parse, resolve, saving, tagwriter, videos, webapp
 
 MAX_GAP_S = 20  # how far a file's length may be from the record's. Past it the file may be another edit (on a real library, the first wrong match came at 55 s)
 DECODE_TIMEOUT_S = 120  # a song takes about a second to play through
@@ -282,15 +284,16 @@ def lookup(item, history, library_keys):
 
 
 def fetch_cover(url, folder):
-    """Save a record's cover and return the file, or "" if there isn't a usable one: no cover beats a broken one."""
+    """Save a record's cover (or a game's, from its Wikipedia page) and return the file, or "" if there isn't a usable one: no cover beats a broken one."""
     host = urllib.parse.urlsplit(url or "").hostname or ""
-    if host != "discogs.com" and not host.endswith(".discogs.com"):
+    wikimedia = host == "upload.wikimedia.org"
+    if host != "discogs.com" and not host.endswith(".discogs.com") and not wikimedia:
         return ""
     path = os.path.join(folder, hashlib.sha1(url.encode("utf-8")).hexdigest() + ".jpg")
     if os.path.exists(path):
         return path
     try:
-        data = discogs._request(url, binary=True)
+        data = games.image(url) if wikimedia else discogs._request(url, binary=True)
         if not data or data[:3] != b"\xff\xd8\xff":
             return ""
         saving.write(path, lambda f: f.write(data), "wb")
@@ -411,8 +414,9 @@ class Run:
         if found is None:  # a blip or a failed write says nothing about the song: what was found before still stands
             entry.update({k: old[k] for k in ("options", "record", "said", "audio") if k in old})
         elif _versions_to_pick(found):
-            entry["options"] = [dict(o, id=option_id(o)) for o in found["options"]]
+            entry["options"] = [dict(o, id=o.get("id") or option_id(o)) for o in found["options"]]
             entry["record"] = {k: found.get(k) or "" for k in ("discogs", "release_title", "labels", "album", "year", "genre", "cover_url")}
+            entry["record"].update({k: found[k] for k in ("folder", "game", "kind", "wiki") if found.get(k)})  # a game or film song: where it goes, and its page
             entry["record"]["toss"] = " / ".join(found.get("genre_options") or []) if found.get("toss_up") else ""
         if said:
             entry["said"] = said  # the next run goes by what you said, not the file's name
@@ -431,7 +435,8 @@ class Run:
             return False
         cover = "" if self.dry else fetch_cover(tags.get("cover_url"), self.covers)
         entry = dict(key=item["key"], src=item["src"], artist=tags["artist"], title=tags["title"], album=tags.get("album") or "", year=str(tags.get("year") or ""),
-                     genre=tags["genre"], discogs=tags.get("discogs") or "", cover=cover, notes="; ".join(n for n in notes if n))
+                     genre=tags["genre"], discogs=tags.get("discogs") or "", cover=cover, notes="; ".join(n for n in notes if n),
+                     **({"folder": tags["folder"]} if tags.get("folder") else {}))  # a game or film song goes where its card says
         try:
             row = self.writer.write(entry)
         except Exception as ex:  # noqa: BLE001  a naming rule that can't be filled in, a full disk: one song, not the whole run
@@ -506,10 +511,26 @@ class Run:
             names = said_names(answer.get("note"))
             if not names:  # "anything that helps" is for a person or an agent to read
                 return
+            record = (self.songs.get(key) or {}).get("record") or {}
+            if record.get("game") and record.get("folder") and record.get("genre"):  # typed on a game song's card: it goes in as you named it, where the card says
+                if self.add(key, item, dict(record, artist=names[0], title=names[1]), [f"{games.NOTE}: named by you on its card", f"{PICK_NOTE} on To check"]):
+                    self._retire(answer_key, answer)
+                return
             if self._judged(key, with_names(item, *names), " - ".join(names)):
                 if (self.songs.get(key) or {}).get("said") and not self._save_waiting():  # it waits with what you typed. That's saved before the answer that carried it is taken off the list, or closing the app now would lose it
                     return
                 self._retire(answer_key, answer)
+            return
+        if action == "game":  # "It's game music…": from the game, film or show you named
+            game = " ".join(str(answer.get("note") or "").split())
+            if game:
+                self._game(key, item, game)
+                if not self._save_waiting():  # what you said is kept with the song before the answer that carried it goes
+                    return
+                self._retire(answer_key, answer)
+            return
+        if self._game_said(key):
+            self._game(key, item, self._game_said(key))
             return
         remembered = said_names((self.songs.get(key) or {}).get("said"))
         if remembered:
@@ -518,10 +539,26 @@ class Run:
         if "back" in item:
             self._taken_back(key, item)
             return
+        if item["cat"] == "ost":
+            self._game(key, item)
+            return
         if item["cat"] != "candidate":
             self.hold(key, NOT_LOOKED_UP[item["cat"]])
             return
         self._judged(key, item)
+
+    def _game_said(self, key):
+        """The game you said this song is from, kept with it on the waiting list ("" if you didn't say)."""
+        said = str((self.songs.get(key) or {}).get("said") or "")
+        return said[len(games.SAID):] if said.startswith(games.SAID) else ""
+
+    def _game(self, key, item, said=""):
+        """Game or film music: looked up, then left on To check with what was found and the ways it can go in, for you (or your agent) to
+        check and pick. It never goes in by itself."""
+        self.progress(name=f"Looking up game music: {item['file']}")
+        found = games.look_up(item, self.history, self.library_keys, self.paths["cache"], said, self.stopping)
+        self.looked += 1
+        self.hold(key, found["why"], found, retry=bool(found.get("retry")), said=games.SAID + said if said else "")
 
     def _taken_back(self, key, item):
         """You said Curate's match was wrong and its copy left the library. The song is looked up again for the versions on the record, but only your answer puts it back."""
@@ -535,9 +572,14 @@ class Run:
         self.hold(key, f"{why} {'Pick the version it is, or say what it really is.' if _versions_to_pick(found) else 'Say what it really is.'}", found, audio=self._compare(key, used, found))
 
     def _pick(self, key, item, answer):
-        """You said which version on the record this is. True once the answer has been dealt with."""
+        """You said which version on the record this is, or how a game song goes in. True once the answer has been dealt with."""
         old = self.songs.get(key) or {}
         record, option = old.get("record") or {}, next((o for o in old.get("options") or [] if o.get("id") == answer.get("note")), None)
+        if record.get("game") and record.get("folder"):  # a game or film song: all of how it goes in is on its card
+            if not option or not record.get("genre"):
+                self._game(key, item, self._game_said(key))  # the card has changed since you chose: looked up again, and it waits for you
+                return True
+            return self.add(key, item, dict(record, artist=option["artist"], title=option["title"]), [f"{games.NOTE}: {option.get('why') or 'as you picked it'}", f"{PICK_NOTE} on To check"])
         if not option or not record.get("genre"):
             self._judged(key, item)  # the list has changed since you chose: look it up again
             return True

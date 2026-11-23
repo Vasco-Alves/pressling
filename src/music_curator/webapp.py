@@ -35,7 +35,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 LAN_COOKIE = "curator_lan"
 PC_ONLY = {"/api/better/swap", "/api/settings/better", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
-ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "remove", "pick", "stream", "wrong"}
+ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "remove", "pick", "stream", "wrong", "game"}
 ANSWERS_CHANGED = "Another program changed your answers at that very moment, so this wasn't saved. Try again."  # `pressling apply`, say, taking away the ones it carried out
 ANSWERS_BUSY = "Your answers file couldn't be opened just now, so nothing was saved. Try again in a moment."  # saving anyway could put back answers that were taken out of it since it was last read
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
@@ -620,10 +620,15 @@ class Collection:
         song["looked"] = bool(held) and not held.get("retry")  # one held back by a network blip is worth another go
         if held:
             waiting = next(c for c in song["checks"] if c["kind"] == "waiting")
-            waiting["options"] = [{k: o.get(k) for k in ("id", "pos", "artist", "title", "dur", "gap")} for o in held.get("options") or [] if isinstance(o, dict)]
+            waiting["options"] = [dict({k: o.get(k) for k in ("id", "pos", "artist", "title", "dur", "gap")}, **{k: str(o[k]) for k in ("note", "why") if o.get(k)})
+                                  for o in held.get("options") or [] if isinstance(o, dict)]  # a game song's ways in each say why
             record = held.get("record") if isinstance(held.get("record"), dict) else {}
             if str(record.get("discogs", "")).startswith("https://www.discogs.com/"):  # it becomes a link on the page
                 waiting["record"] = dict(discogs=record["discogs"], title=str(record.get("release_title", "")), labels=str(record.get("labels", "")))
+            if record.get("game") and record.get("folder"):  # a game or film song: where it would go, and its page
+                wiki = str(record.get("wiki") or "")
+                waiting["game"] = dict(name=str(record["game"]), year=str(record.get("year") or ""), folder=str(record["folder"]), genre=str(record.get("genre") or ""),
+                                       kind=str(record.get("kind") or "game"), wiki=wiki if wiki.startswith("https://en.wikipedia.org/wiki/") else "")
             heard = held.get("audio") if isinstance(held.get("audio"), dict) else {}
             match = heard.get("match") if isinstance(heard.get("match"), dict) else None
             if heard.get("size") == st.st_size and match and re.fullmatch(r"https://www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11}", str(match.get("url", ""))):  # it becomes a link on the page

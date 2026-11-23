@@ -1140,7 +1140,7 @@ function recordsFall() { // the very last one answered: a few small records come
   }
 }
 function decidedText(d) {
-  return { keep: d.kind === "playlist" ? "Doesn't fit" : d.kind === "waiting" ? "Left for now" : d.kind === "spotify" ? "Not the same" : "Keep it as it is", genre: `Change the genre to ${d.genre}`, identify: `You said: ${d.note}`, drop: d.note === "On Spotify" ? "It's on Spotify, so your file isn't needed" : "Not worth keeping", stream: `On Spotify, in ${lines(d.note).join(", ")}`, pick: `It's ${(d.note || "").split("|").slice(1).join("|")}. Press Curate to add it.`,
+  return { keep: d.kind === "playlist" ? "Doesn't fit" : d.kind === "waiting" ? "Left for now" : d.kind === "spotify" ? "Not the same" : "Keep it as it is", genre: `Change the genre to ${d.genre}`, identify: `You said: ${d.note}`, drop: d.note === "On Spotify" ? "It's on Spotify, so your file isn't needed" : "Not worth keeping", stream: `On Spotify, in ${lines(d.note).join(", ")}`, pick: (d.note || "").startsWith("game|") ? `Add as ${d.note.split("|").slice(1).join(" - ")}. Press Curate to add it.` : `It's ${(d.note || "").split("|").slice(1).join("|")}. Press Curate to add it.`, game: `It's from ${d.note}. Press Curate to look it up.`,
     recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use the found version" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}`,
     right: "Looks right. It's marked verified.", wrong: `Not right${d.note ? `: ${d.note}` : ""}. Press Curate to take it out and look at it again.` }[d.action] || d.action;
 }
@@ -1181,6 +1181,7 @@ function playlistForm(names, chosen, already, label, save, cancel) {
     el("button", { class: "btn primary small", type: "button", onclick: (e) => (chosen.size ? save(e.currentTarget) : search.focus()) }, label),
     el("button", { class: "linkish", type: "button", onclick: cancel }, "Cancel"))) };
 }
+const gameLine = (c) => (c.game && c.game.wiki ? el("div", { class: "item-also" }, c.game.kind === "film" ? "The film's page: " : "The game's page: ", el("a", { href: c.game.wiki, target: "_blank", rel: "noreferrer noopener" }, `${c.game.name} on Wikipedia`)) : null); // for checking a game song's card
 const recordLine = (c) => (c.record ? el("div", { class: "item-also" }, "Closest record: ", el("a", { href: c.record.discogs, target: "_blank", rel: "noreferrer noopener" }, c.record.title || "on Discogs"), c.record.labels ? ` (${c.record.labels})` : "") : null);
 function audioLine(c) { // what comparing the audio found. Evidence for you to weigh: nothing goes in because of it
   const a = c.kind === "waiting" ? c.audio : null;
@@ -1221,13 +1222,18 @@ function controls(song, check, after) {
       break;
     }
     case "waiting": {
-      const sure = check.audio && check.audio.strong ? check.audio.option : "";
-      [...(check.options || [])].sort((a, b) => (b.id === sure) - (a.id === sure)).forEach((o) => {
-        const c = chip(`It's ${o.pos ? `${o.pos} ` : ""}${o.title}`, act("pick", { note: o.id }), versionNote(o));
-        if (o.id === sure) { c.classList.add("sure"); c.prepend(icon("tick", 13)); }
-        row.append(c);
-      });
-      row.append(chip("I know what this is…", ask("Artist - Title", "identify", "note")), chip("Not worth keeping", act("drop")), chip("Leave it for now", act("keep")));
+      if (check.game) { // a game or film song: each way it can go in, said whole, with where its credit comes from. Nothing goes in until one is picked
+        (check.options || []).forEach((o) => row.append(chip(`Add as ${o.artist} - ${o.title}`, act("pick", { note: o.id }), o.note || null)));
+      } else {
+        const sure = check.audio && check.audio.strong ? check.audio.option : "";
+        [...(check.options || [])].sort((a, b) => (b.id === sure) - (a.id === sure)).forEach((o) => {
+          const c = chip(`It's ${o.pos ? `${o.pos} ` : ""}${o.title}`, act("pick", { note: o.id }), versionNote(o));
+          if (o.id === sure) { c.classList.add("sure"); c.prepend(icon("tick", 13)); }
+          row.append(c);
+        });
+      }
+      row.append(chip("I know what this is…", ask("Artist - Title", "identify", "note")),
+        chip(check.game ? "Another game or film…" : "It's game music…", ask("Which game, film or show?", "game", "note")), chip("Not worth keeping", act("drop")), chip("Leave it for now", act("keep")));
       break;
     }
     case "quality":
@@ -1340,7 +1346,7 @@ function itemCard(it, paintMeter) {
       el("div", { class: "item-body" },
         el("button", { class: "item-title", type: "button", onclick: () => openDrawer(it.s.id) }, songName(it.s) || it.s.file),
         el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
-        el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c),
+        el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), gameLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c),
         controls(it.s, it.c, paint)));
     if (paintMeter) paintMeter();
     if (advance && S.listen && current() && current().id === it.s.id) step(1);
@@ -1378,7 +1384,7 @@ function pageQuick(params) {
     [...answers.querySelectorAll("button")].slice(0, 9).forEach((b, n) => { b.dataset.key = n + 1; b.prepend(el("kbd", {}, n + 1)); });
     card.replaceChildren(coverEl(it.s), el("div", { class: "quick-body" },
       el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
-      el("h2", {}, songLine(it.s)), el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
+      el("h2", {}, songLine(it.s)), el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), gameLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
   }
   function go(way) { // the next one still waiting for an answer, going round to the start if need be
     for (let n = 1; n <= items.length; n++) {
@@ -1711,7 +1717,7 @@ function pageAdd(params) {
 /* ---------- curate: what the app does with no AI ---------- */
 let curateTimer = null;
 const freshSongs = () => S.songs.filter((s) => s.area === "inbox" && !s.done && !s.looked && !S.decisions[`waiting:${s.key}`]).length;
-const answersToRun = () => Object.entries(S.decisions).filter(([k, d]) => k.startsWith("waiting:inbox/") && /\.(mp3|flac|m4a)$/i.test(k) && S.songs.some((s) => `waiting:${s.key}` === k && !s.done) && (d.action === "pick" || (d.action === "identify" && /\s[-–—]\s/.test(d.note || "")))).length;
+const answersToRun = () => Object.entries(S.decisions).filter(([k, d]) => k.startsWith("waiting:inbox/") && /\.(mp3|flac|m4a)$/i.test(k) && S.songs.some((s) => `waiting:${s.key}` === k && !s.done) && (d.action === "pick" || d.action === "game" || (d.action === "identify" && /\s[-–—]\s/.test(d.note || "")))).length;
 function answersWaiting() { // what's been answered and not carried out yet, by who can do it
   const out = { genres: 0, drops: 0, wrong: 0, research: 0 }, songs = new Map(S.songs.map((s) => [s.key, s]));
   for (const [k, d] of Object.entries(S.decisions)) {
@@ -2310,7 +2316,7 @@ function paintPanel() {
     queueList(s), recordList(s), songFacts(s),
     s.area === "library" && extra("curator") ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
     s.was && s.was !== s.file && extra("curator") ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
-    checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), doubleLines(s, c, true), alreadyIn(c), recordLine(c), audioLine(c), spotifyLine(c), betterLine(c),
+    checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), doubleLines(s, c, true), alreadyIn(c), recordLine(c), gameLine(c), audioLine(c), spotifyLine(c), betterLine(c),
       controls(s, c, (advance) => { if (advance && S.listen && current() && current().id === s.id && !checks.some((o) => o !== c && !answerOf(`${o.kind}:${s.key}`))) step(1); })))] : null, // on to the next song only once this one's last question here has its answer
     extra("curator") ? el("div", { class: "hintbar" }, flagBox) : null]); // a flag is something for the Curator to look at again
   drawer.classList.toggle("fresh", paintedSong !== drawerSong); // only a new song arrives with motion, not a repaint of the same one

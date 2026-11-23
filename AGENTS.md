@@ -130,8 +130,8 @@ it found in `curated.json` next to the log. That's a first pass. These steps are
      "fingerprints match", "chunks align (copy cut or faded)", "same recording; your copy plays 3.4% fast", or "no match".
 5. **Not found** — retry `resolve` with the file's existing tags as search terms; then `pressling other items.json out.json`
    (MusicBrainz, then official "Provided to YouTube by …" uploads from auto-generated "- Topic" channels —
-   their ℗ year is usually the original year). Game music: `pressling ost` (Discogs coverage is poor; agree a
-   fallback naming such as "<Game> OST - <Track>" with the person).
+   their ℗ year is usually the original year). Game and film music: see **Game and film songs** below (`pressling game FILE`
+   shows the card Curate would make; `pressling ost` looks up a list of soundtrack files on Discogs).
 6. **Covers** — the primary image of the regular release. Skip promo / test pressing / white label / mispress
    images (use the master's main release). Build a contact sheet (e.g. ffmpeg `xstack`) and look at it:
    wrong record, barcodes and back sides happen. If you can't confirm a good one, leave the cover empty rather than guess.
@@ -165,6 +165,29 @@ The person can also check these themselves on the page's Double-check. **Looks r
 
 **Every song Curate left** (in `curated.json`, still in the downloads folder): take it through **The workflow**, starting from the reason Curate gave. That includes other sources when Discogs doesn't have the song (step 5). Whatever you can verify gets the same checks before you call it done.
 If the person turned on comparing audio (`[curate] compare_audio`), an entry may hold `audio`: how many videos on the record were compared and, under `match`, one that's the same recording from start to finish. Curate never adds a song because of it, and neither should you on that alone: a video can be mislabelled or be another mix from the same record. Use it as one piece of evidence.
+
+## Game and film songs
+
+Curate never adds a song from a game, a film or a show by itself. It leaves a card on To check that says how it would go in: in
+`curated.json` the entry's `record` has `game`, `folder` (`Game OST/<Game>` or `Movie & TV OST/<Show>`), `kind`, `wiki` and the genre
+(`Video Game Music` or `Soundtrack`), and each option an `id` starting `game|` and a `why`. Its rules:
+- Who made the track comes only from a source that lists that very track: the soundtrack on Discogs, at a length that agrees with the file's,
+  or the official "Provided to YouTube by …" upload whose album is the soundtrack. Wikipedia gives only the game's name, year and cover; its
+  composers say nothing about one track (Need for Speed II's page names three people, and none of them made "Menu").
+- With nothing confirming it, the card offers `<Game> OST - <Track>`, the naming for that case.
+- When two games go by the name and the file doesn't say which, it asks instead of choosing.
+- A near name ("Menu" for "Main Menu") counts only at the file's length; with no length on Discogs the card only mentions it, for you
+  to weigh. A pressing with no length doesn't count when another pressing of the same record lists the track at another length.
+
+When the person works with you, **check every game card before they pick**:
+1. Open its sources: the Discogs record, the official upload, the Wikipedia page. Is it this game, this edition, this year?
+2. Is the credit right for this track? Look further where you can. VGMdb is the best source for game music but blocks automated browsing,
+   so read it through the person's own browser if they let you. `pressling same FILE "<official upload>"` says whether the file is that recording.
+3. Tell the person what you found, above all where you disagree with the card, and let them pick on the page. If they ask you to answer for
+   them: `pick` with the option's `id` as the note; `identify` with `Artist - Title` puts it in as typed, where the card says; `game` with the
+   game's name looks it up again as music from that game.
+
+`pressling game FILE [--game NAME]` prints the card Curate would make for one file, as JSON.
 
 ## Better copies
 
@@ -211,8 +234,9 @@ Every style Discogs lists for a record is in `styles.json` next to the log, per 
   itself, only by the person's pick or by your verified write. Treat it as a song Curate left.
 - `keep`: nothing to do. The entry stays; it marks the question as answered.
 - `identify`: the person's note says what the song is. Research it like any other song; write it only once it's verified. `pressling curate` also acts on a note written as `Artist - Title`.
+- `game` (the page's It's game music…): the person says the song is music from the game, film or show the note names. `pressling curate` looks it up as such and leaves a card (see **Game and film songs**).
 - `stream` (kind `spotify`): the person listened and added Spotify's version to playlists, from the page. Nothing to do; a `drop` noted "On Spotify" says their file isn't needed, and it only moves with `apply --set-aside`, on their OK.
-- `pick`: the person chose a version from the ones in `curated.json` (the note is its id). `pressling curate` writes it; run that, or write the same version yourself.
+- `pick`: the person chose a version from the ones in `curated.json` (the note is its id), or how a game song goes in (an id starting `game|`). `pressling curate` writes it; run that, or write the same version yourself.
 - `add`: the person wants this song in the playlists the note names, one per line (from `pressling suggest`). `apply` lists these. Spotify doesn't let apps
   add local files, so they drag those in and click Added on the page's Playlists tab (`added` needs nothing from you); running `suggest` again
   with a newer playlist snapshot clears the ones that have arrived. Arrived means the playlist has the song under its own artist and name, mix and all:

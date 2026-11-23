@@ -285,6 +285,13 @@ you said aren't right on Double-check, genre changes, which also move the song t
 Nothing is deleted: old copies go to a `Set aside` folder next to the log, which you can empty whenever you like. Answers that need
 research stay on the list for your agent.
 
+**Game and film music.** Curate never adds a song from a game, a film or a show by itself. It looks it up and leaves a card on To check that
+says exactly how it would go in, such as **Add as Rom Di Prisco - Menu**, into `Game OST/Need for Speed II` as Video Game Music, with the
+game's year and cover. Who made a track only comes from a source that lists that very track: the soundtrack on Discogs, at your file's
+length, or the official upload. Wikipedia gives the game's name, year and cover, never a track's composer. With nothing confirming who
+made it, the card offers `<Game> OST - <Track>`; when two games go by the same name, it asks which. You pick, or your agent checks the card
+first. A song whose name doesn't say it's from a game gets **It's game music…** on its card, to name the game.
+
 **Better copies.** When a better copy of a song has been found (a clearer upload, the full version), To check shows it with **Use found
 version**. Under **Settings → Better copies** you can let Pressling do the swap itself: choose how it fetches the copy, with your own
 downloader (the command you'd type, with `{url}` where the link goes and `{folder}` where it saves the song) or with yt-dlp. Then that
@@ -336,6 +343,7 @@ and `pressling <command> --help` explains one. `curator`, Pressling's old name, 
 |---|---|
 | `pressling discogs search ARTIST TRACK` | search Discogs (also `release ID`, `master ID`, `versions ID`, `image URL FILE`) |
 | `pressling vgmdb search QUERY` | search VGMdb for game music through its mirror (also `album ID`, `product ID`; often unavailable) |
+| `pressling game FILE [--game NAME]` | the card Curate would leave on To check for a game or film song: the game, who's credited for the track, and how it can go in (looks things up, changes nothing) |
 | `pressling same COPY REFERENCE` | is your copy the same recording as the reference, a file or a YouTube link? Copes with speed changes and cuts; a video is deleted right after |
 | `pressling compare A B` | quick whole-file fingerprint comparison |
 | `pressling drift COPY REFERENCE` | piece-by-piece comparison, to tell "sped up" from "edited" |
