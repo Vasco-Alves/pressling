@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve inbox items against Discogs and decide every tag automatically (see RULES.md).
 
-Usage: curator resolve <items.json> <out.json>
+Usage: pressling resolve <items.json> <out.json>
 Status per item: ready | review | notfound | dup
 """
 import csv

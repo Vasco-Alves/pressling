@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve game-soundtrack files ("<Game> OST - <Track>") against Discogs.
 
-Usage: curator ost <items.json> <out.json>
+Usage: pressling ost <items.json> <out.json>
 items.json: [{"key","src","game","title","artist"(optional),"mix"(optional)}]
 Same rules as resolve.py (artist as credited, title as listed, album/year/genre rules); the folder is
 always "Game OST". Status: ready | review | notfound | dup.

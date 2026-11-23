@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check whether two audio files are the same recording, using Chromaprint fingerprints (via ffmpeg).
 
-Usage: curator compare <file_a> <file_b>
+Usage: pressling compare <file_a> <file_b>
 Prints JSON: {"ber": bit error rate at the best alignment (0 = identical, ~0.5 = unrelated),
               "offset_s": how far b is shifted against a, "overlap_s": compared length, "verdict": ...}
 Same recording (even a different rip or master) is typically < 0.25; a different song ~0.45-0.5.

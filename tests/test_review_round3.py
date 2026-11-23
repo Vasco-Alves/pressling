@@ -245,7 +245,7 @@ class YourAnswers(WithDiscogs):
     def test_answers_that_cannot_be_opened_just_now_are_not_written_over(self):
         self.assertIsNone(self.say(kind="waiting", action="keep"))
         path = self.paths["decisions"]
-        with open(path, "w", encoding="utf-8") as f:  # another program changes the file, as `curator apply` does
+        with open(path, "w", encoding="utf-8") as f:  # another program changes the file, as `pressling apply` does
             json.dump({"genre:another song": {"action": "genre"}}, f)
         real = open
 

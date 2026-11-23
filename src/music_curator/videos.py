@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare a local file with the YouTube videos Discogs links on a release (fingerprints + lengths).
 
-Usage: curator videos <items.json> <out.json>
+Usage: pressling videos <items.json> <out.json>
 items.json: [{"key", "src", "release": <discogs release id>, "title": <track base title>, "extra_releases": [ids]}]
 For every linked video whose title mentions the track, the audio is fetched (with the yt-dlp
 interpreter from the config), fingerprinted against the local file, and deleted straight after.

@@ -21,7 +21,7 @@ DEFAULTS = {
         "log": "",           # CSV log of every write (old tags -> new tags); used for playlist switch-overs
         "cache": "",         # API response cache (Discogs, MusicBrainz, VGMdb)
         "work": "",          # scratch space for downloads used in checks (quarantine)
-        "review": "",        # optional: folder of songs waiting for a decision (shown in `curator serve`)
+        "review": "",        # optional: folder of songs waiting for a decision (shown in Pressling)
         "review_list": "",   # optional: Markdown with the reasons, one "- **Artist - Title**: reason" per song
     },
     "discogs": {
@@ -291,7 +291,7 @@ inbox   = ["Downloads"]              # folders with new files to curate (non-rec
 log     = "_curation/log.csv"        # every write, old tags -> new tags
 cache   = "_curation/cache"          # API responses (safe to delete)
 work    = "_curation/work"           # downloads used for fingerprint checks (safe to delete)
-# review = "Review"                  # songs waiting for a decision (shown in `curator serve`)
+# review = "Review"                  # songs waiting for a decision (shown in Pressling)
 # review_list = "_curation/Review list.md"   # their reasons: one "- **Artist - Title**: reason" per song
 
 [discogs]

@@ -1,4 +1,4 @@
-"""`curator curate`: curate with no AI, from the command line or the page's Curate button.
+"""`pressling curate`: curate with no AI, from the command line or the page's Curate button.
 
 Every song waiting in your downloads folders is looked up on Discogs. A song is copied into your library, with clean tags, name and
 cover, only when the evidence settles it: its artist and name match a track on a record and, when the record lists a length, so does the
@@ -830,8 +830,50 @@ def mark_verified(names, how):
 
 # ---------------- from the command line ----------------
 
-def main(dry_run=False):
-    run = Run(webapp.app_paths(), dry_run)
+def with_folders(paths, inbox=None, library=None, dry_run=False):
+    """`pressling curate --from <folder> --to <folder>`: other folders for this one run, checked the way the app checks the ones in Settings.
+    Gives the folders to use, and what's wrong with them in words for the person ("" when nothing is)."""
+    paths = dict(paths)
+    if library:
+        got = folders.check("library", os.path.abspath(os.path.expanduser(library)))
+        if not got["ok"]:
+            return paths, f"--to {library}: {got['message']}"
+        if got["create"]:
+            if dry_run:
+                return paths, f"--to {got['path']}: that folder doesn't exist yet. It's made when you run this without --dry-run."
+            try:
+                os.makedirs(got["path"], exist_ok=True)
+            except OSError as ex:
+                return paths, f"--to {got['path']}: the folder can't be made ({ex.strerror or ex})."
+        paths["library"] = got["path"]
+    if inbox:
+        chosen = []
+        for value in inbox:
+            got = folders.check("inbox", os.path.abspath(os.path.expanduser(value)), paths["library"] or "")
+            if not got["ok"]:
+                return paths, f"--from {value}: {got['message']}"
+            if not any(folders._same(got["path"], x) for x in chosen):
+                chosen.append(got["path"])
+        paths["inbox"] = chosen
+    elif library:  # the downloads folders in Settings, with the library of this run
+        for value in paths["inbox"] or []:
+            if folders._same(value, paths["library"]) or folders._inside(value, paths["library"]):
+                return paths, f"--to {library}: your downloads folder {value} would be inside that library, so its songs would count as library songs."
+    if not paths["log"] and paths["library"]:  # no settings yet: the app's own files go where its first-run screen would put them
+        home = folders._app_folder(paths["library"])
+        paths.update(log=os.path.join(home, "log.csv"), cache=os.path.join(home, "cache"), work=os.path.join(home, "work"),
+                     decisions=os.path.join(home, "decisions.json"))
+    return paths, ""
+
+
+def main(dry_run=False, inbox=None, library=None):
+    settings = webapp.app_paths()
+    paths = settings
+    if inbox or library:
+        paths, wrong = with_folders(settings, inbox, library, dry_run)
+        if wrong:
+            sys.exit(wrong)
+    run = Run(paths, dry_run)
     if dry_run:
         print("Preview only: nothing is being changed.\n")
     try:
@@ -841,7 +883,12 @@ def main(dry_run=False):
     if not done["added"] and not done["waiting"]:
         print("Nothing is waiting in your downloads.")
         return 0
-    print(f"\n{'Would add' if dry_run else 'Added'} {done['added']} song{'' if done['added'] == 1 else 's'}. {done['waiting']} waiting for you: open `curator serve`, then To check.")
+    where = f" to {paths['library']}" if library else ""
+    print(f"\n{'Would add' if dry_run else 'Added'} {done['added']} song{'' if done['added'] == 1 else 's'}{where}. {done['waiting']} waiting for you: open Pressling, then To check.")
+    if library and done["added"] and not (settings["library"] and folders._same(paths["library"], settings["library"])):
+        print("Pressling shows the library set in Settings, so these songs show there once you choose this folder as your library.")
+    if inbox and done["waiting"] and not all(any(folders._same(f, s) for s in settings["inbox"] or []) for f in paths["inbox"]):
+        print("Songs waiting in a folder that isn't one of your downloads folders in Settings show on To check once you add it there.")
     if done["strong"]:
         print(f"{done['strong']} of those {'has' if done['strong'] == 1 else 'have'} a strong audio match for you to confirm.")
     if done["said"]:

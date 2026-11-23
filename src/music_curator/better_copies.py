@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Find a better copy (complete, right speed, better quality) for each item and compare it with yours.
 
-Usage: curator better <items.json> <out.json>
+Usage: pressling better <items.json> <out.json>
 items.json: [{"key","src","artist","title","release"|null,"master"|null,"target_secs"|null,"reason","tries"}]
 Candidates: YouTube videos linked on the Discogs release / its pressings first, then a YouTube search.
 "tries" (default 3) is how many candidates get compared.

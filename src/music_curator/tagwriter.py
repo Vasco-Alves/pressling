@@ -8,7 +8,7 @@ audio stream copied, never re-encoded. Each is written to <library>/<genre>/<Art
 keeping its file type, and checked packet by packet against the source. One row per track goes
 to the log CSV.
 
-Usage: curator write <plan.json> [--dry-run]
+Usage: pressling write <plan.json> [--dry-run]
 
 plan.json: [{"key","src","artist","title","album","year","genre","discogs","cover","notes"}]
 """

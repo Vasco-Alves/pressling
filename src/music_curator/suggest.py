@@ -1,4 +1,4 @@
-"""`curator suggest`: which of your songs look like they belong in your playlists?
+"""`pressling suggest`: which of your songs look like they belong in your playlists?
 
 It learns only from your own data: the genres, years, artists and labels of your songs already in each playlist, and how much
 your other playlists overlap with it. It only speaks up when it's sure, so a song can get several playlists, one, or none. It can't hear

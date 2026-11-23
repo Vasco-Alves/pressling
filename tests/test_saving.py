@@ -572,7 +572,7 @@ class AnswersTwoProgramsChangeAtOnce(Base):
         self.assertIsNone(self.flag(self.one))
         self.assertIsNone(self.flag(self.two))
 
-        def apply_takes_one_off():  # `curator apply`, having carried it out
+        def apply_takes_one_off():  # `pressling apply`, having carried it out
             answers = self.saved()
             del answers[self.key_one]
             with open(self.answers, "w", encoding="utf-8") as f:

@@ -10,13 +10,13 @@ verified library entry: the right artist, title (with the exact mix/version), al
 saved as a clean copy in their library folder, with every change logged. You decide only what the
 evidence settles; everything else goes to the person as a short, clear question or a "held back" list.
 
-The `curator` CLI does the deterministic work (API lookups, fingerprints, tag writing). You supply judgment:
+The `pressling` command line (`curator` is its old name) does the deterministic work (API lookups, fingerprints, tag writing). You supply judgment:
 reading results, spotting wrong matches, choosing which check to run next, and talking to the person.
 
 ## Ground rules
 
-1. **Never modify originals.** Source files and the person's existing library are read-only. `curator write`
-   only creates new files under `[paths] library` and appends to the log. The one exception is `curator apply`,
+1. **Never modify originals.** Source files and the person's existing library are read-only. `pressling write`
+   only creates new files under `[paths] library` and appends to the log. The one exception is `pressling apply`,
    which carries out genre changes the person chose in the browser and keeps the old copy.
 2. **Never delete without explicit permission** for that specific action. When allowed, move to the
    Recycle Bin / trash, not a permanent delete, and verify the library copy exists first.
@@ -28,8 +28,8 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 5. **Be a good API citizen.** Discogs: about 60 requests/min with a token (the client throttles and caches).
    MusicBrainz: 1 request/s and a descriptive User-Agent. VGMdb blocks automated access: never try to get
    around security checks or CAPTCHAs; ask the person instead.
-6. **Nothing fetched is kept, and a better copy never replaces a song by itself.** `curator better`, `curator videos` and a link given to
-   `curator same` or `drift` fetch audio only to compare it, with yt-dlp, which is optional, and delete it straight after. While it exists
+6. **Nothing fetched is kept, and a better copy never replaces a song by itself.** `pressling better`, `pressling videos` and a link given to
+   `pressling same` or `drift` fetch audio only to compare it, with yt-dlp, which is optional, and delete it straight after. While it exists
    it's untrusted data in `[paths] work`: never execute anything from it. This toolkit doesn't download music for people to keep. What you
    find goes to the person: see **Better copies**.
 7. **Look before you write.** Check covers visually (contact sheet) and spot-check decisions against the
@@ -37,7 +37,7 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 
 ## First-time setup
 
-When the person says "set this up", or `curator` isn't installed yet, go through these in order. Say what each piece is for
+When the person says "set this up", or `pressling` isn't installed yet, go through these in order. Say what each piece is for
 in a few plain words, skip whatever is already there, and get their OK before installing anything.
 
 1. **Python 3.11 or newer.** Check with `python --version` (`python3` on macOS and Linux; on Windows `py -3 --version` if
@@ -46,69 +46,69 @@ in a few plain words, skip whatever is already there, and get their OK before in
    with their OK, add `--accept-source-agreements --accept-package-agreements`. Something you just installed can stay
    invisible to your shell until the whole AI app restarts (on Windows it always does). Ask the person to restart it, then
    carry on: setup skips what's already there.
-2. **The curator.** In this repository's folder, make a virtual environment with the Python command step 1 found, and install into it:
+2. **Pressling.** In this repository's folder, make a virtual environment with the Python command step 1 found, and install into it:
    ```bash
    python -m venv .venv
    .venv/Scripts/python -m pip install -e .   # macOS and Linux: .venv/bin/python -m pip install -e .
    ```
-   From then on the command is `.venv/Scripts/curator` (macOS and Linux: `.venv/bin/curator`).
-3. **See what's missing.** Run `curator doctor` and work through only what it reports.
-4. **ffmpeg with chromaprint**, which the audio fingerprints need. Not every ffmpeg build has it, so trust `curator doctor`
+   From then on the command is `.venv/Scripts/pressling` (macOS and Linux: `.venv/bin/pressling`).
+3. **See what's missing.** Run `pressling doctor` and work through only what it reports.
+4. **ffmpeg with chromaprint**, which the audio fingerprints need. Not every ffmpeg build has it, so trust `pressling doctor`
    rather than the package name. As in step 1, the AI app may need a restart before your shell can see it.
    - Windows: `winget install --id Gyan.FFmpeg -e` (Gyan's full build has chromaprint, its essentials build doesn't).
    - Debian/Ubuntu: `sudo apt install ffmpeg`.
-   - macOS: `brew install ffmpeg`, then `curator doctor`. If chromaprint is missing, the
+   - macOS: `brew install ffmpeg`, then `pressling doctor`. If chromaprint is missing, the
      [homebrew-ffmpeg tap](https://github.com/homebrew-ffmpeg/homebrew-ffmpeg) offers it as an option; check the current
      flag with `brew options homebrew-ffmpeg/ffmpeg/ffmpeg`.
 5. **A Discogs token** (free; it's how songs get looked up). Only the person can do this, and the token must never pass
    through you (ground rule 4).
    - Send them to <https://www.discogs.com/settings/developers>, where a free account is enough, to click **Generate new token**.
-   - The easiest way: `curator doctor` names a folder. Have them make a text file called `.env` there, in **their own** editor,
+   - The easiest way: `pressling doctor` names a folder. Have them make a text file called `.env` there, in **their own** editor,
      with one line: `DISCOGS_TOKEN=their token`.
    - Or as an environment variable, from **their own** terminal window, with their token in place of `PASTE_HERE`:
      - Windows: `setx DISCOGS_TOKEN "PASTE_HERE"`
      - macOS: `echo 'export DISCOGS_TOKEN="PASTE_HERE"' >> ~/.zshrc`
      - Linux: `echo 'export DISCOGS_TOKEN="PASTE_HERE"' >> ~/.bashrc`
-   - `curator doctor` should now say `DISCOGS_TOKEN: set`. With the file, or on Windows, that works straight away. On macOS and
+   - `pressling doctor` should now say `DISCOGS_TOKEN: set`. With the file, or on Windows, that works straight away. On macOS and
      Linux a shell variable is only seen after a restart, so they may need to restart their AI app.
    - If they paste the token into the chat anyway, don't repeat it or use it. Ask them to generate a new one on Discogs and
      save that one themselves.
-6. **Folders.** If `curator doctor` shows `library (not set)`, run `curator serve` in the background (it keeps running). The
+6. **Folders.** If `pressling doctor` shows `library (not set)`, run `pressling serve` in the background (it keeps running). The
    page opens on a first-run screen where they pick their library and downloads folders. Let them choose; picking a folder
    never moves any music.
-7. **yt-dlp is optional, so ask.** Without it `curator other` can't look for official YouTube uploads and `videos` doesn't work, so
+7. **yt-dlp is optional, so ask.** Without it `pressling other` can't look for official YouTube uploads and `videos` doesn't work, so
    some songs get held back that could have been verified, and a better copy can only be left as a link nobody has compared with their file. It's only used to compare: nothing it fetches is kept. To add it: `.venv/Scripts/python -m pip install -e ".[compare]"`
    (macOS and Linux: `.venv/bin/python`).
-8. **Finish.** Run `curator doctor` again; it should end with `OK`. Then tell them it's ready, give them the exact command that
-   opens their library later (the full path to `curator serve` in `.venv`), and say what they can ask for next.
+8. **Finish.** Run `pressling doctor` again; it should end with `OK`. Then tell them it's ready, give them the exact command that
+   opens their library later (the full path to `pressling serve` in `.venv`), and say what they can ask for next.
 
 By hand: the same virtual environment as step 2 (a plain `pip install` is refused on recent Linux and with Homebrew's Python),
-then `curator init` writes a `curator.toml` in the current folder to edit, or `curator serve` asks for the folders. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
+then `pressling init` writes a `curator.toml` in the current folder to edit, or `pressling serve` asks for the folders. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
 separate Python, set `[ytdlp] python`.
 
 ## What the person might ask
 
-- "Curate my new downloads": run `curator curate`, then do everything under **After Curate**.
-- "Open my library": `curator serve`, in the background.
+- "Curate my new downloads": run `pressling curate`, then do everything under **After Curate**.
+- "Open my library": `pressling serve`, in the background.
 - "Apply my answers": see **The browser app**.
 
 ## The workflow
 
-Start with `curator curate`, unless the person just pressed **Curate** on the page. It's the plain version of these steps with no AI: it adds
+Start with `pressling curate`, unless the person just pressed **Curate** on the page. It's the plain version of these steps with no AI: it adds
 only what it's sure of, marks those notes `matched automatically`, and leaves the rest in the downloads folder, with its reasons and the versions
 it found in `curated.json` next to the log. That's a first pass. These steps are how you finish the job: see **After Curate** below.
 
-1. **Parse** — `curator parse items.json` reads the inbox folders (filenames + existing tags) and prints one
+1. **Parse** — `pressling parse items.json` reads the inbox folders (filenames + existing tags) and prints one
    line per file. Only MP3, FLAC and M4A can be curated: it names any other audio it skipped, so tell the person. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
    `search_title`, `mix`, `pos_hint`, `year_hint`, `alt_title`, `cat`). Typical fixes: reversed "Title - Artist", labels or
    uploader names glued to the end, vinyl side codes ("B2 Untitled" → title `Untitled`, `pos_hint` `B2`),
    placeholder artists ("Trance - …", "Nightcore - …"). Categories: `candidate`, `mix`, `ost`, `nonmusic`,
    `nightcore`, `done`. Files over 15 minutes are marked `mix` — check them, some are long tracks.
    A year at the very end of a name stays in the title when it follows the title's own words ("Greece 2000" is called that),
-   and `alt_title` then holds the title without it ("Analog Mind 1995" is only from 1995). `curator curate` tries `alt_title`
-   by itself when the whole title finds nothing, and only lets the song in when the record is from that year; `curator resolve`
+   and `alt_title` then holds the title without it ("Analog Mind 1995" is only from 1995). `pressling curate` tries `alt_title`
+   by itself when the whole title finds nothing, and only lets the song in when the record is from that year; `pressling resolve`
    doesn't, so when that's the reading you want, put it in `title` and `search_title` yourself.
-2. **Resolve** — `curator resolve items.json out.json` matches every candidate on Discogs and decides tags:
+2. **Resolve** — `pressling resolve items.json out.json` matches every candidate on Discogs and decides tags:
    artist as credited (one joiner), title exactly as listed (mix name included), album per the album rule,
    year = earliest pressing, genre = Discogs *style* by votes across pressings (a specific style beats its
    parent: Hard Trance beats Trance). Status: `ready`, `review` (versions can't be told apart, the file names a
@@ -118,23 +118,23 @@ it found in `curated.json` next to the log. That's a first pass. These steps are
    "only version on the record" picks when the filename has no mix name: the release found may hold only a
    remix while the original is on another record.
 4. **Settle the review ones**
-   - `curator scan items.json` — every pressing and version with lengths (other pressings, compilations,
+   - `pressling scan items.json` — every pressing and version with lengths (other pressings, compilations,
      spelling variants). Often decides it by length alone.
-   - `curator videos items.json out.json` — fingerprints the file against the YouTube videos Discogs links on
+   - `pressling videos items.json out.json` — fingerprints the file against the YouTube videos Discogs links on
      the release; the video that matches names the version. By elimination is fine when only one version is
-     left *and* you have ruled out speed differences (`curator same`).
-   - `curator same COPY REF` / `curator drift COPY REF` — same recording? handles speed changes (resamples) and
+     left *and* you have ruled out speed differences (`pressling same`).
+   - `pressling same COPY REF` / `pressling drift COPY REF` — same recording? handles speed changes (resamples) and
      cuts (chunk alignment). `REF` is a file or a YouTube link (`videos` lists the `url` of each one it checked). Read `how`:
      "fingerprints match", "chunks align (copy cut or faded)", "same recording; your copy plays 3.4% fast", or "no match".
-5. **Not found** — retry `resolve` with the file's existing tags as search terms; then `curator other items.json out.json`
+5. **Not found** — retry `resolve` with the file's existing tags as search terms; then `pressling other items.json out.json`
    (MusicBrainz, then official "Provided to YouTube by …" uploads from auto-generated "- Topic" channels —
-   their ℗ year is usually the original year). Game music: `curator ost` (Discogs coverage is poor; agree a
+   their ℗ year is usually the original year). Game music: `pressling ost` (Discogs coverage is poor; agree a
    fallback naming such as "<Game> OST - <Track>" with the person).
 6. **Covers** — the primary image of the regular release. Skip promo / test pressing / white label / mispress
    images (use the master's main release). Build a contact sheet (e.g. ffmpeg `xstack`) and look at it:
    wrong record, barcodes and back sides happen. If you can't confirm a good one, leave the cover empty rather than guess.
-7. **Write** — build `plan.json` (see `examples/plan.example.json`), run `curator write plan.json --dry-run`,
-   then `curator write plan.json`. Every row in the log keeps the old tags and length next to the new ones.
+7. **Write** — build `plan.json` (see `examples/plan.example.json`), run `pressling write plan.json --dry-run`,
+   then `pressling write plan.json`. Every row in the log keeps the old tags and length next to the new ones.
 8. **Better copies** — look for one on every song you check, and leave what you find for the person. See **Better copies** below.
 9. **Report** — written songs, genre toss-ups (ties the person can settle by ear; genre changes are cheap),
    held-back songs with reasons, better copies found. A markdown report next to the log works well. Put the questions
@@ -153,11 +153,11 @@ Curate decides on names and lengths, and only checks that a file plays all the w
 
 1. **Tags and metadata.** Compare artist, title and mix, album, year and genre with the Discogs record, as in step 3 above.
 2. **Cover.** Check it's the right image, as in step 6 above.
-3. **The audio.** Confirm it's that version with `curator videos` or `curator same`.
+3. **The audio.** Confirm it's that version with `pressling videos` or `pressling same`.
 4. **A better copy.** Look for one: see **Better copies**.
 5. **On Spotify?** If they use it, Check Spotify keeps its likely matches in `spotify_search.json` next to the log. Those are by name and length only, because Spotify gives apps no audio.
-   Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"): `curator same YOUR_FILE "<its link>"`.
-6. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
+   Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"): `pressling same YOUR_FILE "<its link>"`.
+6. **Record it.** `pressling verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
 
 The person can also check these themselves on the page's Double-check. **Looks right** writes the same log entry, with `verified: you checked it on the page`: that's their own check, so leave the song as it is unless they ask you to look too. **Not right** is a `wrong` answer (see **The browser app**).
 
@@ -168,21 +168,21 @@ If the person turned on comparing audio (`[curate] compare_audio`), an entry may
 
 Checking a song includes asking whether a better recording of it exists: first the YouTube videos linked on its Discogs page, then other official uploads. Whatever you find, **the person's file stays as it is until they say otherwise.** (If someone tells you to swap verified copies in without asking, do that, and note it in their rules file.)
 
-1. **Look.** Run `curator better items.json out.json` with one entry per song: `{"key": "1", "src": "<the file>", "artist": "...", "title": "...", "release": 123, "master": 456, "target_secs": 300, "reason": "low quality"}`.
-   The ids come from the song's Discogs link in the log (for a link to a master, `curator discogs master <id>` gives its `main_release`). Both can be null for a song Discogs doesn't have, and then only a YouTube search is tried. `target_secs` is the record's length, or null if it lists none. Add `"tries": 6` to compare more than the first 3 candidates.
+1. **Look.** Run `pressling better items.json out.json` with one entry per song: `{"key": "1", "src": "<the file>", "artist": "...", "title": "...", "release": 123, "master": 456, "target_secs": 300, "reason": "low quality"}`.
+   The ids come from the song's Discogs link in the log (for a link to a master, `pressling discogs master <id>` gives its `main_release`). Both can be null for a song Discogs doesn't have, and then only a YouTube search is tried. `target_secs` is the record's length, or null if it lists none. Add `"tries": 6` to compare more than the first 3 candidates.
    `"low quality"` asks for better sound: the same recording at that length with clearly more content above 16 kHz. Any other reason (`"cut short"`, `"wrong speed"`) asks only for the same recording at that length.
 2. **Without yt-dlp** nothing can be fetched or compared. `better` still lists the Discogs-linked videos whose title and length fit, under `tried` with an `error` each, and the link is `https://www.youtube.com/watch?v=<id>`. Those are guesses, and so is anything you find with your own web search.
-3. **Leave it on To check**, where the person can open the link or ignore it: `curator maybe-better "Genre/Artist - Title.mp3" "<link>" --why "official upload; yours is 128 kbps"`. Add `--checked` only if `better` accepted that copy (its `accepted` entry has the `url`). One link per song: a second replaces the first.
+3. **Leave it on To check**, where the person can open the link or ignore it: `pressling maybe-better "Genre/Artist - Title.mp3" "<link>" --why "official upload; yours is 128 kbps"`. Add `--checked` only if `better` accepted that copy (its `accepted` entry has the `url`). One link per song: a second replaces the first.
 4. **If they say yes** (a `better` answer with the link as its note, or they tell you):
-   - Get the file. It comes from the person, because the toolkit keeps nothing it fetches: ask them to get it and tell you where it is, or use their own downloader if they've told you to. Confirm it's the same recording with `curator same` before going on.
-   - `curator write` won't overwrite a song, so move the old copy to a `Set aside` folder next to the log (never delete it). Then write a plan entry with the song's same tags and cover, `src` set to the set-aside file and `audio` set to the new copy. The log keeps the original as `src`.
+   - Get the file. It comes from the person, because the toolkit keeps nothing it fetches: ask them to get it and tell you where it is, or use their own downloader if they've told you to. Confirm it's the same recording with `pressling same` before going on.
+   - `pressling write` won't overwrite a song, so move the old copy to a `Set aside` folder next to the log (never delete it). Then write a plan entry with the song's same tags and cover, `src` set to the set-aside file and `audio` set to the new copy. The log keeps the original as `src`.
    - If the length changed, tell them: Spotify matches local files by length too, so playlist entries for that song need adding again.
 
 ## The browser app
 
 If your AI app has its own browser (the Claude desktop app's Browser pane, for example), open the page there, beside the conversation. You and the person then look at the same cards, and you can check how a change really looks. Reading the page is fine. Answering on it is theirs: don't click their answers for them unless they ask.
 
-`curator serve` gives the person a local page to explore the library and answer what only ears can settle. It's a music player
+`pressling serve` gives the person a local page to explore the library and answer what only ears can settle. It's a music player
 first: the Curator (Curate, To check, Progress, Double-check) and Spotify are extras, turned on or off under Settings → Extras
 (`[extras] curator` and `spotify` in `curator.toml`; with no choice made, the Curator is on when there's a downloads folder or a log,
 and Spotify once it's set up or has been checked). Off only hides that part of the page: the commands still work, so if the person
@@ -191,12 +191,12 @@ it opens on a first-run screen where they pick their library folder and, if they
 location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Settings page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
 `- **Artist - Title**: reason` per song. The page never changes music (Looks right on Double-check only writes its check in the log); answers land in `decisions.json` next to the log, keyed
-`<kind>:<area>/<relative path>`, and `curator decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy. Playlists made in the app are in `own_playlists.json`, keyed the same way: if you change a song's artist or title, it shows as not here in those playlists, so tell the person.
+`<kind>:<area>/<relative path>`, and `pressling decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy. Playlists made in the app are in `own_playlists.json`, keyed the same way: if you change a song's artist or title, it shows as not here in those playlists, so tell the person.
 
-To act on them, run `curator apply --dry-run`, show the person what it would do, and after their OK run `curator apply`. Nothing
+To act on them, run `pressling apply --dry-run`, show the person what it would do, and after their OK run `pressling apply`. Nothing
 is deleted: old copies go to a `Set aside` folder next to the log, and every change is logged. The page's **Curate** button does the same work (and, if the person ticks the box, the `drop` answers too), so answers may already be done by the time you look.
 
-Every style Discogs lists for a record is in `styles.json` next to the log, per record, filled by Curate or `curator genres`. The page shows them and finds songs under them; the file's tag and folder still get the one genre.
+Every style Discogs lists for a record is in `styles.json` next to the log, per record, filled by Curate or `pressling genres`. The page shows them and finds songs under them; the file's tag and folder still get the one genre.
 
 - `genre`: `apply` does it. It changes the genre tag and nothing else, moves the song to the new genre's folder unless it's kept
   elsewhere (a soundtrack folder, say), and retires the question. Spotify matching doesn't depend on the genre or the folder. It works on
@@ -207,10 +207,10 @@ Every style Discogs lists for a record is in `styles.json` next to the log, per 
   old name. The log row says `removed: not right`, and from then on Curate holds the song on To check with the note. It's never added again by
   itself, only by the person's pick or by your verified write. Treat it as a song Curate left.
 - `keep`: nothing to do. The entry stays; it marks the question as answered.
-- `identify`: the person's note says what the song is. Research it like any other song; write it only once it's verified. `curator curate` also acts on a note written as `Artist - Title`.
+- `identify`: the person's note says what the song is. Research it like any other song; write it only once it's verified. `pressling curate` also acts on a note written as `Artist - Title`.
 - `stream` (kind `spotify`): the person listened and added Spotify's version to playlists, from the page. Nothing to do; a `drop` noted "On Spotify" says their file isn't needed, and it only moves with `apply --set-aside`, on their OK.
-- `pick`: the person chose a version from the ones in `curated.json` (the note is its id). `curator curate` writes it; run that, or write the same version yourself.
-- `add`: the person wants this song in the playlists the note names, one per line (from `curator suggest`). `apply` lists these. Spotify doesn't let apps
+- `pick`: the person chose a version from the ones in `curated.json` (the note is its id). `pressling curate` writes it; run that, or write the same version yourself.
+- `add`: the person wants this song in the playlists the note names, one per line (from `pressling suggest`). `apply` lists these. Spotify doesn't let apps
   add local files, so they drag those in and click Added on the page's Playlists tab (`added` needs nothing from you); running `suggest` again
   with a newer playlist snapshot clears the ones that have arrived. Arrived means the playlist has the song under its own artist and name, mix and all:
   another version of it in the playlist doesn't count, here or in Check Spotify.

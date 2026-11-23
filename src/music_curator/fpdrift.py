@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tell 'sped up / pitched' apart from 'edited / cut' when two copies of a track differ in length.
 
-Usage: curator drift <copy> <reference>
+Usage: pressling drift <copy> <reference>
 Aligns 20-second chunks of the first file inside the second. A steady, linear drift of the offsets
 means a different playback speed (slope = speed factor); jumps mean sections were cut or added.
 Prints JSON with per-chunk matches and the fitted speed factor.

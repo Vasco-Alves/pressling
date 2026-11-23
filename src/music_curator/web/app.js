@@ -1143,7 +1143,7 @@ function decidedText(d) {
     recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use the found version" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}`,
     right: "Looks right. It's marked verified.", wrong: `Not right${d.note ? `: ${d.note}` : ""}. Press Curate to take it out and look at it again.` }[d.action] || d.action;
 }
-async function looksRight(song, on) { // written down at once, like `curator verified`: no music changes
+async function looksRight(song, on) { // written down at once, like `pressling verified`: no music changes
   const key = `auto:${song.key}`, r = await post("/api/verified", on ? { id: song.id } : { id: song.id, undo: true });
   if (r.error) { toast(r.error); return false; }
   if (on) checkedNow.add(key); else checkedNow.delete(key);

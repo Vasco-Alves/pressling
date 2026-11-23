@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Wide Discogs scan for one song: every release containing the track, every version with its length.
 
-Usage: curator scan <items.json>
+Usage: pressling scan <items.json>
 items.json: [{"key","src","artists":[variants],"title","q":optional extra query}]
 """
 import json

@@ -31,7 +31,7 @@ compare = ["yt-dlp"]       # only to compare your files with videos online; noth
 
 [project.scripts]
 pressling = "music_curator.cli:pressling"   # on its own it opens the app
-curator = "music_curator.cli:main"
+curator = "music_curator.cli:pressling"   # Pressling's old name: the same command
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,8 +1,8 @@
-"""`curator serve`: a small local web app to explore the library, follow the pipeline and check songs by ear.
+"""`pressling serve`: a small local web app to explore the library, follow the pipeline and check songs by ear.
 
 Standard library only. It listens on 127.0.0.1, and with `--lan` on your home network too, behind a private link. Browsing only reads your music: your answers go to decisions.json (next to the log),
-which `curator apply` and your agent act on later. The one thing that adds to your library is the Curate button (see curate.py),
-and the one outside service it talks to is Discogs. Looks right, on Double-check, writes to the log straight away, the way `curator verified`
+which `pressling apply` and your agent act on later. The one thing that adds to your library is the Curate button (see curate.py),
+and the one outside service it talks to is Discogs. Looks right, on Double-check, writes to the log straight away, the way `pressling verified`
 does: it changes no music.
 """
 import collections
@@ -36,7 +36,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
 LAN_COOKIE = "curator_lan"
 PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
 ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "remove", "pick", "stream", "wrong"}
-ANSWERS_CHANGED = "Another program changed your answers at that very moment, so this wasn't saved. Try again."  # `curator apply`, say, taking away the ones it carried out
+ANSWERS_CHANGED = "Another program changed your answers at that very moment, so this wasn't saved. Try again."  # `pressling apply`, say, taking away the ones it carried out
 ANSWERS_BUSY = "Your answers file couldn't be opened just now, so nothing was saved. Try again in a moment."  # saving anyway could put back answers that were taken out of it since it was last read
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
              recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist", remove="take it out of a Spotify playlist",
@@ -384,7 +384,7 @@ class Collection:
         self._watch("hits", spotify_hits_path(self.paths), lambda hits: {k: v["hit"] for k, v in hits.items() if isinstance(v, dict) and isinstance(v.get("hit"), dict)})
 
     def _read_better(self):
-        """Links an agent left to possibly better copies (`curator maybe-better`). Each one becomes a link on the page."""
+        """Links an agent left to possibly better copies (`pressling maybe-better`). Each one becomes a link on the page."""
         self._watch("better", better_links_path(self.paths), lambda links: {k: v for k, v in links.items() if isinstance(v, dict) and is_web_link(v.get("url")) and isinstance(v.get("why"), str)})
 
     def _read_curated(self):
@@ -392,7 +392,7 @@ class Collection:
         self._watch("curated", curated_path(self.paths), lambda saved: {k: v for k, v in saved["songs"].items() if isinstance(v, dict) and isinstance(v.get("why"), str)})
 
     def _read_ideas(self):
-        """The playlist ideas from `curator suggest`, if any."""
+        """The playlist ideas from `pressling suggest`, if any."""
         def keep(saved):
             songs, names = saved["songs"], saved["playlists"]
             if not isinstance(songs, dict) or not isinstance(names, list):
@@ -404,7 +404,7 @@ class Collection:
             self.ideas_names = []
 
     def _read_decisions(self):
-        """The answers can change behind the page's back: `curator apply` takes away the ones it has carried out. False if the file is there but couldn't be looked at just now, so what's in memory may be out of date."""
+        """The answers can change behind the page's back: `pressling apply` takes away the ones it has carried out. False if the file is there but couldn't be looked at just now, so what's in memory may be out of date."""
         try:
             st = os.stat(self.paths["decisions"])
         except FileNotFoundError:
@@ -664,7 +664,7 @@ class Collection:
         return mine or [r for r in rows if norm(r["dest"]).endswith(wanted)]
 
     def checked(self, song_id, undo=False):
-        """Looks right, from the page: an Auto-matched song you checked is written down as verified, the way `curator verified` does it.
+        """Looks right, from the page: an Auto-matched song you checked is written down as verified, the way `pressling verified` does it.
         With undo, the notes from before come back. Returns what the page shows for the song now, or {error}."""
         from . import apply, curate  # here because they need this module loaded first
         with self.lock:

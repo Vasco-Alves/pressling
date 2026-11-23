@@ -2,9 +2,9 @@
 """Tiny client for VGMdb data via the vgmdb.info JSON mirror (public, read-only). Responses are cached.
 
 Usage:
-  curator vgmdb search "<query>"        -> albums (id, title, catalog, date) and products (games)
-  curator vgmdb album <id>              -> title, date, catalog, composers, tracklist (disc/track/name/length)
-  curator vgmdb product <id>            -> game title, release date, linked albums
+  pressling vgmdb search "<query>"        -> albums (id, title, catalog, date) and products (games)
+  pressling vgmdb album <id>              -> title, date, catalog, composers, tracklist (disc/track/name/length)
+  pressling vgmdb product <id>            -> game title, release date, linked albums
 """
 import hashlib
 import json

@@ -1740,3 +1740,71 @@ class DoubleCheck(WithDiscogs):
         self.assertEqual(tagwriter.written_sources(rows), ({"b"}, {"a": "the dub"}))
         self.assertEqual(tagwriter.written_sources(rows + [dict(src="a", status="ok")]), ({"a", "b"}, {}))
 
+
+class OneRunsOwnFolders(WithDiscogs):
+    """`pressling curate --from <folder> --to <folder>`: other folders for one run; the ones in Settings stay as they are."""
+
+    def other(self, *parts):
+        return os.path.join(self.root, *parts)
+
+    def put(self, folder, name):
+        return write_mp3(os.path.join(folder, name + ".mp3"), **{"artist": "", "title": "", "album": "", "discogs": "", "genre": "Other", "year": ""})
+
+    def command(self, *args):
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            code = cli.main(["--config", self.cfg, "curate", *args])
+        return code, out.getvalue()
+
+    def refused(self, *args):
+        with mock.patch("sys.stdout", io.StringIO()), self.assertRaises(SystemExit) as done:
+            cli.main(["--config", self.cfg, "curate", *args])
+        return str(done.exception.code)
+
+    def test_from_curates_another_folder_and_leaves_the_usual_one_alone(self):
+        elsewhere = self.other("Other downloads")
+        os.makedirs(elsewhere)
+        self.put(elsewhere, "A - Song")
+        self.file("B - Nope")  # in the downloads folder of Settings: not looked at this time
+        self.fake.add("A", "The Record", [("A1", "Song", LENGTH)])
+        code, said = self.command("--from", elsewhere)
+        self.assertEqual(code, 0)
+        self.assertIn("Added 1 song", said)
+        self.assertIn("open Pressling", said)
+        self.assertNotIn("curator", said)
+        self.assertTrue(any(n.endswith("A - Song.mp3") for n in self.in_library()))
+        self.assertNotIn("B - Nope.mp3", json.dumps(self.waiting()))
+
+    def test_to_puts_the_songs_in_another_library_and_makes_it(self):
+        target = self.other("New library")
+        self.file("A - Song")
+        self.fake.add("A", "The Record", [("A1", "Song", LENGTH)])
+        code, said = self.command("--to", target)
+        self.assertEqual(code, 0)
+        self.assertIn(f"Added 1 song to {target}", said)
+        self.assertIn("once you choose this folder as your library", said)
+        written = [os.path.join(dp, n) for dp, _, names in os.walk(target) for n in names]
+        self.assertEqual([os.path.basename(p) for p in written], ["A - Song.mp3"])
+        self.assertEqual(self.in_library(), [])  # the library in Settings is untouched
+
+    def test_a_preview_never_makes_the_folder(self):
+        target = self.other("Not yet")
+        self.assertIn("doesn't exist yet", self.refused("--dry-run", "--to", target))
+        self.assertFalse(os.path.exists(target))
+
+    def test_a_missing_downloads_folder_is_refused(self):
+        self.assertIn("doesn't exist", self.refused("--from", self.other("Nowhere")))
+
+    def test_a_downloads_folder_inside_the_library_is_refused(self):
+        inside = os.path.join(self.lib, "Acid")
+        os.makedirs(inside)
+        self.assertIn("inside your library", self.refused("--from", inside))
+
+    def test_a_library_around_the_downloads_folder_is_refused(self):
+        self.assertIn("would be inside that library", self.refused("--to", self.root))
+
+    def test_both_names_are_the_same_command(self):
+        import tomllib
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pyproject.toml"), "rb") as f:
+            scripts = tomllib.load(f)["project"]["scripts"]
+        self.assertEqual((scripts["pressling"], scripts["curator"]), ("music_curator.cli:pressling", "music_curator.cli:pressling"))

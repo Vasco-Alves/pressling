@@ -1,4 +1,4 @@
-"""Tests for `curator apply`: the genre tag edit, what happens to files, and how the page sees the result.
+"""Tests for `pressling apply`: the genre tag edit, what happens to files, and how the page sees the result.
 
     python -m unittest discover -s tests
 """

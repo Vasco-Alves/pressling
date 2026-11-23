@@ -2,7 +2,7 @@
 """Fallback lookup for songs Discogs doesn't have: MusicBrainz first, then YouTube's official
 'Provided to YouTube by' uploads (auto-generated "- Topic" channels).
 
-Usage: curator other <items.json> <out.json>
+Usage: pressling other <items.json> <out.json>
 items.json entries need: key, src, artist (or search_artist), title (or search_title), secs, tag_genre (optional)
 A match must agree on artist and title, and on length (within 6 s) when the source gives one.
 """
@@ -113,7 +113,7 @@ def try_topic(it):
     found = yt("search", f"{a} {t}", "10")
     if isinstance(found, dict) and found.get("error") and not _warned[0]:
         _warned[0] = True
-        print("The YouTube check isn't running (is yt-dlp installed? see `curator doctor`), so \"not found\" below only means MusicBrainz.", flush=True)
+        print("The YouTube check isn't running (is yt-dlp installed? see `pressling doctor`), so \"not found\" below only means MusicBrainz.", flush=True)
     for v in found if isinstance(found, list) else []:
         if not (v.get("channel") or "").endswith(" - Topic"):
             continue

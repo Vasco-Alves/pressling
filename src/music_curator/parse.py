@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse inbox filenames (+ existing tags) into artist / title / hints, and triage them.
 
-Usage: curator parse <out.json> [<dir> ...]   (non-recursive; default: [paths] inbox)
+Usage: pressling parse <out.json> [<dir> ...]   (non-recursive; default: [paths] inbox)
 Categories: candidate | mix | ost | nonmusic | nightcore | done (already processed per log)
 """
 import csv

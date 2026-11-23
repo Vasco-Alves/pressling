@@ -1,4 +1,4 @@
-"""Tests for `curator suggest`: who gets suggested, why, and how the answers flow through the page and `curator apply`.
+"""Tests for `pressling suggest`: who gets suggested, why, and how the answers flow through the page and `pressling apply`.
 
     python -m unittest discover -s tests
 """

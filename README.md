@@ -1,8 +1,8 @@
 # Pressling
 
 A free, open-source companion for your own music files: a player with a curator built in, which checks every song
-like a test pressing before it goes on the shelf. Install it as `pressling` and start it with `pressling`; the `curator`
-command does the same and more, for scripts and AI agents.
+like a test pressing before it goes on the shelf. Install it as `pressling` and start it with `pressling`; the same
+command runs its tools in a terminal too (`pressling curate`, `pressling doctor` and more), for you, scripts and AI agents.
 
 Curate a local music library, on its own or with an AI agent: every song is checked against
 [Discogs](https://www.discogs.com), the exact version is settled by track length (and, with an agent, audio
@@ -175,7 +175,7 @@ Windows:
 ```powershell
 python -m venv .venv
 .venv\Scripts\python -m pip install -e .
-.venv\Scripts\curator serve
+.venv\Scripts\pressling
 ```
 
 macOS and Linux (on Debian and Ubuntu, `sudo apt install python3-venv` first if `venv` isn't there):
@@ -183,14 +183,15 @@ macOS and Linux (on Debian and Ubuntu, `sudo apt install python3-venv` first if 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
-.venv/bin/curator serve
+.venv/bin/pressling
 ```
 
-`curator serve` opens your browser, where you pick your library and downloads folders. `pressling doctor`, run the same way,
-checks that everything is in place. From then on, that full path is how you start the app. If you'd rather type just `curator`,
+`pressling` opens your browser, where you pick your library and downloads folders. `pressling doctor`, run the same way,
+checks that everything is in place. From then on, that full path is how you start the app. If you'd rather type just `pressling`,
 activate the environment first in each new terminal: `.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on macOS and Linux.
 
-Prefer a config file? `curator init` writes a `curator.toml` in the current folder.
+Prefer a config file? `pressling init` writes a `curator.toml` in the current folder. `curator`, Pressling's old name, still works as
+a command too.
 
 **How it fits together:** you put downloaded songs in your downloads folder and press **Curate**, or ask your AI app to curate
 them. Finished songs are copied into your library, sorted by genre, and your originals stay in downloads until you say they can
@@ -210,7 +211,9 @@ it to Discogs. Keep the file out of anything you share: `.env` is already in thi
 
 ## Curate with no AI
 
-**Curate** on the page (or `curator curate`, with `--dry-run` for a preview) looks up everything waiting in your downloads folders.
+**Curate** on the page (or `pressling curate` in a terminal, with `--dry-run` for a preview) looks up everything waiting in your downloads
+folders. `pressling curate --from <folder> --to <folder>` does it for other folders, just this once: `--from` a downloads folder (give
+it again for more), `--to` the library the songs go into (made if it doesn't exist). Without them it uses the folders in Settings.
 With nobody double-checking, the rules are strict. A song goes in only when:
 
 - its artist and title match a track on a record, and any mix named in the file is the one on the record
@@ -225,7 +228,7 @@ with the reason and the versions found: listen, then click the one it is, or typ
 wrote: the old and new file names, the tags, the cover and its size, the record it matched, and the versions on that record with their
 lengths next to yours. The ones worth a closer look come first, with the reason: a length further off, a version picked from several by
 length, one you picked yourself, a genre toss-up, a low bitrate, a small cover or a better copy found. **Looks right** marks the song
-Verified straight away, the way `curator verified` does, and only writes that in the log. **Not right**, with a note if you like, takes
+Verified straight away, the way `pressling verified` does, and only writes that in the log. **Not right**, with a note if you like, takes
 it out of your library the next time you press Curate. The copy goes to the Set aside folder while your original is still in your downloads,
 or back to your downloads under its old name if it isn't. Then the song is looked up again and waits on To check with your note, and only
 your answer puts it back. Quick mode works here too: 1 for Looks right, 2 for Not right, U to undo.
@@ -239,7 +242,7 @@ do: reading odd names, settling versions from the audio, checking other sources,
 
 ## See it in your browser
 
-`curator serve` opens a small local page (127.0.0.1 only, nothing to install):
+`pressling` opens a small local page (127.0.0.1 only, nothing to install):
 
 ![To check: songs waiting for your ears, with the versions found](https://raw.githubusercontent.com/Vasco-Alves/pressling/main/docs/img/check.jpg)
 
@@ -257,7 +260,7 @@ pulled from its box, its reels winding the tape across as the song goes; and a d
 - **Favourites**: the heart on the play bar, Now Playing, the song panel and song rows adds to a local playlist called Favourites, which sits first on the Playlists page and works like any other.
 - **More than one genre**: a file keeps the one genre you settled on, but the app also shows every style Discogs lists for its record, after the file's own (Genres: Acid, Acid House, Techno), and finds the song under any of them. On a compilation those are the whole album's, so they're only shown, on a line of their own. Kept in `styles.json` next to the log; Curate fills it in.
 - **Glow, Flash and Sparkle**: separate switches, on the play bar and on Now Playing. Glow makes the buttons light up softly on each kick, and Flash does the same to the background. Sparkle follows the hi-hats instead: the dots in the clock tick and now and then a glint catches the record or the play button. All three are off until you turn them on.
-- **On your phone**: `curator serve --lan` also opens the app on your home network and prints a private link. Open it once on the phone and it remembers. Only devices on that network with the link get in, and choosing folders, copying files and Spotify sign-in stay on the computer. It's plain HTTP, so keep it to a network you trust.
+- **On your phone**: `pressling serve --lan` also opens the app on your home network and prints a private link. Open it once on the phone and it remembers. Only devices on that network with the link get in, and choosing folders, copying files and Spotify sign-in stay on the computer. It's plain HTTP, so keep it to a network you trust.
 - **Packs**: under Settings you can export how you've set the app up as a small file, and import someone else's: jokes, road signs, which genre gets which mood, sliders and surprises. A pack only holds words, numbers and colors, so it can't run anything. See `examples/example.curator-pack.json` to write one by hand.
 - **Surprises**: now and then the app nods along to the kick, and once in a while it dances. Visitors drop by the app itself too: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top. On acid the smileys come out, and now and then one trips: it sticks its tongue out, melts and drips, or runs through the rainbow. Settings says how often, how strong and how long, or turns them off, and the nodding can stay on all the time.
 - **Mood**: the background and the way a kick lands change a little with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore, for goa and psytrance every color at once, slowly going round, with each kick landing in the next one, and for nightcore sakura pink, cyan and lavender, with a starry tiled sky, petals drifting and a pale moon behind the page. Who visits follows the mood too: on psytrance a great eye opens and looks about, kaleidoscope flowers bloom, and toadstools hop across to the kick. On nightcore a lucky cat waves on the kick, paper cranes fly over, little windows of the early internet pop up and fold shut (a starry screen with a blinking cursor, a counter that ticks on the kick, a bar that fills), sparkle stars with faces hop, lanterns glow, a floppy disk smiles, a moon rises over waves with a gate in the water, and every drop lands in a burst of petals and sparkles with speed lines. Little windows like these drop by in every other mood too, now and then, dressed for it (acid yellow with a smiley on the screen, hard red and black with square corners, psytrance with a rainbow sliding along the title bar, euphoric in pastels, otherwise in the record's colors), each with a screen that follows the music: a starry sky, a counter that ticks on the kick, a page still being built, a little spectrum, a scope, stars rushing past, a bar that follows the song, or blocks typed on the beat; a click shuts one, and one may pop up in a corner of the app itself. So do the time and the record: late at night it gets darker and more neon, at dawn a sunrise comes up (most of all on psytrance), the evening is warm; a record from the seventies gets film grain, the eighties scanlines, the nineties a VHS wobble; the season sends snow, petals, fireflies or leaves through the pictures now and then; the pictures run with the tempo; and after a long session the visitors turn up more often, like a party. Settings turns each of these off.
@@ -275,7 +278,7 @@ settings in your user profile. Browsing only ever reads your music. Your answers
 one thing on the page that changes your library is the Curate button, and the only outside service it talks to is Discogs (plus YouTube, if you turn on comparing audio). Export never changes your library, and copying only ever adds files to the folder you pick.
 
 When you've answered To check, press **Curate** at the top of that page. It adds the songs you identified and carries out your other answers that need no research: songs
-you said aren't right on Double-check, genre changes, which also move the song to the new genre's folder, and, if you tick the box, the songs you marked not worth keeping. `curator apply` does the same from a terminal (`--dry-run` to preview, `--set-aside` for those songs).
+you said aren't right on Double-check, genre changes, which also move the song to the new genre's folder, and, if you tick the box, the songs you marked not worth keeping. `pressling apply` does the same from a terminal (`--dry-run` to preview, `--set-aside` for those songs).
 Nothing is deleted: old copies go to a `Set aside` folder next to the log, which you can empty whenever you like. Answers that need
 research, like finding a better copy, stay on the list for your agent.
 

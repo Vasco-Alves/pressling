@@ -1,4 +1,4 @@
-"""`curator apply`: carry out the answers from the browser that need no research.
+"""`pressling apply`: carry out the answers from the browser that need no research.
 
 A genre answer changes the genre tag and nothing else (checked byte by byte) and moves the song to the new genre's folder.
 A song you said Curate got wrong leaves the library, and waits on To check again. With --set-aside, songs marked "not worth keeping"
@@ -690,11 +690,11 @@ def main(dry_run=False, set_aside=False):
         counts.append(f"{len(adds)} to add by hand")
     print(("Would do: " if dry_run else "Done: ") + ", ".join(counts) + ".")
     if dry_run and (genres or wrongs or (drops and set_aside)):
-        print(f"Run `curator apply{' --set-aside' if set_aside else ''}` to do this.")
+        print(f"Run `pressling apply{' --set-aside' if set_aside else ''}` to do this.")
     if not dry_run and os.path.isdir(run.aside):
         print(f"What was replaced or taken out is in {run.aside}\nNothing was deleted. Empty that folder whenever you're happy with the result.")
     if run.back and not dry_run:
-        print("Run `curator curate`, or press Curate on the page, to look the songs you took out up again: they wait on To check with the versions on their record.")
+        print("Run `pressling curate`, or press Curate on the page, to look the songs you took out up again: they wait on To check with the versions on their record.")
     if run.changed + run.removed + run.cleared + run.back and not dry_run:
         print("If your library is open in the browser, refresh the page.")
     return 1 if run.problems else 0

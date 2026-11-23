@@ -7,12 +7,12 @@ It is only ever sent as an HTTP header to api.discogs.com; this app never
 prints it or writes it anywhere.
 
 Usage (through the CLI):
-  curator discogs release <id>
-  curator discogs master <id>
-  curator discogs versions <master_id>
-  curator discogs search <artist> <track>
-  curator discogs image <url> <out_file>
-  curator discogs batch <items.json> <out.json>
+  pressling discogs release <id>
+  pressling discogs master <id>
+  pressling discogs versions <master_id>
+  pressling discogs search <artist> <track>
+  pressling discogs image <url> <out_file>
+  pressling discogs batch <items.json> <out.json>
 
 items.json: [{"key": "1", "src": "/music/inbox/file.mp3", "artist": "...", "title": "...", "year_hint": 1995}]
 """

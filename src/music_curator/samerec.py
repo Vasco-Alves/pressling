@@ -6,7 +6,7 @@ Verdict "same" when either:
   - the whole-file bit error rate is < 0.2, or
   - >= 70% of 20 s chunks align (BER < 0.3) and the alignment moves in step (robust slope 0.97-1.03),
     directly or after resampling the copy by the speed difference.
-Usage: curator same <copy> <reference> [--tmp DIR]
+Usage: pressling same <copy> <reference> [--tmp DIR]
 The reference is a file, or a YouTube link: that's fetched for the comparison and deleted after it.
 """
 import contextlib

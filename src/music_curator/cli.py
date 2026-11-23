@@ -1,4 +1,4 @@
-"""`curator` command line. Each subcommand is a thin wrapper around one module."""
+"""The `pressling` command line (`curator`, its old name, is the same command). Each command is a thin wrapper around one module."""
 import argparse
 import os
 import shutil
@@ -26,7 +26,7 @@ def _setup(args):
 def _need(key):
     p = config.path(key)
     if not p:
-        sys.exit(f"Set [paths] {key} in curator.toml (see `curator init`), or run `curator serve` and pick your folders there.")
+        sys.exit(f"Set [paths] {key} in curator.toml (see `pressling init`), or start Pressling (`pressling`) and pick your folders there.")
     return p
 
 
@@ -36,7 +36,7 @@ def cmd_init(args):
         sys.exit("curator.toml already exists here; not overwriting it.")
     with open(target, "w", encoding="utf-8") as f:
         f.write(config.EXAMPLE)
-    print(f"Wrote {target}. Edit the paths, then run `curator doctor`.")
+    print(f"Wrote {target}. Edit the paths, then run `pressling doctor`.")
 
 
 def cmd_doctor(args):
@@ -72,7 +72,7 @@ def cmd_doctor(args):
     return 0 if ok else 1
 
 
-def main(argv=None, prog="curator"):
+def main(argv=None, prog="pressling"):
     p = argparse.ArgumentParser(prog=prog, description="Pressling: a player for your own music files with a curator built in. It verifies songs against "
                                 "Discogs (and fallbacks), settles versions by length and fingerprints, and writes clean tags + covers.")
     p.add_argument("--version", action="version", version=f"Pressling {__version__}")
@@ -105,7 +105,11 @@ def main(argv=None, prog="curator"):
     add("compare", "quick whole-file fingerprint comparison", (["a"], {}), (["b"], {}))
     add("drift", "chunk-by-chunk alignment, to tell 'sped up' from 'edited'", (["copy"], {}), reference)
     add("curate", "curate with no AI: look up what's waiting, add the songs the evidence settles, leave the rest on To check",
-        (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}))
+        (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}),
+        (["--from"], {"dest": "from_folders", "action": "append", "metavar": "FOLDER",
+                      "help": "a downloads folder to curate this time, in place of the ones in Settings (give it again for more)"}),
+        (["--to"], {"dest": "to_folder", "metavar": "FOLDER",
+                    "help": "the library to put the songs in this time, in place of the one in Settings (made if it doesn't exist)"}))
     add("verified", "record that Auto-matched songs were checked properly (for your agent, after a Curate run)",
         (["songs"], {"nargs": "+", "help": "library files, as Genre/Artist - Title.mp3 or just the file name"}),
         (["--how"], {"required": True, "help": "what was checked, for the log"}))
@@ -113,7 +117,7 @@ def main(argv=None, prog="curator"):
         (["song"], {"help": "library file, as Genre/Artist - Title.mp3 or just the file name"}),
         (["url"], {"help": "where the copy is"}),
         (["--why"], {"required": True, "help": "what makes it better, in a few words"}),
-        (["--checked"], {"action": "store_true", "help": "its audio was compared with the song and `curator better` accepted it; without this the page calls it a guess"}))
+        (["--checked"], {"action": "store_true", "help": "its audio was compared with the song and `pressling better` accepted it; without this the page calls it a guess"}))
     add("write", "copy audio into the library with clean tags + cover, and append to the log",
         (["plan"], {}), (["--dry-run"], {"action": "store_true"}))
     add("serve", "open the library in your browser: explore it, follow the progress, check songs by ear",
@@ -181,7 +185,7 @@ def main(argv=None, prog="curator"):
             return fpdrift.main([args.copy, reference])
     if args.cmd == "curate":
         from . import curate
-        return curate.main(args.dry_run)
+        return curate.main(args.dry_run, args.from_folders, args.to_folder)
     if args.cmd == "verified":
         from . import curate
         _need("library"), _need("log")
@@ -231,7 +235,7 @@ def _in_turn(run, dry_run=False):
     from . import curate
     try:
         turn = curate._OneAtATime(os.path.join(os.path.dirname(config.path("log")), "curate.lock"), wait=WAIT_FOR_TURN_S,
-                                  said="Something else is writing to the log just now: Curate in the app, or another curator command. Run this again when it has finished.")
+                                  said="Something else is writing to the log just now: Curate in the app, or another pressling command. Run this again when it has finished.")
         turn.__enter__()
     except curate.Stop as ex:
         sys.exit(str(ex))
@@ -244,7 +248,7 @@ def _in_turn(run, dry_run=False):
 
 
 def pressling(argv=None):
-    """The `pressling` command: on its own it opens the app, and with a command it does what `curator` does."""
+    """The `pressling` command, and `curator`, its old name: on its own it opens the app, and with a command it runs that tool."""
     argv = sys.argv[1:] if argv is None else argv
     return main(argv or ["serve"], prog="pressling")
 
