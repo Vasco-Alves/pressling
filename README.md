@@ -190,11 +190,11 @@ python3 -m venv .venv
 checks that everything is in place. From then on, that full path is how you start the app. If you'd rather type just `pressling`,
 activate the environment first in each new terminal: `.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on macOS and Linux.
 
-You don't need a settings file: the app saves your folders in your usual settings, `%APPDATA%\music-curator\curator.toml` on
-Windows and `~/.config/music-curator/curator.toml` on macOS and Linux. For a second, separate setup, `pressling init` writes an
-example `curator.toml` in the current folder. Pressling uses that one whenever it's started from that folder (it comes before your
-usual settings), and from anywhere with `pressling --config <file> <command>`. `curator`, Pressling's old name, still works as a
-command too.
+You don't need a settings file: the app saves your folders in your usual settings, `%APPDATA%\pressling\pressling.toml` on
+Windows and `~/.config/pressling/pressling.toml` on macOS and Linux. (Settings made before 0.1.8 are called `curator.toml`, in a
+`music-curator` folder, and are still found.) For a second, separate setup, `pressling init` writes an example `pressling.toml`
+in the current folder. Pressling uses that one whenever it's started from that folder (it comes before your usual settings), and
+from anywhere with `pressling --config <file> <command>`. `curator`, Pressling's old name, still works as a command too.
 
 **How it fits together:** you put downloaded songs in your downloads folder and press **Curate**, or ask your AI app to curate
 them. Finished songs are copied into your library, sorted by genre, and your originals stay in downloads until you say they can
@@ -299,7 +299,7 @@ Check Spotify only reads your playlists, the sign-in stays in memory until the a
 Check Spotify also searches Spotify for the songs still waiting in your downloads and Review, once per song. Likely matches appear on To check as **Might be on Spotify**, going by name and length, because Spotify gives apps no audio to compare. Open it, listen, and if it's the same recording, choose playlists and the app adds the streamed song to them. Your file stays where it is until you say otherwise.
 
 To turn all this on, create an app at <https://developer.spotify.com/dashboard>, add
-`http://127.0.0.1:8888/callback` as its redirect URI, and put its Client ID in `curator.toml`:
+`http://127.0.0.1:8888/callback` as its redirect URI, and put its Client ID in your settings file (`pressling.toml`):
 
 ```toml
 [spotify]
@@ -308,32 +308,69 @@ client_id = "your client id"
 
 ## Commands
 
+`pressling` on its own opens the app. Followed by a command, it does one job in the terminal: `pressling --help` lists them all,
+and `pressling <command> --help` explains one. `curator`, Pressling's old name, works the same.
+
+**Everyday**
+
 | Command | What it does |
 |---|---|
-| `init`, `doctor` | starter config; environment check |
-| `curate [--dry-run]` | curate with no AI: add the songs the evidence settles, leave the rest on To check |
-| `verified SONG… --how TEXT` | record that Auto-matched songs were checked properly, like Looks right on Double-check (for your agent, after Curate) |
-| `parse OUT [DIR…]` | read inbox folders (names + tags) into items |
-| `resolve ITEMS OUT` | Discogs match and tag decisions |
-| `scan ITEMS` | every pressing/version of a song with lengths |
-| `videos ITEMS OUT` | fingerprint files against Discogs-linked videos |
-| `other ITEMS OUT` | MusicBrainz and official YouTube uploads |
-| `ost ITEMS OUT` | game-soundtrack lookup |
-| `better ITEMS OUT` | find better copies and compare them with yours (yt-dlp); gives links and keeps no audio |
-| `maybe-better SONG URL --why TEXT [--checked]` | leave a link to a possibly better copy on To check, to open or ignore (for your agent) |
-| `same COPY REF`, `compare A B`, `drift COPY REF` | same-recording tests (`REF` can be a YouTube link, with yt-dlp) |
-| `write PLAN [--dry-run]` | write tagged copies + cover into the library, append to the log |
-| `serve [--port N] [--no-browser]` | open the library in your browser |
-| `decisions` | list what you decided in the browser |
-| `apply [--dry-run] [--set-aside]` | carry out your browser answers that need no research |
-| `serve --lan` | also open the app on your home network, behind a private link, for your phone |
-| `genres` | get every style Discogs lists for the records in your library, for the page (files keep their one genre) |
-| `suggest PLAYLISTS [NAME] [--count N]` | suggest playlists your songs are a confident fit for, to judge by ear on To check (experimental) |
-| `discogs …`, `vgmdb …` | raw clients |
+| `pressling` | open the app in your browser |
+| `pressling serve [--port N] [--no-browser] [--lan]` | the same, on another port, without opening a tab, or also for your phone on your home network (behind a private link) |
+| `pressling doctor` | check ffmpeg, the Discogs token, your folders and yt-dlp |
+| `pressling curate` | what the Curate button does: add the songs the evidence settles, leave the rest on To check |
+| `pressling curate --dry-run` | show what Curate would do, and change nothing |
+| `pressling curate --from FOLDER --to FOLDER` | curate another downloads folder, or into another library, just this once (either one or both; `--from` can be given again for more folders) |
+| `pressling decisions` | list what you answered on the page |
+| `pressling apply [--dry-run] [--set-aside]` | carry out the answers that need no research, such as genre changes; with `--set-aside`, songs you marked not worth keeping go to the Set aside folder (nothing is deleted) |
+
+**Looking things up and comparing audio**
+
+| Command | What it does |
+|---|---|
+| `pressling discogs search ARTIST TRACK` | search Discogs (also `release ID`, `master ID`, `versions ID`, `image URL FILE`) |
+| `pressling vgmdb search QUERY` | search VGMdb for game music through its mirror (also `album ID`, `product ID`; often unavailable) |
+| `pressling same COPY REFERENCE` | is your copy the same recording as the reference, a file or a YouTube link? Copes with speed changes and cuts; a video is deleted right after |
+| `pressling compare A B` | quick whole-file fingerprint comparison |
+| `pressling drift COPY REFERENCE` | piece-by-piece comparison, to tell "sped up" from "edited" |
+
+**Library extras**
+
+| Command | What it does |
+|---|---|
+| `pressling genres` | get every style Discogs lists for the records in your library, for the page (files keep their one genre) |
+| `pressling suggest PLAYLISTS [NAME] [--count N]` | suggest playlists your songs are a confident fit for, to judge by ear on To check (experimental) |
+
+**For AI agents, and for working step by step**
+
+| Command | What it does |
+|---|---|
+| `pressling verified SONG… --how TEXT` | record that songs Curate added were checked properly, like Looks right on Double-check |
+| `pressling maybe-better SONG URL --why TEXT [--checked]` | leave a link to a possibly better copy on To check, for you to open or ignore |
+| `pressling write PLAN [--dry-run]` | write tagged copies with covers into the library, and add them to the log |
+| `pressling parse`, `resolve`, `scan`, `videos`, `other`, `ost`, `better` | the steps Curate is made of: read the downloads, match on Discogs, every pressing, Discogs-linked videos, MusicBrainz and official uploads, game soundtracks, better copies |
+
+**Settings**
+
+| Command | What it does |
+|---|---|
+| `pressling --config FILE <command>` | use another settings file for that command |
+| `pressling init` | write an example `pressling.toml` in the current folder, for a separate setup |
+| `pressling --version` | show which version you have |
+
+Some examples:
+
+```powershell
+pressling curate --dry-run
+pressling curate --from "D:\Downloads\New music" --to "D:\Music\Library"
+pressling same "D:\Music\Library\Trance\Artist - Title.mp3" "https://www.youtube.com/watch?v=..."
+pressling discogs search "Marino Stephano" "Free Time"
+pressling apply --set-aside
+```
 
 ## Your rules
 
-The defaults follow one person's taste; change them in `curator.toml` (`[rules]`) and
+The defaults follow one person's taste; change them in your settings file (`[rules]` in `pressling.toml`) and
 [docs/RULES.md](https://github.com/Vasco-Alves/pressling/blob/main/docs/RULES.md): filename pattern, folder layout, artist joiner, album for singles, keeping your
 existing genres, game/TV soundtrack folders.
 

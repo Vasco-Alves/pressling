@@ -1,6 +1,6 @@
 # Tagging rules (defaults)
 
-These are the defaults the tools and AGENTS.md follow. The `[rules]` keys in `curator.toml` change the ones
+These are the defaults the tools and AGENTS.md follow. The `[rules]` keys in your settings file (`pressling.toml`) change the ones
 marked *(config)*; for the rest, edit this file in your own copy and tell your agent.
 
 ## "Certain" means

@@ -26,28 +26,31 @@ def _setup(args):
 def _need(key):
     p = config.path(key)
     if not p:
-        sys.exit(f"Set [paths] {key} in curator.toml (see `pressling init`), or start Pressling (`pressling`) and pick your folders there.")
+        sys.exit(f"Set [paths] {key} in your settings ({config.target_path()}), or start Pressling (`pressling`) and pick your folders there.")
     return p
 
 
 def cmd_init(args):
-    target = os.path.join(os.getcwd(), "curator.toml")
-    if os.path.exists(target):
-        sys.exit("curator.toml already exists here; not overwriting it.")
+    here = [os.path.join(os.getcwd(), name) for name in (config.FILE_NAME, config.OLD_FILE_NAME)]
+    taken = next((p for p in here if os.path.exists(p)), None)
+    if taken:
+        sys.exit(f"{os.path.basename(taken)} already exists here; not overwriting it.")
+    target = here[0]
     with open(target, "w", encoding="utf-8") as f:
         f.write(config.EXAMPLE)
     print(f"Wrote {target}. Edit the paths, then run `pressling doctor`.")
     usual = config.user_config_path()
     if os.path.normcase(os.path.abspath(usual)) == os.path.normcase(target):
         print("This is where your usual settings live, so Pressling uses this file from any folder.")
-    elif os.path.exists(usual):  # a curator.toml in the folder you start from comes before your usual settings
+    elif os.path.exists(usual):  # a settings file in the folder you start from comes before your usual settings
         print(f"Careful: when Pressling is started from this folder, it now uses this file instead of your usual settings ({usual}). "
               f"Delete this file to go back to them. From any other folder, use it with: pressling --config \"{target}\" <command>")
     else:
         print(f"Pressling uses this file when it's started from this folder, and from anywhere else with: pressling --config \"{target}\" <command>. "
               f"(The app keeps your usual settings in {usual}, made the first time it opens.)")
-    if os.environ.get("CURATOR_CONFIG"):
-        print(f"Note: CURATOR_CONFIG is set ({os.environ['CURATOR_CONFIG']}), and the file it names comes before this one.")
+    named = [name for name in config.ENV_NAMES if os.environ.get(name)]
+    if named:
+        print(f"Note: {named[0]} is set ({os.environ[named[0]]}), and the file it names comes before this one.")
 
 
 def cmd_doctor(args):
@@ -87,8 +90,8 @@ def main(argv=None, prog="pressling"):
     p = argparse.ArgumentParser(prog=prog, description="Pressling: a player for your own music files with a curator built in. It verifies songs against "
                                 "Discogs (and fallbacks), settles versions by length and fingerprints, and writes clean tags + covers.")
     p.add_argument("--version", action="version", version=f"Pressling {__version__}")
-    p.add_argument("--config", help="the settings file to use. Without it: the file $CURATOR_CONFIG names, else a curator.toml in the folder you "
-                   "start from, else your usual settings (" + config.user_config_path().replace("%", "%%") + ")")
+    p.add_argument("--config", help="the settings file to use. Without it: the file $PRESSLING_CONFIG names, else a pressling.toml (or "
+                   "curator.toml) in the folder you start from, else your usual settings (" + config.user_config_path().replace("%", "%%") + ")")
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     def add(name, help_, *args):
@@ -97,7 +100,7 @@ def main(argv=None, prog="pressling"):
             sp.add_argument(*a[0], **a[1])
         return sp
 
-    add("init", "write an example curator.toml in the current folder, to edit by hand (the app makes your usual settings itself)")
+    add("init", "write an example pressling.toml in the current folder, to edit by hand (the app makes your usual settings itself)")
     add("doctor", "check ffmpeg/chromaprint, the Discogs token, paths and yt-dlp")
     add("parse", "parse inbox folders (filenames + existing tags) into an items JSON",
         (["out"], {"help": "items JSON to write"}), (["dirs"], {"nargs": "*", "help": "folders (default: [paths] inbox)"}))

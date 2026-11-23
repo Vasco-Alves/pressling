@@ -18,7 +18,7 @@ from . import saving
 
 BASE = "https://vgmdb.info"
 UA = "LocalMusicCurator/0.1"
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "music-curator", "vgmdb")  # the CLI sets this from the config
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "pressling", "vgmdb")  # the CLI sets this from the config
 _last = [0.0]
 
 

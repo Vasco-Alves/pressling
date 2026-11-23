@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Look things up on YouTube with yt-dlp, and fetch a video's audio to compare it with a file you have.
 
-Standalone on purpose: it is run with the interpreter from [ytdlp] python in curator.toml, so an
+Standalone on purpose: it is run with the interpreter from [ytdlp] python in your settings file, so an
 outdated or broken yt-dlp install never affects the rest of the tool.
   python ytdlp_helper.py ...
   search "<query>" [n]      -> JSON list of {id, title, channel, duration, views}

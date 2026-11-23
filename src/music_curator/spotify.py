@@ -5,7 +5,7 @@ Sign-in is Spotify's own consent page in your browser (Authorization Code with P
 Moving entries to the bottom needs more, so that button alone asks to change them too, the first time you press it. The token lives in memory and is never printed or saved. Requests are paced, and if Spotify asks for a long wait the app remembers it and
 doesn't ask again until then.
 
-It needs your own Spotify app's Client ID in curator.toml ([spotify] client_id), with http://127.0.0.1:8888/callback as its redirect URI.
+It needs your own Spotify app's Client ID in your settings file ([spotify] client_id), with http://127.0.0.1:8888/callback as its redirect URI.
 """
 import base64
 import collections

@@ -15,7 +15,8 @@ TRUST_WORDS = dict(verified="Verified", auto="Auto-matched", source="From the so
 GIVE_UP_AFTER = 3  # failures in a row: the drive has probably gone
 MAX_LISTED = 20  # problems shown on the page
 PART = ".curator-part"  # the name a copy has until it's complete
-MADE_HERE = "# Saved by music-curator"  # a playlist with this line can be replaced by a newer one. Any other file with its name is left alone
+MADE_HERE = "# Saved by Pressling"  # a playlist with this line can be replaced by a newer one. Any other file with its name is left alone
+MADE_HERE_BEFORE = "# Saved by music-curator"  # the same line in playlists saved before 0.1.8
 
 
 def _cell(text):
@@ -74,7 +75,8 @@ def _save_playlist(path, text):
     """Write a playlist. False if a file of that name is somebody else's: it stays as it is."""
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
-            if MADE_HERE not in f.read(400):
+            head = f.read(400)
+            if MADE_HERE not in head and MADE_HERE_BEFORE not in head:
                 return False
     except FileNotFoundError:
         pass

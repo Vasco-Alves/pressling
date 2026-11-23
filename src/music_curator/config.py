@@ -1,7 +1,8 @@
-"""Configuration for music-curator.
+"""Pressling's settings.
 
-Read from the --config option if given, else the first found of: $CURATOR_CONFIG, ./curator.toml, the per-user file
-that the app's first-run screen creates (see user_config_path).
+Read from the --config option if given, else the first found of: the file $PRESSLING_CONFIG (or the older $CURATOR_CONFIG) names,
+a pressling.toml (or the older curator.toml) in the current folder, and the per-user file that the app's first-run screen creates
+(see user_config_path). Settings made before 0.1.8 are called curator.toml, in a music-curator folder: they are still found.
 Relative paths in the file are resolved against the file's own folder, and they may start with ~ or use $VARS; absolute
 paths are taken exactly as written, so a real folder name containing $ or % stays intact.
 Secrets never live here: the Discogs token comes from the DISCOGS_TOKEN environment variable, or from a .env file next to this one (see env_file).
@@ -77,8 +78,10 @@ def _resolve_path(p, base_dir):
 def load(path=None):
     """Load (or reload) the configuration. Returns the merged dict."""
     global _cfg, _cfg_path, _requested
-    _requested = path or os.environ.get("CURATOR_CONFIG") or None
-    candidates = [path] if path else [os.environ.get("CURATOR_CONFIG"), os.path.join(os.getcwd(), "curator.toml"), user_config_path()]
+    named = next((os.environ[name] for name in ENV_NAMES if os.environ.get(name)), None)
+    _requested = path or named or None
+    here = [os.path.join(os.getcwd(), name) for name in (FILE_NAME, OLD_FILE_NAME)]
+    candidates = [path] if path else [named, *here, user_config_path()]
     found = next((c for c in candidates if c and os.path.exists(c)), None)
     data = {}
     if found:
@@ -100,7 +103,7 @@ def load(path=None):
     inbox = paths["inbox"] if isinstance(paths["inbox"], list) else [paths["inbox"]]
     paths["inbox"] = [_resolve_path(p, base) for p in inbox if p]
     if not paths["cache"]:
-        paths["cache"] = os.path.join(os.path.expanduser("~"), ".cache", "music-curator")
+        paths["cache"] = os.path.join(os.path.expanduser("~"), ".cache", "pressling")
     if not paths["work"]:
         paths["work"] = os.path.join(paths["cache"], "work")
     python = cfg["ytdlp"]["python"]
@@ -109,10 +112,27 @@ def load(path=None):
     return cfg
 
 
-def user_config_path():
-    """Where the first-run screen saves the config when nothing says otherwise, so it's found from any folder."""
+PROFILE_FOLDER, OLD_PROFILE_FOLDER = "pressling", "music-curator"  # the settings folder in the person's profile, and its name before 0.1.8
+FILE_NAME, OLD_FILE_NAME = "pressling.toml", "curator.toml"  # a settings file's name, and its name before 0.1.8: both are read
+ENV_NAMES = ("PRESSLING_CONFIG", "CURATOR_CONFIG")  # the environment variable that can name the settings file, and its older name
+
+
+def profile_folder(name=PROFILE_FOLDER):
+    """A folder for an app's settings in the person's own profile: under %APPDATA% on Windows, $XDG_CONFIG_HOME or ~/.config elsewhere."""
     base = os.environ.get("APPDATA") if sys.platform == "win32" else os.environ.get("XDG_CONFIG_HOME")
-    return os.path.join(base or os.path.join(os.path.expanduser("~"), ".config"), "music-curator", "curator.toml")
+    return os.path.join(base or os.path.join(os.path.expanduser("~"), ".config"), name)
+
+
+def user_config_path():
+    """Your usual settings, found from any folder: <profile>/pressling/pressling.toml, where the first-run screen saves them.
+    Settings made before 0.1.8 are <profile>/music-curator/curator.toml: while those are there and the new ones aren't, they are the ones used."""
+    new = os.path.join(profile_folder(), FILE_NAME)
+    if os.path.exists(new):
+        return new
+    for older in (os.path.join(profile_folder(), OLD_FILE_NAME), os.path.join(profile_folder(OLD_PROFILE_FOLDER), OLD_FILE_NAME)):
+        if os.path.exists(older):
+            return older
+    return new
 
 
 def target_path():
@@ -280,7 +300,7 @@ def _save_table(file, table, updates, edit):
     saving.write(file, lambda f: f.write(data), "wb")
 
 
-EXAMPLE = '''# music-curator configuration. Copy to curator.toml and adjust.
+EXAMPLE = '''# Pressling settings. Copy to pressling.toml and adjust.
 # Relative paths are relative to this file. The Discogs token is NOT stored here:
 # put a line DISCOGS_TOKEN=your_token in a .env file next to this one, or set the DISCOGS_TOKEN environment variable.
 # Get a free token at https://www.discogs.com/settings/developers

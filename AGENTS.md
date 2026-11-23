@@ -84,7 +84,7 @@ in a few plain words, skip whatever is already there, and get their OK before in
 
 By hand: the same virtual environment as step 2 (a plain `pip install` is refused on recent Linux and with Homebrew's Python),
 then `pressling` (the app) asks for the folders and saves them in the person's usual settings. `pressling init` writes an example
-`curator.toml` in the current folder instead, and that file takes over from the usual settings whenever Pressling starts from that
+`pressling.toml` in the current folder instead, and that file takes over from the usual settings whenever Pressling starts from that
 folder, so only use it for a separate setup. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
 separate Python, set `[ytdlp] python`.
 
@@ -186,11 +186,12 @@ If your AI app has its own browser (the Claude desktop app's Browser pane, for e
 
 `pressling serve` gives the person a local page to explore the library and answer what only ears can settle. It's a music player
 first: the Curator (Curate, To check, Progress, Double-check) and Spotify are extras, turned on or off under Settings → Extras
-(`[extras] curator` and `spotify` in `curator.toml`; with no choice made, the Curator is on when there's a downloads folder or a log,
+(`[extras] curator` and `spotify` in `pressling.toml`; with no choice made, the Curator is on when there's a downloads folder or a log,
 and Spotify once it's set up or has been checked). Off only hides that part of the page: the commands still work, so if the person
 asks you to curate with the Curator off, say they'll see the results once they turn it on. With no config
-it opens on a first-run screen where they pick their library folder and, if they like, a downloads folder; that saves `curator.toml` to the per-user
-location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Settings page. It reads the
+it opens on a first-run screen where they pick their library folder and, if they like, a downloads folder; that saves `pressling.toml` to the per-user
+location, `pressling/pressling.toml` (`--config` or `$PRESSLING_CONFIG` override it; settings made before 0.1.8, in
+`music-curator/curator.toml`, are still found), and every command then finds it. To change folders, use its Settings page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
 `- **Artist - Title**: reason` per song. The page never changes music (Looks right on Double-check only writes its check in the log); answers land in `decisions.json` next to the log, keyed
 `<kind>:<area>/<relative path>`, and `pressling decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy. Playlists made in the app are in `own_playlists.json`, keyed the same way: if you change a song's artist or title, it shows as not here in those playlists, so tell the person.

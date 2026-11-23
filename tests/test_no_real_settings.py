@@ -45,6 +45,7 @@ class NoRealSettings(unittest.TestCase):
             with mock.patch.object(config.sys, "platform", system):
                 self.assertTrue(inside(config.user_config_path()), system)
         self.assertNotIn("CURATOR_CONFIG", os.environ)
+        self.assertNotIn("PRESSLING_CONFIG", os.environ)
         self.assertIsNone(config.config_path(), "with no settings file named, none is found")
         self.assertTrue(inside(config.target_path()) and inside(config.env_file()))
         self.assertEqual((config.path("library"), config.path("log"), config.path("inbox")), ("", "", []))
@@ -64,9 +65,9 @@ class NoRealSettings(unittest.TestCase):
                     winreg.QueryValueEx(key, name)
 
     def test_a_program_the_tests_start_gets_the_same(self):
-        code = "import os; print(ascii([os.environ.get(k) for k in ('APPDATA', 'XDG_CONFIG_HOME', 'CURATOR_CONFIG', 'DISCOGS_TOKEN')]))"
+        code = "import os; print(ascii([os.environ.get(k) for k in ('APPDATA', 'XDG_CONFIG_HOME', 'PRESSLING_CONFIG', 'CURATOR_CONFIG', 'DISCOGS_TOKEN')]))"
         done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=120)
-        self.assertEqual(ast.literal_eval(done.stdout.strip()), [STAND_IN, STAND_IN, None, None], done.stderr[-400:])
+        self.assertEqual(ast.literal_eval(done.stdout.strip()), [STAND_IN, STAND_IN, None, None, None], done.stderr[-400:])
 
     def test_a_run_of_its_own_gets_its_own_folder_and_takes_it_away_again(self):
         code = "import sys; sys.path.insert(0, sys.argv[1]); import _no_real_settings as mine; import os; print(ascii([mine.FOLDER, os.listdir(mine.FOLDER)]))"
@@ -79,13 +80,14 @@ class NoRealSettings(unittest.TestCase):
 
     def test_a_settings_file_where_the_tests_are_started_stops_them(self):
         code = "import sys; sys.path.insert(0, sys.argv[1]); import _no_real_settings; print('went on')"
-        with tempfile.TemporaryDirectory() as folder:
-            with open(os.path.join(folder, "curator.toml"), "w", encoding="utf-8") as f:
-                f.write("[paths]\nlibrary = 'the music of whoever runs the tests'\n")
-            done = subprocess.run([sys.executable, "-I", "-c", code, HERE], capture_output=True, text=True, timeout=120, cwd=folder)
-        self.assertNotEqual(done.returncode, 0)
-        self.assertNotIn("went on", done.stdout)
-        self.assertIn("curator.toml", done.stderr)
+        for name in ("pressling.toml", "curator.toml"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:
+                with open(os.path.join(folder, name), "w", encoding="utf-8") as f:
+                    f.write("[paths]\nlibrary = 'the music of whoever runs the tests'\n")
+                done = subprocess.run([sys.executable, "-I", "-c", code, HERE], capture_output=True, text=True, timeout=120, cwd=folder)
+                self.assertNotEqual(done.returncode, 0)
+                self.assertNotIn("went on", done.stdout)
+                self.assertIn(name, done.stderr)
 
 
 if __name__ == "__main__":

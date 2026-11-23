@@ -935,7 +935,7 @@ from music_curator import cli, config  # noqa: E402  (for the class below)
 
 
 class InitAndSettings(unittest.TestCase):
-    """`pressling init` writes an example settings file in the current folder, and says how it relates to your usual settings."""
+    """Where Pressling finds its settings, and `pressling init`, which writes an example settings file in the current folder."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -943,13 +943,22 @@ class InitAndSettings(unittest.TestCase):
         self.addCleanup(config.load, None)
         self.here = os.path.join(self.tmp.name, "here")
         os.makedirs(self.here)
-        env = mock.patch.dict(os.environ, {"APPDATA": os.path.join(self.tmp.name, "appdata"), "XDG_CONFIG_HOME": os.path.join(self.tmp.name, "appdata")})
+        self.profile = os.path.join(self.tmp.name, "profile")
+        env = mock.patch.dict(os.environ, {"APPDATA": self.profile, "XDG_CONFIG_HOME": self.profile})
         env.start()
         self.addCleanup(env.stop)
-        os.environ.pop("CURATOR_CONFIG", None)
+        for name in config.ENV_NAMES:
+            os.environ.pop(name, None)
         cwd = os.getcwd()
         os.chdir(self.here)
         self.addCleanup(os.chdir, cwd)
+
+    def settings(self, *where, library="L"):
+        path = os.path.join(*where)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"[paths]\nlibrary = '{library}'\n")
+        return path
 
     def init(self):
         said = io.StringIO()
@@ -957,39 +966,75 @@ class InitAndSettings(unittest.TestCase):
             code = cli.main(["init"])
         return code, said.getvalue()
 
-    def test_it_warns_when_the_new_file_takes_over_from_your_usual_settings(self):
-        usual = config.user_config_path()
-        os.makedirs(os.path.dirname(usual))
-        with open(usual, "w", encoding="utf-8") as f:
-            f.write("[paths]\n")
+    def test_new_settings_go_in_a_pressling_folder(self):
+        self.assertEqual(config.user_config_path(), os.path.join(self.profile, "pressling", "pressling.toml"))
+
+    def test_settings_made_before_are_still_found(self):
+        old = self.settings(self.profile, "music-curator", "curator.toml")
+        self.assertEqual(config.user_config_path(), old)
+        config.load()
+        self.assertEqual(config.config_path(), old)
+
+    def test_once_moved_the_new_settings_are_the_ones_used(self):
+        self.settings(self.profile, "music-curator", "curator.toml", library="old")
+        new = self.settings(self.profile, "pressling", "pressling.toml", library="new")
+        self.assertEqual(config.user_config_path(), new)
+        config.load()
+        self.assertEqual(config.config_path(), new)
+
+    def test_a_settings_file_where_you_start_comes_first_by_either_name(self):
+        self.settings(self.profile, "pressling", "pressling.toml", library="usual")
+        older = self.settings(self.here, "curator.toml", library="here, older name")
+        config.load()
+        self.assertEqual(config.config_path(), older)
+        newer = self.settings(self.here, "pressling.toml", library="here")
+        config.load()
+        self.assertEqual(config.config_path(), newer)
+
+    def test_either_variable_names_the_file_and_the_new_one_comes_first(self):
+        a, b = self.settings(self.tmp.name, "a.toml"), self.settings(self.tmp.name, "b.toml")
+        with mock.patch.dict(os.environ, {"CURATOR_CONFIG": a}):
+            config.load()
+            self.assertEqual(config.config_path(), a)
+            with mock.patch.dict(os.environ, {"PRESSLING_CONFIG": b}):
+                config.load()
+                self.assertEqual(config.config_path(), b)
+
+    def test_init_writes_pressling_toml_and_warns_when_it_takes_over(self):
+        usual = self.settings(self.profile, "pressling", "pressling.toml")
         code, said = self.init()
         self.assertIn(code, (0, None))
-        self.assertTrue(os.path.exists(os.path.join(self.here, "curator.toml")))
+        self.assertTrue(os.path.exists(os.path.join(self.here, "pressling.toml")))
         self.assertIn("instead of your usual settings", said)
         self.assertIn(usual, said)
         self.assertIn("--config", said)
 
-    def test_with_no_usual_settings_it_says_where_they_would_go(self):
+    def test_init_with_no_usual_settings_says_where_they_would_go(self):
         code, said = self.init()
         self.assertIn(code, (0, None))
-        self.assertIn(config.user_config_path(), said)
+        self.assertIn(os.path.join(self.profile, "pressling", "pressling.toml"), said)
         self.assertNotIn("Careful", said)
 
-    def test_it_never_writes_over_a_settings_file(self):
-        with open(os.path.join(self.here, "curator.toml"), "w", encoding="utf-8") as f:
-            f.write("# mine\n")
-        with mock.patch("sys.stdout", io.StringIO()), self.assertRaises(SystemExit):
-            cli.main(["init"])
-        with open(os.path.join(self.here, "curator.toml"), encoding="utf-8") as f:
-            self.assertEqual(f.read(), "# mine\n")
+    def test_init_never_writes_over_a_settings_file_by_either_name(self):
+        for name in ("pressling.toml", "curator.toml"):
+            with self.subTest(name=name):
+                path = os.path.join(self.here, name)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("# mine\n")
+                with mock.patch("sys.stdout", io.StringIO()), self.assertRaises(SystemExit):
+                    cli.main(["init"])
+                with open(path, encoding="utf-8") as f:
+                    self.assertEqual(f.read(), "# mine\n")
+                self.assertEqual(sorted(os.listdir(self.here)), [name])  # and nothing else was written beside it
+                os.remove(path)
 
-    def test_the_help_names_the_usual_settings(self):
+    def test_the_help_names_the_order(self):
         said = io.StringIO()
         with contextlib.redirect_stdout(said), self.assertRaises(SystemExit):
             cli.pressling(["--help"])
         flat, solid = " ".join(said.getvalue().split()), "".join(said.getvalue().split())  # (the help wraps long paths, even at a hyphen)
-        self.assertIn("CURATOR_CONFIG", flat)
-        self.assertIn("in the folder you start from", flat)
+        self.assertIn("PRESSLING_CONFIG", flat)
+        self.assertIn("pressling.toml (or curator.toml) in the folder you start from", flat)
         self.assertIn("".join(config.user_config_path().split()), solid)
 
 
