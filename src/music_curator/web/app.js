@@ -1234,7 +1234,8 @@ function controls(song, check, after) {
       row.append(chip("Fine as it is", act("keep")), chip("Find a better copy", act("better")));
       break;
     case "better":
-      row.append(chip("Fine as it is", act("keep")), chip("Use found version", act("better", { note: check.link })));
+      row.append(chip("Fine as it is", act("keep")), chip("Use found version", S.meta.fetch ? once(() => swapNow(song, row)) : act("better", { note: check.link })));
+      if (!S.meta.fetch && extra("curator")) row.append(el("span", { class: "note swap-hint" }, "Pressling can swap it in itself: choose how it fetches better copies in Settings."));
       break;
     case "cover":
       row.append(chip("Leave it empty", act("keep")), chip("Find a cover", act("cover")));
@@ -2045,6 +2046,51 @@ function curatorOff() { // an old link to To check or Progress, with the Curator
     el("p", { class: "empty" }, "To check and Progress belong to the Curator. Turn it on in Settings, under Extras, to see them again."),
     el("div", { class: "actions" }, el("a", { class: "btn small", href: "#/settings" }, icon("sliders", 14), "Settings"))));
 }
+async function swapNow(song, row) { // Use found version, with a way to fetch it set in Settings: fetched, checked against yours, swapped in
+  const r = await post("/api/better/swap", { id: song.id });
+  if (r.error) return toast(r.error);
+  const words = { fetching: "Fetching the better copy…", comparing: "Checking it's the same recording as yours…" }, until = Date.now() + 25 * 60 * 1000;
+  const line = el("span", { class: "swap-line", role: "status" }, words.fetching);
+  row.replaceChildren(line);
+  while (Date.now() < until) {
+    await new Promise((go) => setTimeout(go, 1500));
+    const st = await fetch("/api/better/swaps", { cache: "no-store" }).then((x) => x.json()).catch(() => null).then((all) => all && all[r.key]);
+    if (!st) continue;
+    if (st.state === "failed") return line.replaceChildren(icon("warn", 14), " ", st.said); // nothing changed: the song stays on To check with the reason
+    if (st.state === "done") {
+      toast(st.said);
+      if (await safeLoad()) route();
+      return;
+    }
+    line.textContent = words[st.state] || "Working on it…";
+  }
+  line.textContent = "It's taking long. Look again later: the swap goes on by itself.";
+}
+function betterSetting() { // how Use found version fetches a better copy: nobody (you or your AI app swap it), your own downloader, or yt-dlp
+  const box = el("div");
+  fetch("/api/settings/better", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((b) => {
+    if (!b) return;
+    const choice = el("select", { "aria-label": "Fetch better copies with" }, [["", "Nobody: I or my AI app swap them"], ["command", "My own downloader"], ["ytdlp", "yt-dlp"]]
+      .map(([v, t]) => el("option", { value: v, selected: b.fetch === v }, t)));
+    const command = el("input", { type: "text", value: b.command || "", spellcheck: "false", "aria-label": "Your downloader's command", placeholder: '"C:\\Tools\\download.exe" "{url}" --out "{folder}"' });
+    const own = el("div", { class: "better-own" }, command, el("p", { class: "note" }, "The command you'd type to download a song, with {url} where the link goes and {folder} where it saves the song."));
+    const paint = () => { own.hidden = choice.value !== "command"; };
+    choice.addEventListener("change", paint);
+    paint();
+    const save = el("button", { class: "btn small", type: "button", onclick: async () => {
+      save.disabled = true;
+      const r = await post("/api/settings/better", { fetch: choice.value, command: command.value });
+      save.disabled = false;
+      if (r.error) return toast(r.error);
+      S.meta.fetch = r.fetch;
+      toast("Saved.");
+    } }, "Save");
+    box.replaceChildren(el("div", { class: "card better-setting" }, el("h2", {}, "Better copies"),
+      el("p", { class: "note" }, "When you press Use found version on To check, Pressling can fetch the better copy itself, check that it's the same recording as yours, and swap it in. Your old copy goes to the Set aside folder."),
+      el("label", { class: "better-with" }, el("span", {}, "Fetch them with"), choice), own, save));
+  });
+  return box;
+}
 function compareSetting() { // only there for people who have what it needs
   const box = el("div");
   fetch("/api/settings/compare", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((c) => {
@@ -2081,6 +2127,7 @@ async function pageSettings() {
       if (location.hash === "#/") route(); else location.hash = "#/";
     } }),
     extra("curator") ? compareSetting() : null,
+    extra("curator") ? betterSetting() : null,
     el("dl", { class: "facts-list about" },
       st.app_folder ? [el("dt", {}, "App files"), el("dd", {}, st.app_folder)] : null,
       el("dt", {}, "Settings file"), el("dd", {}, st.config_file))));

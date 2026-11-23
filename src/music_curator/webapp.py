@@ -34,7 +34,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 LAN_COOKIE = "curator_lan"
-PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
+PC_ONLY = {"/api/better/swap", "/api/settings/better", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
 ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "remove", "pick", "stream", "wrong"}
 ANSWERS_CHANGED = "Another program changed your answers at that very moment, so this wasn't saved. Try again."  # `pressling apply`, say, taking away the ones it carried out
 ANSWERS_BUSY = "Your answers file couldn't be opened just now, so nothing was saved. Try again in a moment."  # saving anyway could put back answers that were taken out of it since it was last read
@@ -739,11 +739,11 @@ class Collection:
         with self.lock:
             self.refresh()
             songs = [{k: v for k, v in s.items() if not k.startswith("_")} for s in self.songs.values()]
-            from . import own_playlists, spotify  # here because they need this module loaded first
+            from . import own_playlists, spotify, swap  # here because they need this module loaded first
             return dict(songs=songs, decisions=self.decisions, progress=self.progress(),
                         meta=dict(library=os.path.basename(os.path.normpath(self.paths["library"])), spotify=spotify.status(self.paths),
                                   has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names, my_playlists=spotify.playable(self.songs.values(), self.saved_lists), own_playlists=own_playlists.listed(self), extras=extras_state(self),
-                                  decisions_file=os.path.basename(self.paths["decisions"])))
+                                  decisions_file=os.path.basename(self.paths["decisions"]), fetch=swap.setting()[0]))
 
     def decide(self, body):
         """Save (or undo, with action null) one decision. Returns an error message, or None."""
@@ -1027,6 +1027,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/curate":
             from . import curate
             return self._json(curate.status(self.server))
+        if route == "/api/better/swaps":
+            from . import swap
+            return self._json(swap.status(self.server))
+        if route == "/api/settings/better":
+            from . import swap
+            how, command = swap.setting()
+            return self._json(dict(fetch=how, command=command if not self.server.lan or self._on_this_computer() else ""))  # (your downloader's command is this computer's business)
         m = re.fullmatch(r"/api/(loudness|waveform|edges)/([0-9a-f]{12})", route)
         if m and collection:
             answer = {"loudness": collection.level, "waveform": collection.wave, "edges": collection.edges}[m[1]](m[2])
@@ -1086,7 +1093,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._let_in():
             return None
         route = self._route()
-        if route not in ("/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
+        if route not in ("/api/better/swap", "/api/settings/better", "/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
                          "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import", "/api/playlists/describe"):
             return self._reply(404, b"Not found")
         self._when_ready()
@@ -1148,6 +1155,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with self.server.settings_lock:
                 problem = save_extras(body)
             return self._json(dict(error=problem), 400) if problem else self._json(dict(extras=extras_state(self.server.collection)))
+        if route == "/api/settings/better":
+            from . import swap
+            with self.server.settings_lock:
+                problem = swap.save_setting(body)
+            return self._json(dict(error=problem), 400) if problem else self._json(dict(fetch=swap.setting()[0]))
+        if route == "/api/better/swap":
+            from . import swap
+            answer = swap.start(self.server, body.get("id"))
+            return self._json(answer, 400 if answer.get("error") else 200)
         if route in ("/api/curate", "/api/curate/stop"):
             from . import curate
             answer = curate.start(self.server, body.get("set_aside") is True) if route == "/api/curate" else curate.stop(self.server)

@@ -28,7 +28,7 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 5. **Be a good API citizen.** Discogs: about 60 requests/min with a token (the client throttles and caches).
    MusicBrainz: 1 request/s and a descriptive User-Agent. VGMdb blocks automated access: never try to get
    around security checks or CAPTCHAs; ask the person instead.
-6. **Nothing fetched is kept, and a better copy never replaces a song by itself.** `pressling better`, `pressling videos` and a link given to
+6. **Nothing fetched is kept (but a better copy the person said yes to), and a better copy never replaces a song by itself.** `pressling better`, `pressling videos` and a link given to
    `pressling same` or `drift` fetch audio only to compare it, with yt-dlp, which is optional, and delete it straight after. While it exists
    it's untrusted data in `[paths] work`: never execute anything from it. This toolkit doesn't download music for people to keep. What you
    find goes to the person: see **Better copies**.
@@ -176,8 +176,8 @@ Checking a song includes asking whether a better recording of it exists: first t
 2. **Without yt-dlp** nothing can be fetched or compared. `better` still lists the Discogs-linked videos whose title and length fit, under `tried` with an `error` each, and the link is `https://www.youtube.com/watch?v=<id>`. Those are guesses, and so is anything you find with your own web search.
 3. **Leave it on To check**, where the person can open the link or ignore it: `pressling maybe-better "Genre/Artist - Title.mp3" "<link>" --why "official upload; yours is 128 kbps"`. Add `--checked` only if `better` accepted that copy (its `accepted` entry has the `url`). One link per song: a second replaces the first.
 4. **If they say yes** (a `better` answer with the link as its note, or they tell you):
-   - Get the file. It comes from the person, because the toolkit keeps nothing it fetches: ask them to get it and tell you where it is, or use their own downloader if they've told you to. Confirm it's the same recording with `pressling same` before going on.
-   - `pressling write` won't overwrite a song, so move the old copy to a `Set aside` folder next to the log (never delete it). Then write a plan entry with the song's same tags and cover, `src` set to the set-aside file and `audio` set to the new copy. The log keeps the original as `src`.
+   - If they set up **Settings → Better copies** (their own downloader, or yt-dlp), `pressling swap "Genre/Artist - Title.mp3" "<link>"` fetches it and does everything below; the page's **Use found version** does the same. Otherwise get the file from the person (or use their own downloader if they've told you to), and run `pressling swap "Genre/Artist - Title.mp3" --file <the copy> --why "..."`.
+   - `swap` only goes ahead when the copy is the same recording (by fingerprint) and not worse above 16 kHz, and when the song's name is the one its tags give. It moves the old copy to the `Set aside` folder next to the log (nothing is deleted), writes the new one with the song's same tags, cover, name and folder, logs it with the original as `src`, and takes the link and the answer off To check. On any doubt it changes nothing and says why.
    - If the length changed, tell them: Spotify matches local files by length too, so playlist entries for that song need adding again.
 
 ## The browser app

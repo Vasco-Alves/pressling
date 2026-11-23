@@ -133,6 +133,11 @@ def main(argv=None, prog="pressling"):
         (["url"], {"help": "where the copy is"}),
         (["--why"], {"required": True, "help": "what makes it better, in a few words"}),
         (["--checked"], {"action": "store_true", "help": "its audio was compared with the song and `pressling better` accepted it; without this the page calls it a guess"}))
+    add("swap", "swap a better copy in for a library song, from a link (fetched the way Settings says) or a file; only when it's the same recording, and your copy goes to Set aside",
+        (["song"], {"help": "library file, as Genre/Artist - Title.mp3 or just the file name"}),
+        (["url"], {"nargs": "?", "help": "where the better copy is"}),
+        (["--file"], {"help": "a better copy you already have, in place of the link"}),
+        (["--why"], {"default": "", "help": "what makes it better, for the log"}))
     add("write", "copy audio into the library with clean tags + cover, and append to the log",
         (["plan"], {}), (["--dry-run"], {"action": "store_true"}))
     add("serve", "open the library in your browser: explore it, follow the progress, check songs by ear",
@@ -209,6 +214,12 @@ def main(argv=None, prog="pressling"):
         from . import curate
         _need("library"), _need("log")
         return curate.leave_better_link(args.song, args.url, args.why, args.checked)
+    if args.cmd == "swap":
+        from . import swap
+        if bool(args.url) == bool(args.file):
+            sys.exit("Give either the link to the better copy or --file with one you have.")
+        _need("library"), _need("log")
+        return swap.main(args.song, args.url, args.file, args.why)
     if args.cmd == "write":
         from . import tagwriter
         library, log = _need("library"), _need("log")

@@ -708,6 +708,10 @@ body.setup .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: m
   body.drawer-open .drawer { box-shadow: none; }
 }
 .more-btn { display: none; } /* only on a narrow screen, where the deck's right side waits behind it */
+.swap-line { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); } /* a better copy on its way in */
+.swap-hint { align-self: center; }
+.better-with { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+.better-own input { width: 100%; }
 @media (max-width: 820px) {
   :root { --player-h: 144px; }
   .more-btn { display: inline-flex; flex: none; }

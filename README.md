@@ -283,7 +283,13 @@ one thing on the page that changes your library is the Curate button, and the on
 When you've answered To check, press **Curate** at the top of that page. It adds the songs you identified and carries out your other answers that need no research: songs
 you said aren't right on Double-check, genre changes, which also move the song to the new genre's folder, and, if you tick the box, the songs you marked not worth keeping. `pressling apply` does the same from a terminal (`--dry-run` to preview, `--set-aside` for those songs).
 Nothing is deleted: old copies go to a `Set aside` folder next to the log, which you can empty whenever you like. Answers that need
-research, like finding a better copy, stay on the list for your agent.
+research stay on the list for your agent.
+
+**Better copies.** When a better copy of a song has been found (a clearer upload, the full version), To check shows it with **Use found
+version**. Under **Settings → Better copies** you can let Pressling do the swap itself: choose how it fetches the copy, with your own
+downloader (the command you'd type, with `{url}` where the link goes and `{folder}` where it saves the song) or with yt-dlp. Then that
+button fetches it, checks that it's the same recording as yours and not worse, and swaps it in with the same tags, cover and name. Your
+old copy goes to `Set aside`. If anything is doubtful nothing changes, and the song stays on To check with the reason.
 
 Optional `[paths]` keys feed the To check page: `review` (a folder of songs waiting for a decision) and `review_list` (a Markdown
 file with one `- **Artist - Title**: reason` per song).
@@ -347,6 +353,7 @@ and `pressling <command> --help` explains one. `curator`, Pressling's old name, 
 |---|---|
 | `pressling verified SONG… --how TEXT` | record that songs Curate added were checked properly, like Looks right on Double-check |
 | `pressling maybe-better SONG URL --why TEXT [--checked]` | leave a link to a possibly better copy on To check, for you to open or ignore |
+| `pressling swap SONG URL` or `pressling swap SONG --file FILE` | swap a better copy in for a library song, fetched the way Settings says or from a file you have; only when it's the same recording and not worse, and your copy goes to Set aside |
 | `pressling write PLAN [--dry-run]` | write tagged copies with covers into the library, and add them to the log |
 | `pressling parse`, `resolve`, `scan`, `videos`, `other`, `ost`, `better` | the steps Curate is made of: read the downloads, match on Discogs, every pressing, Discogs-linked videos, MusicBrainz and official uploads, game soundtracks, better copies |
 
@@ -382,9 +389,9 @@ existing genres, game/TV soundtrack folders.
 
 ## Notes and limits
 
-- Meant for files you already have. It doesn't download music for you to keep: the optional yt-dlp only fetches audio to
-  compare it with your file, and that audio is deleted straight after. Better copies it finds are left as links. Using it is your
-  responsibility; check the terms of the sites you use and your local law.
+- Meant for files you already have. It doesn't download music for you to keep, except a better copy you choose to swap in, with the
+  downloader you set under Settings → Better copies. The optional yt-dlp otherwise only fetches audio to compare it with your file, and
+  that audio is deleted straight after. Using it is your responsibility; check the terms of the sites you use and your local law.
 - Discogs data: use your own token, stay within the rate limits (the client throttles and caches), and credit
   Discogs where you display its data ("Data provided by Discogs"). Cover images are for your personal tags.
 - MusicBrainz data is CC0; please keep its 1 request/second limit.

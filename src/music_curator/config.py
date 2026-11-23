@@ -34,6 +34,10 @@ DEFAULTS = {
     "curate": {
         "compare_audio": False,  # when Curate can't tell which version a song is, compare it with the videos on the record. It only tells you how sure it is
     },
+    "better": {
+        "fetch": "",         # how Use found version fetches a better copy: "command" (your own downloader) or "ytdlp"; empty: you or your agent swap it
+        "command": "",       # your downloader's command, with {url} where the link goes and {folder} where it saves the song
+    },
     "spotify": {
         "client_id": "",     # optional: your own Spotify app's Client ID, for the Check Spotify button (it isn't a secret)
     },
