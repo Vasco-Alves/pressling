@@ -35,6 +35,7 @@
         <div class="np-artist" id="np-artist"></div>
       </div>
       <button class="icon-btn heart" id="np-heart" type="button" aria-label="Favourite" aria-pressed="false" hidden></button>
+      <button class="icon-btn more-btn" id="more-toggle" type="button" aria-label="More controls" title="More controls" aria-expanded="false" aria-controls="deck-more"></button>
     </div>
     <div class="transport">
       <div class="buttons">
@@ -50,21 +51,21 @@
         <span class="time" id="dur" role="timer"></span>
       </div>
     </div>
-    <div class="vol">
+    <div class="vol" id="deck-more">
       <div class="deck-right">
         <div class="vol-row">
           <span id="vol-icon"></span>
           <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
-          <button class="icon-btn" id="now-toggle" type="button" aria-label="Now playing" title="Now playing" aria-pressed="false"></button>
-          <button class="icon-btn" id="full-toggle" type="button" aria-label="Full view" title="Just the picture (F)" aria-pressed="false"></button>
-          <button class="icon-btn" id="panel-toggle" type="button" aria-label="Song panel" aria-pressed="false"></button>
+          <button class="icon-btn" id="now-toggle" type="button" aria-label="Now playing" title="Now playing" data-short="Now playing" aria-pressed="false"></button>
+          <button class="icon-btn" id="full-toggle" type="button" aria-label="Full view" title="Just the picture (F)" data-short="Full view" aria-pressed="false"></button>
+          <button class="icon-btn" id="panel-toggle" type="button" aria-label="Song panel" data-short="Song panel" aria-pressed="false"></button>
         </div>
         <div class="switches">
-          <button class="icon-btn" id="even" type="button" aria-label="Even volume" aria-pressed="false"></button>
-          <button class="icon-btn" id="fade" type="button" aria-label="Crossfade" aria-pressed="false"></button>
-          <button class="icon-btn" id="kick" type="button" aria-label="Glow the buttons on the kick" aria-pressed="false"></button>
-          <button class="icon-btn" id="flash" type="button" aria-label="Flash the background on the kick" aria-pressed="false"></button>
-          <button class="icon-btn" id="sparkle" type="button" aria-label="Small lights on the hi-hats" aria-pressed="false"></button>
+          <button class="icon-btn" id="even" type="button" aria-label="Even volume" data-short="Even" aria-pressed="false"></button>
+          <button class="icon-btn" id="fade" type="button" aria-label="Crossfade" data-short="Fade" aria-pressed="false"></button>
+          <button class="icon-btn" id="kick" type="button" aria-label="Glow the buttons on the kick" data-short="Glow" aria-pressed="false"></button>
+          <button class="icon-btn" id="flash" type="button" aria-label="Flash the background on the kick" data-short="Flash" aria-pressed="false"></button>
+          <button class="icon-btn" id="sparkle" type="button" aria-label="Small lights on the hi-hats" data-short="Sparkle" aria-pressed="false"></button>
         </div>
       </div>
     </div>

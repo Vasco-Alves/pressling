@@ -986,10 +986,10 @@ class InitAndSettings(unittest.TestCase):
         self.settings(self.profile, "pressling", "pressling.toml", library="usual")
         older = self.settings(self.here, "curator.toml", library="here, older name")
         config.load()
-        self.assertEqual(config.config_path(), older)
+        self.assertTrue(os.path.samefile(config.config_path(), older))  # (the same file: on macOS the folder you start from reads as /private/var for /var)
         newer = self.settings(self.here, "pressling.toml", library="here")
         config.load()
-        self.assertEqual(config.config_path(), newer)
+        self.assertTrue(os.path.samefile(config.config_path(), newer))
 
     def test_either_variable_names_the_file_and_the_new_one_comes_first(self):
         a, b = self.settings(self.tmp.name, "a.toml"), self.settings(self.tmp.name, "b.toml")

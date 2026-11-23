@@ -21,6 +21,7 @@ const el = (tag, attrs, ...kids) => fill(document.createElement(tag), attrs, kid
 const svg = (tag, attrs, ...kids) => fill(document.createElementNS(SVGNS, tag), attrs, kids);
 
 const ICONS = {
+  dots: "M5 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM12 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM19 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2z", // More
   home: "M3 11.5 12 4l9 7.5M5.5 9.7V20h13V9.7", music: "M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
   ears: "M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H5a1 1 0 0 1-1-1zM20 15h-3v5h2a1 1 0 0 0 1-1z", bars: "M5 20v-6M12 20V5M19 20v-10",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4", grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z", rows: "M4 6h16M4 12h16M4 18h16",
@@ -36,7 +37,7 @@ const ICONS = {
   kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", screen: "M3 5h18v12H3zM8 21h8M12 17v4", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", minus: "M5 12h14", rec: "M12 6.500a5.500 5.500 0 1 0 0 11 5.500 5.500 0 0 0 0-11z", code: "M8 7l-5 5 5 5M16 7l5 5-5 5M13.500 5l-3 14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
   morph: "M4 12a8 8 0 0 1 8-8h8v8a8 8 0 0 1-8 8H4zM9 12h6", pin: "M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v6", disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
-const FILLED = new Set(["play", "pause", "prev", "next"]);
+const FILLED = new Set(["play", "pause", "prev", "next", "dots"]);
 function icon(name, size = 18, cls) {
   const solid = FILLED.has(name);
   return svg("svg", { viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": "true", class: cls, fill: solid ? "currentColor" : "none",
@@ -2270,7 +2271,7 @@ function pageNow() {
   wireSeek(place);
   const aboutLinks = () => [s.album ? el("a", { href: songs({ album: s.album }) }, s.album) : null, s.year ? el("a", { href: songs({ from: s.year, to: s.year }) }, s.year) : null, s.genre ? el("a", { href: songs({ genre: s.genre }) }, s.genre) : null, s.label ? el("a", { href: songs({ label: s.label }) }, s.label) : null].filter(Boolean), about = aboutLinks();
   const fullAbout = aboutLinks(); // the same again for Full view, which shows it under the artist with the buttons, while the mouse moves
-  view.replaceChildren(el("div", { class: "now-page" }, close, fxBar(), el("div", { class: "fx-title" }, el("strong", {}, s.title || s.file), el("span", {}, s.artist),
+  view.replaceChildren(el("div", { class: "now-page" }, close, fxBarShown(), el("div", { class: "fx-title" }, el("strong", {}, s.title || s.file), el("span", {}, s.artist),
     fullAbout.length ? el("div", { class: "fx-about" }, fullAbout.flatMap((a, i) => (i ? [dot(), a] : [a]))) : null,
     el("div", { class: "actions fx-actions" }, favButton(s), listButton([s.id], songName(s) || s.file), spotifyButton(s))),
     el("div", { class: "now-stage" },
@@ -2548,7 +2549,12 @@ const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
   fxName && familyOf(fxName) === "recipes" ? el("button", { class: `btn small${fxWriting ? " on" : ""}`, type: "button", "aria-pressed": String(fxWriting), title: "See how this effect is made, change it as it plays, or make one of your own", onclick: () => { fxWriting = !fxWriting; fxAdjusting = false; paintFxBar(); } }, icon("code", 14), "Recipe") : null,
   fxName && fxAdjusting ? fxAdjust() : null,
   fxName && fxWriting && familyOf(fxName) === "recipes" ? recipeEditor() : null) : null);
-const paintFxBar = () => { const b = $(".fx-bar"); if (b) b.replaceWith(fxBar()); };
+const paintFxBar = () => { const b = $(".fx-bar"); if (b) b.replaceWith(fxBarShown()); };
+const showPick = (bar) => { // on a phone the effects are one row that scrolls sideways: the one showing is brought into view
+  const picks = bar.isConnected && bar.querySelector(".fx-picks"), on = picks && picks.querySelector(".chip.on");
+  if (on && picks.scrollWidth > picks.clientWidth) picks.scrollLeft += on.getBoundingClientRect().left - picks.getBoundingClientRect().left - (picks.clientWidth - on.offsetWidth) / 2;
+};
+function fxBarShown() { const bar = fxBar(); if (bar) queueMicrotask(() => showPick(bar)); return bar; } // (once it's on the page: also in a tab that isn't being drawn)
 /* The recipe editor: the recipe as text, tried as you type, so the effect behind changes with it. Yours can be saved, given to someone as a file, and brought in from one. */
 let fxWriting = false, recipeDraft = null; // what's been typed and not saved, kept while the bar is drawn again
 const slugOf = (text) => fold(String(text ?? "")).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "recipe";
@@ -4014,6 +4020,12 @@ $("#full-toggle").addEventListener("click", goFull);
 $("#now-toggle").addEventListener("click", () => (onNowPage() ? closeNow() : openNow()));
 $("#panel-toggle").append(icon("panel", 18));
 $("#panel-toggle").addEventListener("click", () => setPanel(!panelShown()));
+/* On a narrow screen (a phone) the deck has no room for its right side: its keys wait behind More, in a small sheet above the deck. */
+const setMore = (on) => { document.body.classList.toggle("deck-more", on); $("#more-toggle").setAttribute("aria-expanded", String(on)); };
+$("#more-toggle").append(icon("dots", 18));
+$("#more-toggle").addEventListener("click", () => setMore(!document.body.classList.contains("deck-more")));
+document.addEventListener("click", (e) => { if (document.body.classList.contains("deck-more") && !e.target.closest("#deck-more, #more-toggle")) setMore(false); }); // a tap anywhere else closes it
+for (const key of ["#now-toggle", "#full-toggle", "#panel-toggle"]) $(key).addEventListener("click", () => setMore(false)); // (these change what the page shows)
 roomy.addEventListener("change", () => { overlayOpen = false; showPanel(); });
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return null; }
 /* Even volume only ever turns songs down. Nearly every file already reaches full scale (57 of 65 measured on one real library), so raising a quiet one would distort it.
@@ -4325,6 +4337,7 @@ function route() {
 window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {
   if ($("dialog[open]")) return; // the box over the page has the keyboard
+  if (e.key === "Escape" && document.body.classList.contains("deck-more")) { setMore(false); return e.preventDefault(); } // (only the sheet, not the page under it as well)
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
   if (!typing && quickKeys && quickKeys(e)) return e.preventDefault();
   if (e.key === "Escape" && fxFull) return fullFx(false);
