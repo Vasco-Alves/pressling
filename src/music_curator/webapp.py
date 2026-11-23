@@ -571,6 +571,21 @@ class Collection:
                     songs[song["id"]] = song
             self.songs = songs
 
+    def new_downloads(self):
+        """Songs in your downloads folders that Curate hasn't looked at yet, for the page to mention: {count, names (the first few)}.
+        Only those folders are read (not the library), and the log and Curate's notes only when they've changed."""
+        with self.lock:
+            self._read_log()
+            self._read_curated()
+            found = []
+            for folder in self.paths["inbox"] or []:
+                where = os.path.basename(os.path.normpath(folder))
+                for path in self._audio_files(folder, False):
+                    name = os.path.basename(path)
+                    if norm(path) not in self.log_done and f"inbox/{where}/{name}" not in self.curated:
+                        found.append(name)
+        return dict(count=len(found), names=sorted(found, key=str.lower)[:5])
+
     def _song(self, area, root, path, info, st):
         rel = os.path.relpath(path, root).replace(os.sep, "/")
         where = os.path.basename(os.path.normpath(root))
@@ -1027,6 +1042,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/curate":
             from . import curate
             return self._json(curate.status(self.server))
+        if route == "/api/downloads/new":
+            return self._json(self.server.collection.new_downloads() if self.server.collection else dict(count=0, names=[]))
         if route == "/api/better/swaps":
             from . import swap
             return self._json(swap.status(self.server))

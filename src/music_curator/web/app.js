@@ -2091,6 +2091,35 @@ function betterSetting() { // how Use found version fetches a better copy: nobod
   });
   return box;
 }
+/* New downloads: while the page is open it asks once a minute whether songs arrived in your downloads that Curate hasn't looked at.
+   It only tells you, with a Curate button: nothing runs until you press it. Settings, New downloads, turns it off. */
+const NEW_NOTICE = "curator-new-notice";
+let newSeen = "";
+try { newSeen = sessionStorage.getItem("curator-new-seen") || ""; } catch { newSeen = ""; }
+async function lookForDownloads() {
+  if (document.hidden || !S.meta || !extra("curator") || store(NEW_NOTICE) === "off" || (S.meta.curate && S.meta.curate.running)) return;
+  const d = await fetch("/api/downloads/new", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const old = $("#new-downloads"), sig = d && d.count ? `${d.count}:${d.names.join("|")}` : "";
+  if (!sig || sig === newSeen) return old && old.remove();
+  const more = d.count > d.names.length ? `, and ${d.count - d.names.length} more` : "";
+  const bar = el("div", { class: "new-downloads", id: "new-downloads", role: "status" },
+    el("span", {}, `${d.count === 1 ? "A new song is" : `${d.count} new songs are`} in your downloads: ${d.names.join(", ")}${more}.`),
+    el("button", { class: "btn small", type: "button", onclick: () => { bar.remove(); startCurate(); } }, "Curate"),
+    el("button", { class: "linkish", type: "button", onclick: () => { newSeen = sig; try { sessionStorage.setItem("curator-new-seen", sig); } catch { /* only for this visit anyway */ } bar.remove(); } }, "Not now"));
+  if (old) old.replaceWith(bar); else document.body.append(bar);
+}
+setInterval(lookForDownloads, 60000);
+setTimeout(lookForDownloads, 5000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) lookForDownloads(); });
+function newDownloadsSetting() {
+  const input = el("input", { type: "checkbox", checked: store(NEW_NOTICE) !== "off", onchange: () => {
+    store(NEW_NOTICE, input.checked ? "on" : "off");
+    if (input.checked) lookForDownloads(); else { const b = $("#new-downloads"); if (b) b.remove(); }
+  } });
+  return el("div", { class: "card new-setting" }, el("h2", {}, "New downloads"),
+    el("label", { class: "pick" }, input, "Tell me when new songs arrive in my downloads folder"),
+    el("p", { class: "note" }, "Pressling looks once a minute while it's open. It only tells you: nothing is curated until you press Curate."));
+}
 function compareSetting() { // only there for people who have what it needs
   const box = el("div");
   fetch("/api/settings/compare", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((c) => {
@@ -2128,6 +2157,7 @@ async function pageSettings() {
     } }),
     extra("curator") ? compareSetting() : null,
     extra("curator") ? betterSetting() : null,
+    extra("curator") ? newDownloadsSetting() : null,
     el("dl", { class: "facts-list about" },
       st.app_folder ? [el("dt", {}, "App files"), el("dd", {}, st.app_folder)] : null,
       el("dt", {}, "Settings file"), el("dd", {}, st.config_file))));
