@@ -214,33 +214,75 @@ def release_format(j):
     return ", ".join(x for x in [first.get("name") or "", *[d for d in first.get("descriptions") or [] if "RPM" not in d]] if x)
 
 
-def discogs_index(cache_dir):
-    """Label, country, format and track count per release and per master, from the saved Discogs answers (never the network)."""
-    releases, masters = {}, {}
+INDEX_VERSION = 1  # change it when _release_info's answer changes: what was kept from before is then read again
+INDEX_FIELDS = frozenset(("id", "master", "label", "country", "year", "format", "tracks", "title", "file"))
+
+
+def _release_info(path, name):
+    """What the page needs from one saved Discogs answer, or None when it isn't a release (a search, a master, a damaged file)."""
     try:
-        names = os.listdir(cache_dir)
+        with open(path, encoding="utf-8") as f:
+            j = json.load(f)
+    except (OSError, ValueError):
+        return None
+    try:
+        if not isinstance(j, dict) or not j.get("labels") or "id" not in j:
+            return None
+        label = re.sub(r"\s*\(\d+\)$", "", j["labels"][0].get("name") or "").strip()
+        return dict(id=j["id"], master=j.get("master_id"), label="" if label.lower().startswith("not on label") else label, country=j.get("country") or "",
+                    year=j.get("year") or 9999, format=release_format(j), tracks=sum(1 for t in j.get("tracklist") or [] if t.get("type_", "track") == "track"),
+                    title=str(j.get("title") or ""), file=name)  # the tracklist itself is read only when a song needs it
+    except (AttributeError, TypeError, KeyError, IndexError):  # one odd saved answer is simply skipped
+        return None
+
+
+def _kept_index(path):
+    """{file name: [mtime_ns, size, info or None]} as kept at the last start; {} when there's none or it can't be used."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            kept = json.load(f)
+    except (OSError, ValueError, TypeError):
+        return {}
+    if not isinstance(kept, dict) or kept.get("version") != INDEX_VERSION or not isinstance(kept.get("answers"), dict):
+        return {}
+    return {name: v for name, v in kept["answers"].items() if isinstance(v, list) and len(v) == 3 and type(v[0]) is int and type(v[1]) is int
+            and (v[2] is None or (isinstance(v[2], dict) and INDEX_FIELDS <= set(v[2])))}
+
+
+def discogs_index(cache_dir, kept_path=""):
+    """Label, country, format and track count per release and per master, from the saved Discogs answers (never the network).
+    With `kept_path`, what was read from each answer is kept in that one file, and a start opens only the answers saved since: thousands of
+    small files are slow to open the first time after the computer starts, while their sizes and times come with the folder's listing."""
+    kept = _kept_index(kept_path) if kept_path else {}
+    try:
+        with os.scandir(cache_dir) as entries:
+            listing = [(e.name, e.stat()) for e in entries if e.name.endswith(".json")]
     except OSError:
-        return releases, masters
-    for name in names:
-        if not name.endswith(".json"):
+        return {}, {}
+    now, opened = {}, 0
+    for name, st in listing:
+        old = kept.get(name)
+        if old and old[0] == st.st_mtime_ns and old[1] == st.st_size:
+            now[name] = old
+        else:
+            now[name], opened = [st.st_mtime_ns, st.st_size, _release_info(os.path.join(cache_dir, name), name)], opened + 1
+    if kept_path and (opened or len(now) != len(kept)):
+        try:
+            saving.write(kept_path, lambda f: json.dump(dict(version=INDEX_VERSION, answers=now), f, ensure_ascii=False), encoding="utf-8", errors="replace")
+        except (OSError, ValueError, TypeError):  # kept for speed only: the next start reads the answers again
+            pass
+    releases, masters = {}, {}
+    for name, _ in listing:
+        info = now[name][2]
+        if not info:
             continue
         try:
-            with open(os.path.join(cache_dir, name), encoding="utf-8") as f:
-                j = json.load(f)
-        except (OSError, ValueError):
-            continue
-        try:
-            if not isinstance(j, dict) or not j.get("labels") or "id" not in j:
-                continue
-            label = re.sub(r"\s*\(\d+\)$", "", j["labels"][0].get("name") or "").strip()
-            info = dict(label="" if label.lower().startswith("not on label") else label, country=j.get("country") or "", year=j.get("year") or 9999,
-                        format=release_format(j), tracks=sum(1 for t in j.get("tracklist") or [] if t.get("type_", "track") == "track"),
-                        title=str(j.get("title") or ""), file=name)  # the tracklist itself is read only when a song needs it
-            releases[j["id"]] = info
-            mid = j.get("master_id")
-            if mid and (mid not in masters or info["year"] < masters[mid]["year"]):  # the earliest pressing
-                masters[mid] = info
-        except (AttributeError, TypeError, KeyError, IndexError):  # one odd saved answer is simply skipped
+            found = {k: info[k] for k in ("label", "country", "year", "format", "tracks", "title", "file")}
+            releases[info["id"]] = found
+            mid = info["master"]
+            if mid and (mid not in masters or found["year"] < masters[mid]["year"]):  # the earliest pressing
+                masters[mid] = found
+        except (TypeError, KeyError):  # one odd saved answer (an id that's a list, a year that's a word) is simply skipped
             continue
     return releases, masters
 
@@ -277,7 +319,7 @@ class Collection:
     def __init__(self, paths):
         self.paths = paths
         self.lock = threading.RLock()
-        self.parsed = {}
+        self.parsed = self._load_parsed()
         self.songs = {}
         self.log_sig, self.log_rows, self.log_latest, self.log_moved, self.log_first = None, [], {}, {}, {}
         self.log_done, self.log_back = set(), {}
@@ -297,6 +339,30 @@ class Collection:
         self.styles, self.styles_sig = {}, None
         self.cover_px, self.tracklists = {}, {}  # only for the songs on Double-check
         self._read_decisions()
+
+    def _load_parsed(self):
+        """What was read from each song file before, kept beside the answers so a start needn't open every file again: {norm path: ((mtime_ns, size), details)}.
+        A file whose size or time has changed since is read again, and so is anything odd in what was kept."""
+        try:
+            with open(song_details_path(self.paths), encoding="utf-8") as f:
+                kept = json.load(f)
+        except (OSError, ValueError, TypeError):
+            return {}
+        if not isinstance(kept, dict) or kept.get("version") != library.READ_VERSION or not isinstance(kept.get("songs"), dict):
+            return {}
+        return {n: ((v[0], v[1]), v[2]) for n, v in kept["songs"].items()
+                if isinstance(v, list) and len(v) == 3 and type(v[0]) is int and type(v[1]) is int and isinstance(v[2], dict) and library.DETAILS <= set(v[2])}
+
+    def _save_parsed(self, seen):
+        """Keep what was read for the next start, for the files that are still there. Only for speed: if it can't be saved, the next start reads them again."""
+        self.parsed = {n: v for n, v in self.parsed.items() if n in seen}
+        path = song_details_path(self.paths)
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            saving.write(path, lambda f: json.dump(dict(version=library.READ_VERSION, songs={n: [sig[0], sig[1], info] for n, (sig, info) in self.parsed.items()}),
+                                                   f, ensure_ascii=False), encoding="utf-8", errors="replace")
+        except (OSError, ValueError, TypeError):
+            pass
 
     def _watch(self, name, path, keep):
         """Keep self.<name> in step with a JSON file, reading it only when it has changed. `keep` picks out what's wanted from the object in it, or returns None if that's the wrong shape.
@@ -547,8 +613,8 @@ class Collection:
             self._read_log()
             self._read_review_list()
             if self.labels is None:
-                self.labels = discogs_index(os.path.join(self.paths["cache"], "discogs"))
-            songs, seen = {}, set()
+                self.labels = discogs_index(os.path.join(self.paths["cache"], "discogs"), discogs_index_path(self.paths))
+            songs, seen, opened = {}, set(), 0
             for area, root, recursive in self._roots():
                 try:
                     paths = list(self._audio_files(root, recursive))
@@ -563,13 +629,16 @@ class Collection:
                         st = os.stat(path)
                         sig = (st.st_mtime_ns, st.st_size)
                         known = self.parsed.get(n)
-                        if not known or known[0] != sig:
+                        if not known or known[0] != sig:  # new or changed since it was last read
                             known = self.parsed[n] = (sig, library.read_song(path))
+                            opened += 1
                         song = self._song(area, root, path, known[1], st)
                     except (OSError, ValueError, AttributeError, TypeError, KeyError):  # one bad file never hides the rest of the library
                         continue
                     songs[song["id"]] = song
             self.songs = songs
+            if opened or any(n not in seen for n in self.parsed):  # kept for the next start, so it needn't open every file again
+                self._save_parsed(seen)
 
     def new_downloads(self):
         """Songs in your downloads folders that Curate hasn't looked at yet, for the page to mention: {count, names (the first few)}.
@@ -1248,6 +1317,19 @@ def app_paths():
 
 def suggestions_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "suggestions.json")
+
+
+KEPT = ("song_details.json", "discogs_index.json")  # what a start keeps beside the answers for the next one, only for speed
+
+
+def song_details_path(paths):
+    """What was read from each song file, so a start needn't open them all again (see Collection._load_parsed)."""
+    return os.path.join(os.path.dirname(paths["decisions"]), "song_details.json")
+
+
+def discogs_index_path(paths):
+    """What was read from each saved Discogs answer, so a start needn't open them all again (see discogs_index)."""
+    return os.path.join(os.path.dirname(paths["decisions"]), "discogs_index.json")
 
 
 def curated_path(paths):

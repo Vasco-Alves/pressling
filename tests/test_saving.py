@@ -432,7 +432,7 @@ class AFileThatCantBeOpenedJustNow(Base):
     def test_a_spotify_save_that_fails_is_not_the_end_of_the_check(self):
         with mock.patch("os.replace", side_effect=OSError(28, "No space left on device")):
             self.assertFalse(spotify.write_state(self.paths, checked="2026-02-02T00:00:00"))
-        self.assertEqual(os.listdir(self.app), ["log.csv"])
+        self.assertEqual([n for n in os.listdir(self.app) if n not in webapp.KEPT], ["log.csv"])  # (what a start keeps for the next is the app's own)
 
     def test_searches_spotify_already_answered_are_not_made_again(self):
         spotify._write_hits(self.paths, {"review/X.mp3": dict(terms="t", when="2026-01-01", hit=None)})
@@ -474,7 +474,7 @@ class AFileThatCantBeOpenedJustNow(Base):
             self.assertIsNone(self.collection.decide(dict(id=self.one["id"], kind="flag", action="flag", note="listen again")))
         self.assertEqual(len(tries), 3)
         self.assertEqual([d["note"] for d in self.kept(self.answers).values()], ["listen again"])
-        self.assertEqual(sorted(os.listdir(self.app)), ["decisions.json", "decisions.json.lock", "log.csv"])
+        self.assertEqual(sorted(n for n in os.listdir(self.app) if n not in webapp.KEPT), ["decisions.json", "decisions.json.lock", "log.csv"])
 
     def test_everything_the_app_keeps_is_saved_the_safe_way(self):
         """Any of these written straight onto the real file again would pass every other test, and lose the file in a crash."""
@@ -580,7 +580,7 @@ class AnswersTwoProgramsChangeAtOnce(Base):
         with self.just_before_the_next_save(apply_takes_one_off):
             self.assertIsNone(self.flag(self.two, "and again"), "it's done again on what the command line saved, so you're not asked to")
         self.assertEqual(self.notes(), {self.key_two: "and again"}, "saved over it, the answer that was carried out would be back on the list")
-        self.assertEqual(sorted(os.listdir(self.app)), ["decisions.json", "decisions.json.lock", "log.csv"])
+        self.assertEqual(sorted(n for n in os.listdir(self.app) if n not in webapp.KEPT), ["decisions.json", "decisions.json.lock", "log.csv"])
 
     def test_the_page_says_so_when_the_answers_keep_changing_under_it(self):
         self.assertIsNone(self.flag(self.one))
@@ -681,7 +681,7 @@ class AnswersTwoProgramsChangeAtOnce(Base):
         self.assertEqual(len(saves), 3)
         self.assertEqual(self.notes(), {"theirs": "xxx"})
         self.assertIn("couldn't be taken off the list (decisions.json was changed by another program just now)", said[-1])
-        self.assertEqual(sorted(os.listdir(self.app)), ["decisions.json", "decisions.json.lock", "log.csv"])
+        self.assertEqual(sorted(n for n in os.listdir(self.app) if n not in webapp.KEPT), ["decisions.json", "decisions.json.lock", "log.csv"])
 
 
 class AnswersKeptFromDiscogs(unittest.TestCase):

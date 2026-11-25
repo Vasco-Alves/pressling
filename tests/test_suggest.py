@@ -143,7 +143,7 @@ class EndToEnd(Base):
         code, out = self.suggest()
         self.assertEqual(code, 0, out)
         after = self.tree()
-        self.assertEqual({k for k in after if k not in before}, {webapp.suggestions_path(self.paths)})
+        self.assertEqual({k for k in after if k not in before and os.path.basename(k) not in webapp.KEPT}, {webapp.suggestions_path(self.paths)})  # (what a start keeps for the next is the app's own)
         self.assertEqual({k: v for k, v in after.items() if k in before}, before)
         page = self.page()
         _, ideas = self.checks(page, "Fits")

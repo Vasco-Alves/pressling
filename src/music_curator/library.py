@@ -338,6 +338,10 @@ def _ffprobe_secs(path):
         return None
 
 
+READ_VERSION = 1  # change it whenever read_song's answer changes: details kept from before are then read again from the files
+DETAILS = frozenset(("title", "artist", "album", "year", "genre", "comment", "cover", "secs", "kbps", "tagless"))  # what read_song always answers
+
+
 def read_song(path, name=None):
     """Tags and audio facts of one file. Missing tags fall back to '<artist> - <title>' in the filename (`name`, for a temporary copy)."""
     name = name or path
