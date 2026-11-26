@@ -37,7 +37,12 @@ NOT_RIGHT = "you said it wasn't right"  # in that row's notes, with whatever you
 
 # ---------------- what the log says ----------------
 
-def written_sources(rows, key=lambda src: src):
+def path_key(path):
+    """One file's path as one key, whichever way it was written: "D:/Music/a.mp3" and "d:\\music\\A.mp3" are one file on Windows."""
+    return os.path.normcase(os.path.normpath(path)) if path else ""
+
+
+def written_sources(rows, key=path_key):
     """(the sources the log has written into the library, {source: what you said} for the ones taken back out since because the match was wrong).
     A source goes by its latest word, so one that's added again after being taken back counts as written."""
     done, back = set(), {}

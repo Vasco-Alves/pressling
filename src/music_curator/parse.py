@@ -15,7 +15,7 @@ import unicodedata
 
 from .keys import norm
 from .library import AUDIO
-from .tagwriter import KINDS, written_sources
+from .tagwriter import KINDS, path_key, written_sources
 
 LOOKALIKES = {"＂": '"', "：": ":", "｜": "|", "⧸": "/", "⁄": "/", "–": "-",
               "—": "-", "－": "-", "‐": "-", "―": "-", "−": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "【": "[", "】": "]",
@@ -179,7 +179,7 @@ def read_inbox(dirs, log_path):
             base = os.path.splitext(fn)[0]
             info = parse(base, tags)
             cat = "candidate"
-            if p in done:
+            if path_key(p) in done:  # (the log may have it as D:/Music/... or D:\Music\...: one file either way)
                 cat = "done"
             elif NONMUSIC.search(base) or (" " not in base and len(base) > 30):
                 cat = "nonmusic"
@@ -194,8 +194,8 @@ def read_inbox(dirs, log_path):
                           "tag_artist": tags.get("artist", ""), "tag_title": tags.get("title", ""),
                           "tag_album": tags.get("album", ""), "tag_date": tags.get("date", ""), "tag_genre": tags.get("genre", ""),
                           "folder_genre": os.path.basename(os.path.normpath(d)), **info})
-            if p in back:
-                items[-1]["back"] = back[p]
+            if path_key(p) in back:
+                items[-1]["back"] = back[path_key(p)]
     return items, skipped
 
 
